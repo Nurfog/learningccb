@@ -66,6 +66,7 @@ async fn main() {
             "/courses/{id}/analytics",
             get(handlers::get_course_analytics),
         )
+        .route("/courses/{id}/grades", get(handlers::get_course_grades))
         .route(
             "/courses/{id}/analytics/advanced",
             get(handlers::get_advanced_analytics),

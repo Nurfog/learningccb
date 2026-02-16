@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { cmsApi, Course, CourseAnalytics } from "@/lib/api";
+import { cmsApi, Cohort, Course, CourseAnalytics, lmsApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
     BarChart3,
@@ -24,6 +24,8 @@ export default function AnalyticsPage() {
     const [analytics, setAnalytics] = useState<CourseAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState<string | null>(null);
+    const [cohorts, setCohorts] = useState<Cohort[]>([]);
+    const [selectedCohortId, setSelectedCohortId] = useState<string>("");
 
     useEffect(() => {
         const fetchData = async () => {
@@ -39,9 +41,13 @@ export default function AnalyticsPage() {
             }
 
             try {
+                // Fetch cohorts once
+                const cohortsData = await lmsApi.getCohorts();
+                setCohorts(cohortsData);
+
                 const [courseData, analyticsData] = await Promise.all([
                     cmsApi.getCourseWithFullOutline(id),
-                    cmsApi.getCourseAnalytics(id)
+                    cmsApi.getCourseAnalytics(id, selectedCohortId || undefined)
                 ]);
                 setCourse(courseData);
                 setAnalytics(analyticsData);
@@ -53,7 +59,7 @@ export default function AnalyticsPage() {
             }
         };
         fetchData();
-    }, [id, user, router]);
+    }, [id, user, router, selectedCohortId]);
 
     if (loading) return (
         <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -102,6 +108,14 @@ export default function AnalyticsPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
+                        <select
+                            value={selectedCohortId}
+                            onChange={(e) => setSelectedCohortId(e.target.value)}
+                            className="bg-white/5 text-white border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                            <option value="">All Students</option>
+                            {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
                         <button
                             onClick={() => router.push(`/courses/${id}/analytics/advanced`)}
                             className="btn-premium !bg-purple-600/10 !text-purple-400 border border-purple-500/20 hover:!bg-purple-600/20 !shadow-none gap-2 text-xs py-2"

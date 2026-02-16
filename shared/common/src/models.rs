@@ -481,6 +481,16 @@ pub struct AddMemberPayload {
     pub user_id: Uuid,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct StudentGradeReport {
+    pub user_id: Uuid,
+    pub full_name: String,
+    pub email: String,
+    pub progress: f32,
+    pub average_score: Option<f32>,
+    pub last_active_at: Option<DateTime<Utc>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

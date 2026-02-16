@@ -884,6 +884,46 @@ pub async fn get_leaderboard(
     Ok(Json(response))
 }
 
+pub async fn get_course_grades(
+    Org(org_ctx): Org,
+    State(pool): State<PgPool>,
+    Path(course_id): Path<Uuid>,
+    Query(filter): Query<AnalyticsFilter>,
+) -> Result<Json<Vec<common::models::StudentGradeReport>>, (StatusCode, String)> {
+    let rows = sqlx::query_as::<_, common::models::StudentGradeReport>(
+        r#"
+        SELECT 
+            u.id as user_id,
+            u.full_name,
+            u.email,
+            COALESCE(e.progress, 0)::float4 as progress,
+            AVG(g.score)::float4 as average_score,
+            e.updated_at as last_active_at
+        FROM users u
+        JOIN enrollments e ON u.id = e.user_id 
+            AND e.course_id = $1 
+            AND e.organization_id = $2
+        LEFT JOIN user_grades g ON u.id = g.user_id AND g.course_id = $1
+        WHERE ($3::uuid IS NULL OR EXISTS (
+            SELECT 1 FROM user_cohorts uc WHERE uc.user_id = u.id AND uc.cohort_id = $3
+        ))
+        GROUP BY u.id, u.full_name, u.email, e.progress, e.updated_at
+        ORDER BY u.full_name
+        "#,
+    )
+    .bind(course_id)
+    .bind(org_ctx.id)
+    .bind(filter.cohort_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch course grades: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    Ok(Json(rows))
+}
+
 pub async fn get_user_course_grades(
     Org(_org_ctx): Org,
     State(pool): State<PgPool>,
@@ -900,27 +940,51 @@ pub async fn get_user_course_grades(
 
     Ok(Json(grades))
 }
+#[derive(Deserialize)]
+pub struct AnalyticsFilter {
+    pub cohort_id: Option<Uuid>,
+}
+
 pub async fn get_course_analytics(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     Path(course_id): Path<Uuid>,
+    Query(filter): Query<AnalyticsFilter>,
 ) -> Result<Json<CourseAnalytics>, (StatusCode, String)> {
     // 1. Total Enrollments
     let total_enrollments: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM enrollments WHERE course_id = $1 AND organization_id = $2",
+        r#"
+        SELECT COUNT(*) 
+        FROM enrollments e 
+        WHERE e.course_id = $1 
+          AND e.organization_id = $2
+          AND ($3::uuid IS NULL OR EXISTS (
+              SELECT 1 FROM user_cohorts uc WHERE uc.user_id = e.user_id AND uc.cohort_id = $3
+          ))
+        "#,
     )
     .bind(course_id)
     .bind(org_ctx.id)
+    .bind(filter.cohort_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 2. Average Course Score (Overall)
     let average_score: Option<f32> = sqlx::query_scalar(
-        "SELECT AVG(score)::float4 FROM user_grades WHERE course_id = $1 AND organization_id = $2",
+        r#"
+        SELECT AVG(score)::float4 
+        FROM user_grades g 
+        WHERE g.course_id = $1 
+          AND g.organization_id = $2
+          AND ($3::uuid IS NULL OR EXISTS (
+              SELECT 1 FROM user_cohorts uc WHERE uc.user_id = g.user_id AND uc.cohort_id = $3
+          ))
+        "#,
     )
     .bind(course_id)
     .bind(org_ctx.id)
+    .bind(filter.cohort_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -936,6 +1000,9 @@ pub async fn get_course_analytics(
             COUNT(g.id) as submission_count
         FROM lessons l
         LEFT JOIN user_grades g ON l.id = g.lesson_id
+            AND ($3::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM user_cohorts uc WHERE uc.user_id = g.user_id AND uc.cohort_id = $3
+            ))
         WHERE l.module_id IN (SELECT id FROM modules WHERE course_id = $1) AND l.organization_id = $2
         GROUP BY l.id, l.title, l.position
         ORDER BY l.position
@@ -943,6 +1010,7 @@ pub async fn get_course_analytics(
     )
     .bind(course_id)
     .bind(org_ctx.id)
+    .bind(filter.cohort_id)
     .fetch_all(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

@@ -291,6 +291,15 @@ export interface AddMemberPayload {
     user_id: string;
 }
 
+export interface StudentGradeReport {
+    user_id: string;
+    full_name: string;
+    email: string;
+    progress: number;
+    average_score: number | null;
+    last_active_at: string | null;
+}
+
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('studio_token') : null;
 const getSelectedOrgId = () => typeof window !== 'undefined' ? localStorage.getItem('studio_selected_org_id') : null;
 
@@ -362,8 +371,14 @@ export const cmsApi = {
 
     // Admin & Analytics
     getAuditLogs: (): Promise<AuditLog[]> => apiFetch('/audit-logs'),
-    getCourseAnalytics: (id: string): Promise<CourseAnalytics> => apiFetch(`/courses/${id}/analytics`),
-    getAdvancedAnalytics: (id: string): Promise<AdvancedAnalytics> => apiFetch(`/courses/${id}/analytics/advanced`),
+    getCourseAnalytics: (id: string, cohortId?: string): Promise<CourseAnalytics> => {
+        const query = cohortId ? `?cohort_id=${cohortId}` : '';
+        return apiFetch(`/courses/${id}/analytics${query}`, {}, true);
+    },
+    getAdvancedAnalytics: (id: string, cohortId?: string): Promise<AdvancedAnalytics> => {
+        const query = cohortId ? `?cohort_id=${cohortId}` : '';
+        return apiFetch(`/courses/${id}/analytics/advanced${query}`, {}, true);
+    },
     getLessonHeatmap: (lessonId: string): Promise<{ second: number, count: number }[]> => apiFetch(`/lessons/${lessonId}/heatmap`),
     exportCourse: (id: string): Promise<Record<string, unknown>> => apiFetch(`/courses/${id}/export`),
     importCourse: (data: Record<string, unknown>): Promise<Course> => apiFetch(`/courses/import`, {
@@ -489,6 +504,10 @@ export const lmsApi = {
     addMember: (cohortId: string, userId: string): Promise<UserCohort> => apiFetch(`/cohorts/${cohortId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true),
     removeMember: (cohortId: string, userId: string): Promise<void> => apiFetch(`/cohorts/${cohortId}/members/${userId}`, { method: 'DELETE' }, true),
     getMembers: (id: string): Promise<string[]> => apiFetch(`/cohorts/${id}/members`, {}, true),
+    getCourseGrades: (id: string, cohortId?: string): Promise<StudentGradeReport[]> => {
+        const query = cohortId ? `?cohort_id=${cohortId}` : '';
+        return apiFetch(`/courses/${id}/grades${query}`, {}, true);
+    },
 };
 
 export interface BackgroundTask {
