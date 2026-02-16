@@ -200,6 +200,41 @@ export interface GradingCategory {
     drop_count: number;
 }
 
+// Content Libraries
+export interface LibraryBlock {
+    id: string;
+    organization_id: string;
+    created_by: string;
+    name: string;
+    description?: string;
+    block_type: string;
+    block_data: Block;
+    tags?: string[];
+    usage_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateLibraryBlockPayload {
+    name: string;
+    description?: string;
+    block_type: string;
+    block_data: Block;
+    tags?: string[];
+}
+
+export interface UpdateLibraryBlockPayload {
+    name?: string;
+    description?: string;
+    tags?: string[];
+}
+
+export interface LibraryBlockFilters {
+    type?: string;
+    tags?: string;
+    search?: string;
+}
+
 export interface AuditLog {
     id: string;
     user_id: string;
@@ -297,7 +332,6 @@ export interface StudentGradeReport {
     full_name: string;
     email: string;
     progress: number;
-    average_score: number | null;
     average_score: number | null;
     last_active_at: string | null;
 }
@@ -516,6 +550,26 @@ export const cmsApi = {
     getBackgroundTasks: (): Promise<BackgroundTask[]> => apiFetch('/tasks'),
     retryTask: (id: string): Promise<void> => apiFetch(`/tasks/${id}/retry`, { method: 'POST' }),
     cancelTask: (id: string): Promise<void> => apiFetch(`/tasks/${id}`, { method: 'DELETE' }),
+
+    // Content Libraries
+    createLibraryBlock: (payload: CreateLibraryBlockPayload): Promise<LibraryBlock> =>
+        apiFetch('/library/blocks', { method: 'POST', body: JSON.stringify(payload) }),
+    listLibraryBlocks: (filters?: LibraryBlockFilters): Promise<LibraryBlock[]> => {
+        const params = new URLSearchParams();
+        if (filters?.type) params.append('type', filters.type);
+        if (filters?.tags) params.append('tags', filters.tags);
+        if (filters?.search) params.append('search', filters.search);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return apiFetch(`/library/blocks${query}`);
+    },
+    getLibraryBlock: (id: string): Promise<LibraryBlock> =>
+        apiFetch(`/library/blocks/${id}`),
+    updateLibraryBlock: (id: string, payload: UpdateLibraryBlockPayload): Promise<LibraryBlock> =>
+        apiFetch(`/library/blocks/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteLibraryBlock: (id: string): Promise<void> =>
+        apiFetch(`/library/blocks/${id}`, { method: 'DELETE' }),
+    incrementBlockUsage: (id: string): Promise<void> =>
+        apiFetch(`/library/blocks/${id}/increment-usage`, { method: 'POST' }),
 };
 
 export const lmsApi = {
@@ -524,15 +578,19 @@ export const lmsApi = {
     addMember: (cohortId: string, userId: string): Promise<UserCohort> => apiFetch(`/cohorts/${cohortId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true),
     removeMember: (cohortId: string, userId: string): Promise<void> => apiFetch(`/cohorts/${cohortId}/members/${userId}`, { method: 'DELETE' }, true),
     getMembers: (id: string): Promise<string[]> => apiFetch(`/cohorts/${id}/members`, {}, true),
-    const query = cohortId ? `?cohort_id=${cohortId}` : '';
-    return apiFetch(`/courses/${id}/grades${query}`, {}, true);
-},
+    getGrades: (id: string, cohortId?: string): Promise<any> => {
+        const query = cohortId ? `?cohort_id=${cohortId}` : '';
+        return apiFetch(`/courses/${id}/grades${query}`, {}, true);
+    },
     // Peer Assessment
-    submitAssignment: (courseId: string, lessonId: string, content: string): Promise<CourseSubmission> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/submit`, { method: 'POST', body: JSON.stringify({ content }) }, true),
-        getPeerReviewAssignment: (courseId: string, lessonId: string): Promise<CourseSubmission | null> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, {}, true),
-            submitPeerReview: (courseId: string, lessonId: string, submissionId: string, score: number, feedback: string): Promise<PeerReview> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, { method: 'POST', body: JSON.stringify({ submission_id: submissionId, score, feedback }) }, true),
-                getMySubmissionFeedback: (courseId: string, lessonId: string): Promise<PeerReview[]> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/feedback`, {}, true),
-
+    submitAssignment: (courseId: string, lessonId: string, content: string): Promise<CourseSubmission> =>
+        apiFetch(`/courses/${courseId}/lessons/${lessonId}/submit`, { method: 'POST', body: JSON.stringify({ content }) }, true),
+    getPeerReviewAssignment: (courseId: string, lessonId: string): Promise<CourseSubmission | null> =>
+        apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, {}, true),
+    submitPeerReview: (courseId: string, lessonId: string, submissionId: string, score: number, feedback: string): Promise<PeerReview> =>
+        apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, { method: 'POST', body: JSON.stringify({ submission_id: submissionId, score, feedback }) }, true),
+    getMySubmissionFeedback: (courseId: string, lessonId: string): Promise<PeerReview[]> =>
+        apiFetch(`/courses/${courseId}/lessons/${lessonId}/feedback`, {}, true),
 };
 
 export interface BackgroundTask {

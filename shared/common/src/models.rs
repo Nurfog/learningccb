@@ -525,7 +525,52 @@ pub struct SubmitAssignmentPayload {
 pub struct SubmitPeerReviewPayload {
     pub submission_id: Uuid,
     pub score: i32,
-    pub feedback: String,
+}
+
+// Content Libraries
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct LibraryBlock {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub block_type: String,
+    pub block_data: serde_json::Value,
+    pub tags: Option<Vec<String>>,
+    pub usage_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateLibraryBlockPayload {
+    pub name: String,
+    pub description: Option<String>,
+    pub block_type: String,
+    pub block_data: serde_json::Value,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateLibraryBlockPayload {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct LibraryTemplate {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub created_by: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub lesson_data: serde_json::Value,
+    pub tags: Option<Vec<String>>,
+    pub usage_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

@@ -1,9 +1,10 @@
 mod db_util;
 pub mod exporter;
+mod external_handlers;
 mod handlers;
 mod handlers_branding;
+mod handlers_library;
 mod webhooks;
-mod external_handlers;
 
 use axum::{
     Router,
@@ -139,7 +140,10 @@ async fn main() {
             get(handlers::get_grading_categories),
         )
         .route("/auth/me", get(handlers::get_me))
-        .route("/users", get(handlers::get_all_users).post(handlers::admin_create_user))
+        .route(
+            "/users",
+            get(handlers::get_all_users).post(handlers::admin_create_user),
+        )
         .route("/users/{id}", axum::routing::put(handlers::update_user))
         .route("/audit-logs", get(handlers::get_audit_logs))
         .route("/api/ai/review-text", post(handlers::review_text))
@@ -177,14 +181,38 @@ async fn main() {
             "/organizations/{id}/branding",
             axum::routing::put(handlers_branding::update_organization_branding),
         )
+        // Content Libraries routes
+        .route(
+            "/library/blocks",
+            get(handlers_library::list_library_blocks).post(handlers_library::create_library_block),
+        )
+        .route(
+            "/library/blocks/{id}",
+            get(handlers_library::get_library_block)
+                .put(handlers_library::update_library_block)
+                .delete(handlers_library::delete_library_block),
+        )
+        .route(
+            "/library/blocks/{id}/increment-usage",
+            post(handlers_library::increment_block_usage),
+        )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
         ));
 
     let api_routes = Router::new()
-        .route("/v1/courses", post(external_handlers::create_course_external))
-        .route("/v1/courses/{id}", get(external_handlers::get_course_external))
-        .route("/v1/lessons/{id}/transcribe", post(external_handlers::trigger_transcription_external));
+        .route(
+            "/v1/courses",
+            post(external_handlers::create_course_external),
+        )
+        .route(
+            "/v1/courses/{id}",
+            get(external_handlers::get_course_external),
+        )
+        .route(
+            "/v1/lessons/{id}/transcribe",
+            post(external_handlers::trigger_transcription_external),
+        );
 
     // Rutas públicas que no requieren autenticación
     let public_routes = Router::new()

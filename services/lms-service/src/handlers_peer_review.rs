@@ -178,7 +178,7 @@ pub async fn submit_peer_review(
 }
 
 pub async fn get_my_submission_feedback(
-    Org(org_ctx): Org,
+    Org(_org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Path((_course_id, lesson_id)): Path<(Uuid, Uuid)>,
