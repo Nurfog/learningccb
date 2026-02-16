@@ -198,6 +198,15 @@ export interface Module {
     lessons: Lesson[];
 }
 
+export interface StudentNote {
+    id: string;
+    user_id: string;
+    lesson_id: string;
+    content: string;
+    created_at: string;
+    updated_at: string;
+}
+
 // Discussion Forums Types
 export interface DiscussionThread {
     id: string;
@@ -576,6 +585,15 @@ export const lmsApi = {
     async deleteAnnouncement(id: string): Promise<void> {
         return apiFetch(`/announcements/${id}`, {
             method: 'DELETE'
+        });
+    },
+    async getNote(lessonId: string): Promise<StudentNote | null> {
+        return apiFetch(`/lessons/${lessonId}/notes`);
+    },
+    async saveNote(lessonId: string, content: string): Promise<StudentNote> {
+        return apiFetch(`/lessons/${lessonId}/notes`, {
+            method: 'PUT',
+            body: JSON.stringify({ content })
         });
     }
 };

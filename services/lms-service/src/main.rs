@@ -2,6 +2,7 @@ mod db_util;
 mod handlers;
 mod handlers_announcements;
 mod handlers_discussions;
+mod handlers_notes;
 mod handlers_payments;
 
 use axum::{
@@ -147,6 +148,8 @@ async fn main() {
             "/announcements/{id}",
             delete(handlers_announcements::delete_announcement),
         )
+        .route("/lessons/{id}/notes", get(handlers_notes::get_note))
+        .route("/lessons/{id}/notes", put(handlers_notes::save_note))
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
         ));

@@ -19,9 +19,9 @@ import MemoryPlayer from "@/components/blocks/MemoryPlayer";
 import DocumentPlayer from "@/components/blocks/DocumentPlayer";
 import AudioResponsePlayer from "@/components/blocks/AudioResponsePlayer";
 import InteractiveTranscript from "@/components/InteractiveTranscript";
-import AITutor from "@/components/AITutor";
 import LessonLockedView from "@/components/LessonLockedView";
-import { ListMusic } from "lucide-react";
+import StudentNotes from "@/components/StudentNotes";
+import { ListMusic, StickyNote } from "lucide-react";
 
 export default function LessonPlayerPage({ params }: { params: { id: string, lessonId: string } }) {
     const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -29,6 +29,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [transcriptOpen, setTranscriptOpen] = useState(true);
+    const [notesOpen, setNotesOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [userGrade, setUserGrade] = useState<UserGrade | null>(null);
     const [allGrades, setAllGrades] = useState<UserGrade[]>([]);
@@ -214,13 +215,26 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                     </button>
                     {hasTranscription && (
                         <button
-                            onClick={() => setTranscriptOpen(!transcriptOpen)}
+                            onClick={() => {
+                                setTranscriptOpen(!transcriptOpen);
+                                if (!transcriptOpen) setNotesOpen(false);
+                            }}
                             className={`p-3 rounded-xl glass border-white/10 transition-all bg-black/40 ${transcriptOpen ? 'text-blue-400' : 'text-gray-400 hover:text-white'}`}
                             title="Alternar Transcripción"
                         >
                             <ListMusic size={20} />
                         </button>
                     )}
+                    <button
+                        onClick={() => {
+                            setNotesOpen(!notesOpen);
+                            if (!notesOpen) setTranscriptOpen(false);
+                        }}
+                        className={`p-3 rounded-xl glass border-white/10 transition-all bg-black/40 ${notesOpen ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
+                        title="Alternar Notas"
+                    >
+                        <StickyNote size={20} />
+                    </button>
                 </div>
 
                 <div className="flex-1 flex overflow-hidden">
@@ -458,14 +472,43 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                         </div>
                     </div>
 
-                    {/* Interactive Transcript Panel */}
-                    {hasTranscription && transcriptOpen && (
-                        <aside className="w-[400px] border-l border-white/5 bg-black/20 animate-in slide-in-from-right duration-500">
-                            <InteractiveTranscript
-                                transcription={lesson.transcription!}
-                                currentTime={currentTime}
-                                onSeek={handleSeek}
-                            />
+                    {/* Right Side Panels */}
+                    {((hasTranscription && transcriptOpen) || notesOpen) && (
+                        <aside className="w-[400px] border-l border-white/5 bg-black/20 flex flex-col animate-in slide-in-from-right duration-500">
+                            {/* Panel Tabs */}
+                            <div className="flex border-b border-white/5">
+                                {hasTranscription && (
+                                    <button
+                                        onClick={() => setTranscriptOpen(true)}
+                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${transcriptOpen ? 'text-blue-400 bg-white/5' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        Transcripción
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        setNotesOpen(true);
+                                        if (hasTranscription) setTranscriptOpen(false);
+                                    }}
+                                    className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${notesOpen && (!transcriptOpen || !hasTranscription) ? 'text-indigo-400 bg-white/5' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Notas
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-hidden">
+                                {notesOpen && (!transcriptOpen || !hasTranscription) ? (
+                                    <StudentNotes lessonId={params.lessonId} />
+                                ) : (
+                                    hasTranscription && (
+                                        <InteractiveTranscript
+                                            transcription={lesson.transcription!}
+                                            currentTime={currentTime}
+                                            onSeek={handleSeek}
+                                        />
+                                    )
+                                )}
+                            </div>
                         </aside>
                     )}
                 </div>
@@ -508,7 +551,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
 
                 {/* AI Tutor Bubble/Panel */}
                 <AITutor lessonId={params.lessonId} />
-            </main>
-        </div>
+            </main >
+        </div >
     );
 }

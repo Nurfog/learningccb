@@ -435,6 +435,22 @@ pub struct AnnouncementWithAuthor {
     pub author_avatar: Option<String>,
 }
 
+// Student Notes
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct StudentNote {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub lesson_id: Uuid,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveNotePayload {
+    pub content: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

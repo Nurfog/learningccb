@@ -12,7 +12,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!loading) {
             const isAuthPage = pathname?.startsWith("/auth");
-            if (!user && !isAuthPage) {
+            const isCatalogRoot = pathname === "/";
+            if (!user && !isAuthPage && !isCatalogRoot) {
                 router.push("/auth/login");
             } else if (user && isAuthPage) {
                 router.push("/");
@@ -29,7 +30,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const isAuthPage = pathname?.startsWith("/auth");
-    if (!user && !isAuthPage) {
+    const isCatalogRoot = pathname === "/";
+    if (!user && !isAuthPage && !isCatalogRoot) {
         return null;
     }
 
