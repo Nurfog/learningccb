@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, api } from "@/lib/api";
+import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock } from "@/lib/api";
 import Link from "next/link";
 import DescriptionBlock from "@/components/blocks/DescriptionBlock";
 import MediaBlock from "@/components/blocks/MediaBlock";
@@ -216,6 +216,39 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
 
         [newBlocks[index], newBlocks[targetIndex]] = [newBlocks[targetIndex], newBlocks[index]];
         setBlocks(newBlocks);
+    };
+
+    // Content Libraries functions
+    const handleSaveToLibrary = async (name: string, description: string, tags: string[]) => {
+        if (!blockToSave) return;
+
+        try {
+            await cmsApi.createLibraryBlock({
+                name,
+                description,
+                block_type: blockToSave.type,
+                block_data: blockToSave,
+                tags,
+            });
+            alert('¡Bloque guardado en la biblioteca exitosamente!');
+        } catch (error) {
+            console.error('Error saving to library:', error);
+            throw error;
+        }
+    };
+
+    const handleSelectFromLibrary = (libraryBlock: LibraryBlock) => {
+        // Create a new block from the library block
+        const newBlock: Block = {
+            ...libraryBlock.block_data,
+            id: Math.random().toString(36).substr(2, 9), // New unique ID
+        };
+        setBlocks([...blocks, newBlock]);
+    };
+
+    const openSaveToLibraryModal = (block: Block) => {
+        setBlockToSave(block);
+        setIsSaveToLibraryModalOpen(true);
     };
 
 
@@ -779,6 +812,15 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     <span className="text-2xl group-hover:scale-110 transition-transform">{isGeneratingQuiz ? '⏳' : '✨'}</span>
                                     <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{isGeneratingQuiz ? 'Building...' : 'AI Builder'}</span>
                                 </button>
+
+                                {/* Browse Library */}
+                                <button
+                                    onClick={() => setIsLibraryPanelOpen(true)}
+                                    className="flex flex-col items-center gap-2 p-6 bg-gradient-to-b from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:border-emerald-500/60 rounded-3xl transition-all group w-36"
+                                >
+                                    <Library className="w-6 h-6 text-emerald-400 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Library</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -854,6 +896,25 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                     </div>
                 </form>
             </Modal>
+
+            {/* Content Libraries Modals */}
+            {blockToSave && (
+                <SaveToLibraryModal
+                    block={blockToSave}
+                    isOpen={isSaveToLibraryModalOpen}
+                    onClose={() => {
+                        setIsSaveToLibraryModalOpen(false);
+                        setBlockToSave(null);
+                    }}
+                    onSave={handleSaveToLibrary}
+                />
+            )}
+
+            <LibraryPanel
+                isOpen={isLibraryPanelOpen}
+                onClose={() => setIsLibraryPanelOpen(false)}
+                onSelectBlock={handleSelectFromLibrary}
+            />
         </div >
     );
 }

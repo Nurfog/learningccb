@@ -34,7 +34,7 @@ export default function LibraryPanel({ isOpen, onClose, onSelectBlock }: Library
     const loadBlocks = async () => {
         setLoading(true);
         try {
-            const data = await api.listLibraryBlocks();
+            const data = await cmsApi.listLibraryBlocks();
             setBlocks(data);
         } catch (error) {
             console.error('Error loading library blocks:', error);
@@ -68,7 +68,7 @@ export default function LibraryPanel({ isOpen, onClose, onSelectBlock }: Library
     const handleUseBlock = async (block: LibraryBlock) => {
         try {
             // Increment usage counter
-            await api.incrementBlockUsage(block.id);
+            await cmsApi.incrementBlockUsage(block.id);
             onSelectBlock(block);
             onClose();
         } catch (error) {
@@ -81,7 +81,7 @@ export default function LibraryPanel({ isOpen, onClose, onSelectBlock }: Library
         if (!confirm('¿Estás seguro de eliminar este bloque de la biblioteca?')) return;
 
         try {
-            await api.deleteLibraryBlock(blockId);
+            await cmsApi.deleteLibraryBlock(blockId);
             setBlocks(blocks.filter(b => b.id !== blockId));
         } catch (error) {
             console.error('Error deleting block:', error);
