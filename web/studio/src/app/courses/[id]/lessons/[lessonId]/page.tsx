@@ -560,6 +560,13 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                 </button>
                                 <div className="h-4"></div>
                                 <button
+                                    onClick={() => openSaveToLibraryModal(block)}
+                                    className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all border border-emerald-500/20 group-hover/block:scale-110"
+                                    title="Save to Library"
+                                >
+                                    <BookMarked className="w-5 h-5" />
+                                </button>
+                                <button
                                     onClick={() => removeBlock(block.id)}
                                     className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-500/20 group-hover/block:scale-110"
                                     title="Remove Block"
