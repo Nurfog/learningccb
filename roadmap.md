@@ -181,8 +181,8 @@
   - [x] Integración con notificaciones
 - [x] **Course Announcements**: Sistema de anuncios de instructores con notificaciones.
 - [x] **Student Notes**: Anotaciones personales por lección con exportación a PDF.
-- [ ] **Peer Assessment**: Evaluación entre pares con rúbricas configurables.
-- [ ] **Cohorts & Groups**: Segmentación de estudiantes con contenido específico.
+- [x] **Peer Assessment**: Evaluación entre pares con rúbricas configurables.
+- [x] **Cohorts & Groups**: Segmentación de estudiantes con contenido específico.
 - [ ] **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
 - [ ] **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
 - [ ] **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
@@ -218,6 +218,6 @@
 **Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios** y **monetización integrada con Mercado Pago**.
 
 **Próximas Prioridades**:
-1. **LTI 1.3 Research**: Bases para la interoperabilidad con LMS externos.
-3. **Course Wiki**: Espacio colaborativo para documentación de cursos.
-4. **Student Notes**: Anotaciones personales exportables.
+1. **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
+2. **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
+3. **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.

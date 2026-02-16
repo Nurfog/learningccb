@@ -5,6 +5,7 @@ mod handlers_cohorts;
 mod handlers_discussions;
 mod handlers_notes;
 mod handlers_payments;
+mod handlers_peer_review;
 
 use axum::{
     Router, middleware,
@@ -166,6 +167,23 @@ async fn main() {
         .route(
             "/cohorts/{id}/members",
             get(handlers_cohorts::get_cohort_members),
+        )
+        // Peer Assessment
+        .route(
+            "/courses/{id}/lessons/{lesson_id}/submit",
+            post(handlers_peer_review::submit_assignment),
+        )
+        .route(
+            "/courses/{id}/lessons/{lesson_id}/peer-review",
+            get(handlers_peer_review::get_peer_review_assignment),
+        )
+        .route(
+            "/courses/{id}/lessons/{lesson_id}/peer-review",
+            post(handlers_peer_review::submit_peer_review),
+        )
+        .route(
+            "/courses/{id}/lessons/{lesson_id}/feedback",
+            get(handlers_peer_review::get_my_submission_feedback),
         )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,

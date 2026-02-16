@@ -57,7 +57,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review';
     title?: string;
     content?: string;
     url?: string;
@@ -87,6 +87,7 @@ export interface Block {
         label: string;
     }[];
     imageUrl?: string;
+    reviewCriteria?: string;
 }
 
 export interface Lesson {
@@ -297,7 +298,26 @@ export interface StudentGradeReport {
     email: string;
     progress: number;
     average_score: number | null;
+    average_score: number | null;
     last_active_at: string | null;
+}
+
+export interface CourseSubmission {
+    id: string;
+    user_id: string;
+    course_id: string;
+    lesson_id: string;
+    content: string;
+    submitted_at: string;
+}
+
+export interface PeerReview {
+    id: string;
+    submission_id: string;
+    reviewer_id: string;
+    score: number;
+    feedback: string;
+    created_at: string;
 }
 
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('studio_token') : null;
@@ -504,10 +524,15 @@ export const lmsApi = {
     addMember: (cohortId: string, userId: string): Promise<UserCohort> => apiFetch(`/cohorts/${cohortId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true),
     removeMember: (cohortId: string, userId: string): Promise<void> => apiFetch(`/cohorts/${cohortId}/members/${userId}`, { method: 'DELETE' }, true),
     getMembers: (id: string): Promise<string[]> => apiFetch(`/cohorts/${id}/members`, {}, true),
-    getCourseGrades: (id: string, cohortId?: string): Promise<StudentGradeReport[]> => {
-        const query = cohortId ? `?cohort_id=${cohortId}` : '';
-        return apiFetch(`/courses/${id}/grades${query}`, {}, true);
-    },
+    const query = cohortId ? `?cohort_id=${cohortId}` : '';
+    return apiFetch(`/courses/${id}/grades${query}`, {}, true);
+},
+    // Peer Assessment
+    submitAssignment: (courseId: string, lessonId: string, content: string): Promise<CourseSubmission> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/submit`, { method: 'POST', body: JSON.stringify({ content }) }, true),
+        getPeerReviewAssignment: (courseId: string, lessonId: string): Promise<CourseSubmission | null> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, {}, true),
+            submitPeerReview: (courseId: string, lessonId: string, submissionId: string, score: number, feedback: string): Promise<PeerReview> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, { method: 'POST', body: JSON.stringify({ submission_id: submissionId, score, feedback }) }, true),
+                getMySubmissionFeedback: (courseId: string, lessonId: string): Promise<PeerReview[]> => apiFetch(`/courses/${courseId}/lessons/${lessonId}/feedback`, {}, true),
+
 };
 
 export interface BackgroundTask {

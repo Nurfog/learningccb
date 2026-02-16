@@ -39,6 +39,8 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Split Authentication Flow**: Flujos de autenticación diferenciados para usuarios personales (email/password) y empresas (dominio corporativo).
 - **Course Monetization**: Integración con Mercado Pago para venta de cursos, con inscripciones automáticas y paneles de precios para instructores.
 - **Student Notes**: Sistema de anotaciones personales por lección con auto-guardado inteligente (debounced).
+- **Cohorts & Groups**: Segmentación de estudiantes en cohortes para gestión de grupos y análisis comparativo.
+- **Interactive Gradebook**: Libro de calificaciones avanzado con filtrado por cohortes y exportación a CSV.
 
 ##  Requisitos del Sistema
 
@@ -592,6 +594,8 @@ Obtiene una lista de todas las organizaciones registradas.
 - **Split Authentication**: Separate login flows for personal users and enterprise organizations with SSO support.
 - **Mercado Pago Monetization**: Integrated payment gateway with automatic course unlocking and transaction tracking.
 - **Student Notes Panel**: Personal lesson annotations with glassmorphism UI and intelligent auto-save.
+- **Cohort Management**: Comprehensive group management system with member assignment and progress tracking.
+- **Advanced Gradebook**: Student performance tracking with cohort-based filtering and analytics.
 
 ## 📄 Licencia
 Este proyecto es código abierto y está disponible bajo los términos de la licencia especificada en el repositorio.

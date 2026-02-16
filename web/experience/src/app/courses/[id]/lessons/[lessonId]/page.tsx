@@ -18,6 +18,7 @@ import HotspotPlayer from "@/components/blocks/HotspotPlayer";
 import MemoryPlayer from "@/components/blocks/MemoryPlayer";
 import DocumentPlayer from "@/components/blocks/DocumentPlayer";
 import AudioResponsePlayer from "@/components/blocks/AudioResponsePlayer";
+import PeerReviewPlayer from "@/components/blocks/PeerReviewPlayer";
 import InteractiveTranscript from "@/components/InteractiveTranscript";
 import AITutor from "@/components/AITutor";
 import LessonLockedView from "@/components/LessonLockedView";
@@ -415,6 +416,14 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                 title={block.title}
                                                                 pairs={block.pairs || []}
                                                                 onComplete={(score) => handleBlockComplete(block.id, score)}
+                                                            />
+                                                        );
+                                                    case 'peer-review':
+                                                        return (
+                                                            <PeerReviewPlayer
+                                                                courseId={params.id}
+                                                                lessonId={params.lessonId}
+                                                                block={block}
                                                             />
                                                         );
                                                     default:

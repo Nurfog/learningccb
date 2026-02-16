@@ -491,6 +491,43 @@ pub struct StudentGradeReport {
     pub last_active_at: Option<DateTime<Utc>>,
 }
 
+// Peer Assessment
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct CourseSubmission {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub course_id: Uuid,
+    pub lesson_id: Uuid,
+    pub content: String,
+    pub submitted_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub organization_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct PeerReview {
+    pub id: Uuid,
+    pub submission_id: Uuid,
+    pub reviewer_id: Uuid,
+    pub score: i32,
+    pub feedback: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub organization_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitAssignmentPayload {
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitPeerReviewPayload {
+    pub submission_id: Uuid,
+    pub score: i32,
+    pub feedback: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

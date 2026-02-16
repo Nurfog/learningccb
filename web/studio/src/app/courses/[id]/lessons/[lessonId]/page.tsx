@@ -15,6 +15,7 @@ import VideoMarkerBlock from "@/components/blocks/VideoMarkerBlock";
 import AudioResponseBlock from "@/components/blocks/AudioResponseBlock";
 import HotspotBlock from "@/components/blocks/HotspotBlock";
 import MemoryBlock from "@/components/blocks/MemoryBlock";
+import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
 import Modal from "@/components/Modal";
 import {
     Save,
@@ -186,6 +187,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             ...(type === 'audio-response' && { prompt: "Ask a question for the student to record their answer...", keywords: [], timeLimit: 60 }),
             ...(type === 'hotspot' && { imageUrl: "", description: "Find the following items...", hotspots: [] }),
             ...(type === 'memory-match' && { pairs: [{ id: "1", left: "Term A", right: "Match A" }] }),
+            ...(type === 'peer-review' && { prompt: "Submit your work below.", reviewCriteria: "Evaluate based on clarity and completeness." }),
         };
         setBlocks([...blocks, newBlock]);
     };
@@ -647,6 +649,16 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     onChange={(updates) => updateBlock(block.id, updates)}
                                 />
                             )}
+                            {block.type === 'peer-review' && (
+                                <PeerReviewBlock
+                                    id={block.id}
+                                    title={block.title}
+                                    prompt={block.prompt || ""}
+                                    reviewCriteria={block.reviewCriteria}
+                                    editMode={editMode}
+                                    onChange={(updates) => updateBlock(block.id, updates)}
+                                />
+                            )}
                         </div>
                     </div>
                 ))}
@@ -739,6 +751,13 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                 >
                                     <span className="text-2xl group-hover:scale-110 transition-transform">🧠</span>
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Memory</span>
+                                </button>
+                                <button
+                                    onClick={() => addBlock('peer-review')}
+                                    className="flex flex-col items-center gap-2 p-6 glass hover:border-purple-500/50 transition-all group w-32"
+                                >
+                                    <span className="text-2xl group-hover:scale-110 transition-transform">👥</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Peer Rev</span>
                                 </button>
 
                                 <div className="w-px h-12 bg-white/5"></div>

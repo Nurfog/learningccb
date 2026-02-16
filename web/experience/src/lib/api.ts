@@ -75,7 +75,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review';
     title: string;
     content?: string;
     url?: string;
@@ -93,6 +93,7 @@ export interface Block {
     keywords?: string[];
     timeLimit?: number;
     description?: string;
+    reviewCriteria?: string;
     imageUrl?: string;
     hotspots?: {
         id: string;
@@ -145,6 +146,24 @@ export interface UserGrade {
     score: number;
     attempts_count: number;
     metadata: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface CourseSubmission {
+    id: string;
+    user_id: string;
+    course_id: string;
+    lesson_id: string;
+    content: string;
+    submitted_at: string;
+}
+
+export interface PeerReview {
+    id: string;
+    submission_id: string;
+    reviewer_id: string;
+    score: number;
+    feedback: string;
     created_at: string;
 }
 
@@ -595,5 +614,25 @@ export const lmsApi = {
             method: 'PUT',
             body: JSON.stringify({ content })
         });
-    }
+    },
+
+    // Peer Assessment
+    async submitAssignment(courseId: string, lessonId: string, content: string): Promise<CourseSubmission> {
+        return apiFetch(`/courses/${courseId}/lessons/${lessonId}/submit`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+    },
+    async getPeerReviewAssignment(courseId: string, lessonId: string): Promise<CourseSubmission | null> {
+        return apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`);
+    },
+    async submitPeerReview(courseId: string, lessonId: string, submissionId: string, score: number, feedback: string): Promise<PeerReview> {
+        return apiFetch(`/courses/${courseId}/lessons/${lessonId}/peer-review`, {
+            method: 'POST',
+            body: JSON.stringify({ submission_id: submissionId, score, feedback })
+        });
+    },
+    async getMySubmissionFeedback(courseId: string, lessonId: string): Promise<PeerReview[]> {
+        return apiFetch(`/courses/${courseId}/lessons/${lessonId}/feedback`);
+    },
 };
