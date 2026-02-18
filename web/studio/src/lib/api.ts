@@ -235,6 +235,118 @@ export interface LibraryBlockFilters {
     search?: string;
 }
 
+// ==================== Advanced Grading / Rubrics ====================
+
+export interface Rubric {
+    id: string;
+    organization_id: string;
+    course_id: string | null;
+    created_by: string;
+    name: string;
+    description: string | null;
+    total_points: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RubricCriterion {
+    id: string;
+    rubric_id: string;
+    name: string;
+    description: string | null;
+    max_points: number;
+    position: number;
+    created_at: string;
+}
+
+export interface RubricLevel {
+    id: string;
+    criterion_id: string;
+    name: string;
+    description: string | null;
+    points: number;
+    position: number;
+    created_at: string;
+}
+
+export interface RubricWithDetails {
+    id: string;
+    organization_id: string;
+    course_id: string | null;
+    created_by: string;
+    name: string;
+    description: string | null;
+    total_points: number;
+    created_at: string;
+    updated_at: string;
+    criteria: CriterionWithLevels[];
+}
+
+export interface CriterionWithLevels {
+    id: string;
+    rubric_id: string;
+    name: string;
+    description: string | null;
+    max_points: number;
+    position: number;
+    created_at: string;
+    levels: RubricLevel[];
+}
+
+export interface CreateRubricPayload {
+    name: string;
+    description?: string;
+    course_id?: string;
+}
+
+export interface UpdateRubricPayload {
+    name?: string;
+    description?: string;
+}
+
+export interface CreateCriterionPayload {
+    name: string;
+    description?: string;
+    max_points: number;
+    position?: number;
+}
+
+export interface UpdateCriterionPayload {
+    name?: string;
+    description?: string;
+    max_points?: number;
+    position?: number;
+}
+
+export interface CreateLevelPayload {
+    name: string;
+    description?: string;
+    points: number;
+    position?: number;
+}
+
+export interface UpdateLevelPayload {
+    name?: string;
+    description?: string;
+    points?: number;
+    position?: number;
+}
+// ==================== Learning Sequences / Dependencies ====================
+
+export interface LessonDependency {
+    id: string;
+    organization_id: string;
+    lesson_id: string;
+    prerequisite_lesson_id: string;
+    min_score_percentage: number | null;
+    created_at: string;
+}
+
+export interface AssignDependencyPayload {
+    prerequisite_lesson_id: string;
+    min_score_percentage?: number;
+}
+
 export interface AuditLog {
     id: string;
     user_id: string;
@@ -570,6 +682,50 @@ export const cmsApi = {
         apiFetch(`/library/blocks/${id}`, { method: 'DELETE' }),
     incrementBlockUsage: (id: string): Promise<void> =>
         apiFetch(`/library/blocks/${id}/increment-usage`, { method: 'POST' }),
+
+    // Advanced Grading / Rubrics
+    createRubric: (courseId: string, payload: CreateRubricPayload): Promise<Rubric> =>
+        apiFetch(`/courses/${courseId}/rubrics`, { method: 'POST', body: JSON.stringify(payload) }),
+    listCourseRubrics: (courseId: string): Promise<Rubric[]> =>
+        apiFetch(`/courses/${courseId}/rubrics`),
+    getRubricWithDetails: (rubricId: string): Promise<RubricWithDetails> =>
+        apiFetch(`/rubrics/${rubricId}`),
+    updateRubric: (rubricId: string, payload: UpdateRubricPayload): Promise<Rubric> =>
+        apiFetch(`/rubrics/${rubricId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteRubric: (rubricId: string): Promise<void> =>
+        apiFetch(`/rubrics/${rubricId}`, { method: 'DELETE' }),
+
+    // Rubric Criteria
+    createCriterion: (rubricId: string, payload: CreateCriterionPayload): Promise<RubricCriterion> =>
+        apiFetch(`/rubrics/${rubricId}/criteria`, { method: 'POST', body: JSON.stringify(payload) }),
+    updateCriterion: (criterionId: string, payload: UpdateCriterionPayload): Promise<RubricCriterion> =>
+        apiFetch(`/criteria/${criterionId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteCriterion: (criterionId: string): Promise<void> =>
+        apiFetch(`/criteria/${criterionId}`, { method: 'DELETE' }),
+
+    // Rubric Levels
+    createLevel: (criterionId: string, payload: CreateLevelPayload): Promise<RubricLevel> =>
+        apiFetch(`/criteria/${criterionId}/levels`, { method: 'POST', body: JSON.stringify(payload) }),
+    updateLevel: (levelId: string, payload: UpdateLevelPayload): Promise<RubricLevel> =>
+        apiFetch(`/levels/${levelId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteLevel: (levelId: string): Promise<void> =>
+        apiFetch(`/levels/${levelId}`, { method: 'DELETE' }),
+
+    // Lesson-Rubric Association
+    assignRubricToLesson: (lessonId: string, rubricId: string): Promise<void> =>
+        apiFetch(`/lessons/${lessonId}/rubrics/${rubricId}`, { method: 'POST' }),
+    unassignRubricFromLesson: (lessonId: string, rubricId: string): Promise<void> =>
+        apiFetch(`/lessons/${lessonId}/rubrics/${rubricId}`, { method: 'DELETE' }),
+    getLessonRubrics: (lessonId: string): Promise<Rubric[]> =>
+        apiFetch(`/lessons/${lessonId}/rubrics`),
+
+    // Learning Sequences (Dependencies)
+    listLessonDependencies: (lessonId: string): Promise<LessonDependency[]> =>
+        apiFetch(`/lessons/${lessonId}/dependencies`),
+    assignDependency: (lessonId: string, payload: AssignDependencyPayload): Promise<LessonDependency> =>
+        apiFetch(`/lessons/${lessonId}/dependencies`, { method: 'POST', body: JSON.stringify(payload) }),
+    removeDependency: (lessonId: string, prerequisiteId: string): Promise<void> =>
+        apiFetch(`/lessons/${lessonId}/dependencies/${prerequisiteId}`, { method: 'DELETE' }),
 };
 
 export const lmsApi = {

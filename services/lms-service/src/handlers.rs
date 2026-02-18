@@ -600,11 +600,31 @@ pub async fn get_course_outline(
         pub_modules.push(common::models::PublishedModule { module, lessons });
     }
 
+    // 6. Fetch all dependencies for this course
+    let dependencies = sqlx::query_as!(
+        LessonDependency,
+        r#"
+        SELECT ld.* 
+        FROM lesson_dependencies ld
+        JOIN lessons l ON ld.lesson_id = l.id
+        JOIN modules m ON l.module_id = m.id
+        WHERE m.course_id = $1
+        "#,
+        id
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_course_outline: dependencies fetch failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     Ok(Json(common::models::PublishedCourse {
         course,
         organization,
         grading_categories,
         modules: pub_modules,
+        dependencies: Some(dependencies),
     }))
 }
 
@@ -620,7 +640,7 @@ pub async fn get_lesson_content(
         claims.sub
     );
 
-    // Check if user is enrolled in the course this lesson belongs to
+    // 1. Check if user is enrolled in the course this lesson belongs to
     let lesson = sqlx::query_as::<_, Lesson>(
         "SELECT l.* FROM lessons l
          JOIN modules m ON l.module_id = m.id
@@ -636,17 +656,64 @@ pub async fn get_lesson_content(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    match lesson {
-        Some(l) => Ok(Json(l)),
+    let lesson = match lesson {
+        Some(l) => l,
         None => {
             tracing::warn!(
                 "get_lesson_content: User {} not enrolled or lesson {} not found",
                 claims.sub,
                 id
             );
-            Err(StatusCode::FORBIDDEN)
+            return Err(StatusCode::FORBIDDEN);
         }
+    };
+
+    // 2. Enforce Prerequisites
+    // We check if there are any prerequisites that the user hasn't completed yet.
+    // A prerequisite is completed if:
+    // a) It's graded and the user has a grade >= min_score_percentage (default 0)
+    // b) It's not graded and the user has a 'complete' interaction
+    let unmet_dependencies = sqlx::query!(
+        r#"
+        SELECT ld.prerequisite_lesson_id, p.title as prereq_title, ld.min_score_percentage
+        FROM lesson_dependencies ld
+        JOIN lessons p ON ld.prerequisite_lesson_id = p.id
+        LEFT JOIN user_grades ug ON ld.prerequisite_lesson_id = ug.lesson_id AND ug.user_id = $2
+        LEFT JOIN lesson_interactions li ON ld.prerequisite_lesson_id = li.lesson_id 
+            AND li.user_id = $2 AND li.event_type = 'complete'
+        WHERE ld.lesson_id = $1
+        AND (
+            (p.is_graded = true AND (ug.score IS NULL OR (ug.score * 100.0) < COALESCE(ld.min_score_percentage, 0.0)))
+            OR
+            (p.is_graded = false AND li.id IS NULL)
+        )
+        "#,
+        id,
+        claims.sub
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_lesson_content: failed to check dependencies: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !unmet_dependencies.is_empty() {
+        let names: Vec<String> = unmet_dependencies
+            .iter()
+            .map(|d| d.prereq_title.clone())
+            .collect();
+        tracing::warn!(
+            "get_lesson_content: User {} blocked for lesson {} by prerequisites: {:?}",
+            claims.sub,
+            id,
+            names
+        );
+        // We could return a custom error body here, but for now 403 Forbidden is consistent.
+        return Err(StatusCode::FORBIDDEN);
     }
+
+    Ok(Json(lesson))
 }
 
 pub async fn get_user_enrollments(

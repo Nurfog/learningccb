@@ -1,8 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock } from "@/lib/api";
-import Link from "next/link";
+import { useEffect, useState, useCallback } from "react";
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, Rubric, RubricLevel, RubricCriterion, LessonDependency } from '@/lib/api';
+import {
+    Layout,
+    CheckCircle2,
+    Pencil,
+    Save,
+    Trash2,
+    Plus,
+    X,
+    ChevronDown,
+    ChevronUp,
+    Settings,
+    Target,
+    Eye,
+    Brain,
+    Library,
+    BookMarked,
+    ArrowLeft
+} from 'lucide-react';
 import DescriptionBlock from "@/components/blocks/DescriptionBlock";
 import MediaBlock from "@/components/blocks/MediaBlock";
 import QuizBlock from "@/components/blocks/QuizBlock";
@@ -19,16 +38,6 @@ import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
 import SaveToLibraryModal from "@/components/modals/SaveToLibraryModal";
 import LibraryPanel from "@/components/LibraryPanel";
 import Modal from "@/components/Modal";
-import {
-    Save,
-    X,
-    Pencil,
-    ChevronUp,
-    ChevronDown,
-    Trash2,
-    BookMarked,
-    Library
-} from "lucide-react";
 
 export default function LessonEditor({ params }: { params: { id: string; lessonId: string } }) {
     const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -50,14 +59,23 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
     const [dueDate, setDueDate] = useState<string>("");
     const [importantDateType, setImportantDateType] = useState<string>("");
 
-    const [isAIQuizModalOpen, setIsAIQuizModalOpen] = useState(false);
-    const [aiQuizContext, setAiQuizContext] = useState("");
-    const [aiQuizType, setAiQuizType] = useState("multiple-choice");
+    // Rubric State
+    const [courseRubrics, setCourseRubrics] = useState<Rubric[]>([]);
+    const [assignedRubricIds, setAssignedRubricIds] = useState<string[]>([]);
 
     // Content Libraries states
     const [isSaveToLibraryModalOpen, setIsSaveToLibraryModalOpen] = useState(false);
     const [blockToSave, setBlockToSave] = useState<Block | null>(null);
     const [isLibraryPanelOpen, setIsLibraryPanelOpen] = useState(false);
+
+    // Learning Sequences State
+    const [allLessons, setAllLessons] = useState<Lesson[]>([]);
+    const [dependencies, setDependencies] = useState<LessonDependency[]>([]);
+
+    // AI Quiz Generation State
+    const [isAIQuizModalOpen, setIsAIQuizModalOpen] = useState(false);
+    const [aiQuizContext, setAiQuizContext] = useState("");
+    const [aiQuizType, setAiQuizType] = useState("multiple-choice");
 
     const [editValue, setEditValue] = useState("");
 
@@ -120,6 +138,28 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                 // Load grading categories
                 const categories = await cmsApi.getGradingCategories(params.id);
                 setGradingCategories(categories);
+
+                // Load course rubrics and lesson rubrics
+                const [allRubrics, lessonRubrics, courseOutline, lessonDeps] = await Promise.all([
+                    cmsApi.listCourseRubrics(params.id),
+                    cmsApi.getLessonRubrics(params.lessonId),
+                    cmsApi.getCourseWithFullOutline(params.id),
+                    cmsApi.listLessonDependencies(params.lessonId)
+                ]);
+                setCourseRubrics(allRubrics);
+                setAssignedRubricIds(lessonRubrics.map(r => r.id));
+
+                // Extract all lessons from outline for prerequisite selection
+                const lessons: Lesson[] = [];
+                courseOutline.modules?.forEach(m => {
+                    m.lessons.forEach(l => {
+                        if (l.id !== params.lessonId) {
+                            lessons.push(l);
+                        }
+                    });
+                });
+                setAllLessons(lessons);
+                setDependencies(lessonDeps);
             } catch {
                 console.error("Failed to load lesson or categories");
             } finally {
@@ -137,6 +177,21 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             setEditingId(null);
         } catch {
             alert("Failed to update title");
+        }
+    };
+
+    const toggleRubric = async (rubricId: string, isAssigned: boolean) => {
+        try {
+            if (isAssigned) {
+                await cmsApi.unassignRubricFromLesson(params.lessonId, rubricId);
+                setAssignedRubricIds(assignedRubricIds.filter(id => id !== rubricId));
+            } else {
+                await cmsApi.assignRubricToLesson(params.lessonId, rubricId);
+                setAssignedRubricIds([...assignedRubricIds, rubricId]);
+            }
+        } catch (err) {
+            console.error("Failed to toggle rubric", err);
+            alert("Failed to update rubric assignment.");
         }
     };
 
@@ -265,7 +320,22 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
         }
     };
 
-    const handleGenerateQuiz = async () => {
+    const toggleDependency = async (prerequisiteId: string, isAssigned: boolean) => {
+        try {
+            if (isAssigned) {
+                await cmsApi.removeDependency(params.lessonId, prerequisiteId);
+                setDependencies(dependencies.filter(d => d.prerequisite_lesson_id !== prerequisiteId));
+            } else {
+                const newDep = await cmsApi.assignDependency(params.lessonId, { prerequisite_lesson_id: prerequisiteId });
+                setDependencies([...dependencies, newDep]);
+            }
+        } catch (err) {
+            console.error("Failed to toggle dependency", err);
+            alert("Failed to update prerequisite assignment.");
+        }
+    };
+
+    const handleGenerateQuiz = () => {
         setIsAIQuizModalOpen(true);
     };
 
@@ -368,22 +438,54 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
 
                     {isGraded && (
                         <>
-                            <div className="col-span-full space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Assessment Category</span>
-                                <select
-                                    value={selectedCategoryId}
-                                    onChange={(e) => setSelectedCategoryId(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-all appearance-none font-bold"
-                                >
-                                    <option value="" className="bg-gray-900 border-0">Select Category...</option>
-                                    {gradingCategories.map((cat) => (
-                                        <option key={cat.id} value={cat.id} className="bg-gray-900 border-0">
-                                            {cat.name} ({cat.weight}%)
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="text-[10px] text-gray-500 italic mt-1 pl-1">
-                                    Manage categories in <Link href={`/courses/${params.id}/grading`} className="text-blue-400 hover:underline">Grading Policy</Link>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-4">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Assessment Category</span>
+                                    <select
+                                        value={selectedCategoryId}
+                                        onChange={(e) => setSelectedCategoryId(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-all appearance-none font-bold"
+                                    >
+                                        <option value="" className="bg-gray-900 border-0">Select Category...</option>
+                                        {gradingCategories.map((cat) => (
+                                            <option key={cat.id} value={cat.id} className="bg-gray-900 border-0">
+                                                {cat.name} ({cat.weight}%)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="text-[10px] text-gray-500 italic mt-1 pl-1">
+                                        Manage categories in <Link href={`/courses/${params.id}/grading`} className="text-blue-400 hover:underline">Grading Policy</Link>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Rubric (Optional)</span>
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-h-48 overflow-y-auto space-y-2">
+                                        {courseRubrics.length === 0 ? (
+                                            <p className="text-xs text-gray-500 italic p-2 text-center">No rubrics found in this course.</p>
+                                        ) : (
+                                            courseRubrics.map(rubric => {
+                                                const isAssigned = assignedRubricIds.includes(rubric.id);
+                                                return (
+                                                    <label key={rubric.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-all cursor-pointer group">
+                                                        <div className="flex items-center gap-3">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isAssigned}
+                                                                onChange={() => toggleRubric(rubric.id, isAssigned)}
+                                                                className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                                                            />
+                                                            <span className="text-sm font-medium text-gray-200 group-hover:text-blue-400 transition-colors">{rubric.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-1.5 py-0.5 rounded">{rubric.total_points} pts</span>
+                                                    </label>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 italic mt-1 pl-1">
+                                        Manage rubrics in <Link href={`/courses/${params.id}/rubrics`} className="text-blue-400 hover:underline">Rubrics Manager</Link>
+                                    </div>
                                 </div>
                             </div>
 
@@ -417,6 +519,104 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                         <span className="text-sm font-bold text-gray-400 peer-checked:text-white transition-colors">Allow Instant Corrections</span>
                                     </label>
                                     <p className="text-[10px] text-gray-600 italic">Enables &quot;Check Answer&quot; buttons for individual blocks</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-8 border-t border-white/5 animate-in fade-in duration-500 delay-150">
+                                <div className="flex items-center gap-2 mb-6 uppercase tracking-[0.2em] text-[10px] font-black text-gray-500">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50"></span>
+                                    Access & Prerequisites
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <h4 className="text-sm font-bold text-gray-200">Prerequisites</h4>
+                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                            Students must complete these lessons before they can access this one.
+                                        </p>
+                                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 max-h-60 overflow-y-auto space-y-2">
+                                            {allLessons.length === 0 ? (
+                                                <p className="text-xs text-gray-500 italic p-4 text-center">No other lessons available.</p>
+                                            ) : (
+                                                allLessons.map(l => {
+                                                    const dep = dependencies.find(d => d.prerequisite_lesson_id === l.id);
+                                                    const isAssigned = !!dep;
+                                                    return (
+                                                        <div key={l.id} className="space-y-2 p-2 rounded-xl hover:bg-white/5 transition-all group border border-transparent hover:border-white/10">
+                                                            <label className="flex items-center justify-between cursor-pointer">
+                                                                <div className="flex items-center gap-3">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isAssigned}
+                                                                        onChange={() => toggleDependency(l.id, isAssigned)}
+                                                                        className="w-4 h-4 rounded-md border-gray-700 bg-gray-800 text-blue-500 focus:ring-blue-500 transition-all"
+                                                                    />
+                                                                    <span className={`text-sm font-medium transition-colors ${isAssigned ? 'text-blue-400' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                                                        {l.title}
+                                                                    </span>
+                                                                </div>
+                                                                {l.is_graded && (
+                                                                    <span className="text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20">Graded</span>
+                                                                )}
+                                                            </label>
+                                                            {isAssigned && l.is_graded && (
+                                                                <div className="pl-7 animate-in slide-in-from-left-2 duration-300">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Min. Score %</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="100"
+                                                                            value={dep.min_score_percentage || 0}
+                                                                            onChange={async (e) => {
+                                                                                const minScore = parseFloat(e.target.value);
+                                                                                try {
+                                                                                    const updated = await cmsApi.assignDependency(params.lessonId, {
+                                                                                        prerequisite_lesson_id: l.id,
+                                                                                        min_score_percentage: minScore
+                                                                                    });
+                                                                                    setDependencies(dependencies.map(d => d.id === updated.id ? updated : d));
+                                                                                } catch (err) {
+                                                                                    console.error("Failed to update min score", err);
+                                                                                }
+                                                                            }}
+                                                                            className="w-16 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-blue-400 font-bold focus:outline-none focus:border-blue-500"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col justify-center gap-4 px-6 border-l border-white/5">
+                                        <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
+                                            <div className="p-2 rounded-xl bg-indigo-500/20">
+                                                <Layout className="w-5 h-5 text-indigo-400" />
+                                            </div>
+                                            <div>
+                                                <h5 className="text-sm font-bold text-indigo-300">Intelligent Sequences</h5>
+                                                <p className="text-[11px] text-indigo-300/60 leading-relaxed mt-1">
+                                                    Locked lessons will be visible in the student outline with a lock icon 🔒 until they meet all prerequisites.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-4 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10">
+                                            <div className="p-2 rounded-xl bg-blue-500/20">
+                                                <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <h5 className="text-sm font-bold text-blue-300">Completion Tracking</h5>
+                                                <p className="text-[11px] text-blue-300/60 leading-relaxed mt-1">
+                                                    If a minimum score is set, students must pass the prerequisite before the next lesson is unlocked.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </>

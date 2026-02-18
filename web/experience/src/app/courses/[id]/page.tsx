@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { lmsApi, Course, Module, Recommendation, UserGrade } from "@/lib/api";
 import { Sparkles, AlertTriangle, ArrowRight, CheckCircle2, XCircle, Circle } from "lucide-react";
 import Link from "next/link";
-import { BookOpen, ChevronRight, PlayCircle, Calendar, Clock, Info } from "lucide-react";
+import { BookOpen, ChevronRight, PlayCircle, Calendar, Clock, Info, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import DiscussionBoard from "@/components/DiscussionBoard";
 import { AnnouncementsList } from "@/components/AnnouncementsList";
@@ -17,6 +17,7 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
     const [loadingAI, setLoadingAI] = useState(false);
     const [userGrades, setUserGrades] = useState<UserGrade[]>([]);
     const [isEnrolled, setIsEnrolled] = useState(false);
+    const [lessonDependencies, setLessonDependencies] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -24,6 +25,7 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
                 setLoading(true);
                 const data = await lmsApi.getCourseOutline(params.id);
                 setCourseData({ ...data.course, modules: data.modules });
+                setLessonDependencies(data.dependencies || []);
 
                 if (user) {
                     const grades = await lmsApi.getUserGrades(user.id, params.id);
@@ -88,7 +90,23 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
 
     if (!courseData) return <div className="text-center py-20 text-gray-500">Curso no encontrado.</div>;
 
+    const isLessonLocked = (lessonId: string) => {
+        if (!isEnrolled) return false;
+        const deps = lessonDependencies.filter(d => d.lesson_id === lessonId);
+        if (deps.length === 0) return false;
+
+        return deps.some(dep => {
+            const prereqGrade = userGrades.find(g => g.lesson_id === dep.prerequisite_lesson_id);
+            if (!prereqGrade) return true; // Not completed at all
+            if (dep.min_score_percentage && (prereqGrade.score * 100) < dep.min_score_percentage) return true;
+            return false;
+        });
+    };
+
     const getStatusIcon = (lessonId: string, isGraded: boolean, allowRetry: boolean) => {
+        if (isLessonLocked(lessonId)) {
+            return <Lock size={18} className="text-gray-600" />;
+        }
         const grade = userGrades.find((g: UserGrade) => g.lesson_id === lessonId);
         if (!grade) {
             return <Circle size={18} className="text-white/20" />;
@@ -263,43 +281,63 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
                         </div>
 
                         <div className="grid gap-3 pl-14">
-                            {module.lessons.map((lesson: any) => (
-                                isEnrolled ? (
-                                    <Link key={lesson.id} href={`/courses/${params.id}/lessons/${lesson.id}`}>
-                                        <div className="glass-card !p-4 group hover:bg-white/10 border-white/5 active:scale-[0.99] transition-all">
+                            {module.lessons.map((lesson: any) => {
+                                const locked = isLessonLocked(lesson.id);
+                                return isEnrolled ? (
+                                    locked ? (
+                                        <div key={lesson.id} className="glass-card !p-4 border-white/5 opacity-60 cursor-not-allowed">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                                                        {lesson.content_type === 'video' ? (
-                                                            <PlayCircle size={18} className="text-gray-400 group-hover:text-blue-400" />
-                                                        ) : (
-                                                            <BookOpen size={18} className="text-gray-400 group-hover:text-blue-400" />
-                                                        )}
+                                                    <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center">
+                                                        <Lock size={18} className="text-gray-600" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors">{lesson.title}</h3>
-                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                                                            {lesson.content_type === 'activity' ? 'Actividad Interactiva' : 'Lección en Video'}
-                                                        </span>
+                                                        <h3 className="text-sm font-bold text-gray-400">{lesson.title}</h3>
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">Bloqueado por Prerrequisitos</span>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-6">
-                                                    {getStatusIcon(lesson.id, lesson.is_graded, lesson.allow_retry)}
-                                                    {lesson.due_date && (
-                                                        <div className="text-right hidden sm:block">
-                                                            <div className="text-[9px] font-black uppercase tracking-widest text-gray-600">Vencimiento</div>
-                                                            <div className={`text-[10px] font-bold ${new Date(lesson.due_date) < new Date() ? 'text-red-400' : 'text-blue-400'}`}>
-                                                                {new Date(lesson.due_date).toLocaleDateString()}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <ChevronRight size={18} className="text-blue-500" />
-                                                    </div>
+                                                    <Lock size={18} className="text-gray-600" />
                                                 </div>
                                             </div>
                                         </div>
-                                    </Link>
+                                    ) : (
+                                        <Link key={lesson.id} href={`/courses/${params.id}/lessons/${lesson.id}`}>
+                                            <div className="glass-card !p-4 group hover:bg-white/10 border-white/5 active:scale-[0.99] transition-all">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                                                            {lesson.content_type === 'video' ? (
+                                                                <PlayCircle size={18} className="text-gray-400 group-hover:text-blue-400" />
+                                                            ) : (
+                                                                <BookOpen size={18} className="text-gray-400 group-hover:text-blue-400" />
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors">{lesson.title}</h3>
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                                                                {lesson.content_type === 'activity' ? 'Actividad Interactiva' : 'Lección en Video'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-6">
+                                                        {getStatusIcon(lesson.id, lesson.is_graded, lesson.allow_retry)}
+                                                        {lesson.due_date && (
+                                                            <div className="text-right hidden sm:block">
+                                                                <div className="text-[9px] font-black uppercase tracking-widest text-gray-600">Vencimiento</div>
+                                                                <div className={`text-[10px] font-bold ${new Date(lesson.due_date) < new Date() ? 'text-red-400' : 'text-blue-400'}`}>
+                                                                    {new Date(lesson.due_date).toLocaleDateString()}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <ChevronRight size={18} className="text-blue-500" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    )
                                 ) : (
                                     <div key={lesson.id} onClick={handleEnrollOrBuy} className="glass-card !p-4 group border-white/5 opacity-60 cursor-pointer hover:bg-white/5 transition-all">
                                         <div className="flex items-center justify-between">
@@ -319,8 +357,8 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
                                             </div>
                                         </div>
                                     </div>
-                                )
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 ))}

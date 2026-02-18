@@ -3,14 +3,16 @@ pub mod exporter;
 mod external_handlers;
 mod handlers;
 mod handlers_branding;
+mod handlers_dependencies;
 mod handlers_library;
+mod handlers_rubrics;
 mod webhooks;
 
 use axum::{
     Router,
     extract::DefaultBodyLimit,
     middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
@@ -195,6 +197,52 @@ async fn main() {
         .route(
             "/library/blocks/{id}/increment-usage",
             post(handlers_library::increment_block_usage),
+        )
+        // Advanced Grading (Rubrics) routes
+        .route(
+            "/courses/{id}/rubrics",
+            get(handlers_rubrics::list_course_rubrics).post(handlers_rubrics::create_rubric),
+        )
+        .route(
+            "/rubrics/{id}",
+            get(handlers_rubrics::get_rubric_with_details)
+                .put(handlers_rubrics::update_rubric)
+                .delete(handlers_rubrics::delete_rubric),
+        )
+        .route(
+            "/rubrics/{id}/criteria",
+            post(handlers_rubrics::create_criterion),
+        )
+        .route(
+            "/criteria/{id}",
+            put(handlers_rubrics::update_criterion).delete(handlers_rubrics::delete_criterion),
+        )
+        .route(
+            "/criteria/{id}/levels",
+            post(handlers_rubrics::create_level),
+        )
+        .route(
+            "/levels/{id}",
+            put(handlers_rubrics::update_level).delete(handlers_rubrics::delete_level),
+        )
+        .route(
+            "/lessons/{lesson_id}/rubrics/{rubric_id}",
+            post(handlers_rubrics::assign_rubric_to_lesson)
+                .delete(handlers_rubrics::unassign_rubric_from_lesson),
+        )
+        .route(
+            "/lessons/{id}/rubrics",
+            get(handlers_rubrics::get_lesson_rubrics),
+        )
+        // Learning Sequences (Dependencies) routes
+        .route(
+            "/lessons/{id}/dependencies",
+            get(handlers_dependencies::list_lesson_dependencies)
+                .post(handlers_dependencies::assign_dependency),
+        )
+        .route(
+            "/lessons/{id}/dependencies/{prerequisite_id}",
+            delete(handlers_dependencies::remove_dependency),
         )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,

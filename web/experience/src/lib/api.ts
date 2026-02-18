@@ -138,6 +138,15 @@ export interface GradingCategory {
     drop_count: number;
 }
 
+export interface LessonDependency {
+    id: string;
+    organization_id: string;
+    lesson_id: string;
+    prerequisite_lesson_id: string;
+    min_score_percentage: number | null;
+    created_at: string;
+}
+
 export interface UserGrade {
     id: string;
     user_id: string;
@@ -366,7 +375,13 @@ export const lmsApi = {
         return apiFetch(`/catalog${query}`);
     },
 
-    async getCourseOutline(courseId: string): Promise<{ course: Course, modules: Module[], grading_categories: GradingCategory[], organization: Organization }> {
+    async getCourseOutline(courseId: string): Promise<{
+        course: Course,
+        modules: Module[],
+        grading_categories: GradingCategory[],
+        organization: Organization,
+        dependencies?: LessonDependency[]
+    }> {
         return apiFetch(`/courses/${courseId}/outline`);
     },
 

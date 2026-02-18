@@ -211,6 +211,8 @@ pub struct PublishedCourse {
     pub organization: Organization,
     pub grading_categories: Vec<GradingCategory>,
     pub modules: Vec<PublishedModule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<Vec<LessonDependency>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -690,4 +692,88 @@ mod tests {
         assert_eq!(pub_course.modules.len(), deserialized.modules.len());
         assert_eq!(deserialized.modules[0].lessons[0].title, "Test Lesson");
     }
+}
+
+// ==================== Advanced Grading / Rubrics ====================
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct Rubric {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub course_id: Option<Uuid>,
+    pub created_by: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub total_points: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct RubricCriterion {
+    pub id: Uuid,
+    pub rubric_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub max_points: i32,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct RubricLevel {
+    pub id: Uuid,
+    pub criterion_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub points: i32,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct LessonRubric {
+    pub id: Uuid,
+    pub lesson_id: Uuid,
+    pub rubric_id: Uuid,
+    pub is_active: bool,
+    pub assigned_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RubricAssessment {
+    pub id: Uuid,
+    pub lesson_id: Uuid,
+    pub rubric_id: Uuid,
+    pub user_id: Uuid,
+    pub graded_by: Option<Uuid>,
+    pub submission_id: Option<Uuid>,
+    pub total_score: f32,
+    pub max_score: i32,
+    pub feedback: Option<String>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AssessmentScore {
+    pub id: Uuid,
+    pub assessment_id: Uuid,
+    pub criterion_id: Uuid,
+    pub level_id: Option<Uuid>,
+    pub points: f32,
+    pub feedback: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+// ==================== Learning Sequences / Dependencies ====================
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct LessonDependency {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub lesson_id: Uuid,
+    pub prerequisite_lesson_id: Uuid,
+    pub min_score_percentage: Option<f64>,
+    pub created_at: DateTime<Utc>,
 }

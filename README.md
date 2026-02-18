@@ -41,6 +41,8 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Student Notes**: Sistema de anotaciones personales por lección con auto-guardado inteligente (debounced).
 - **Cohorts & Groups**: Segmentación de estudiantes en cohortes para gestión de grupos y análisis comparativo.
 - **Interactive Gradebook**: Libro de calificaciones avanzado con filtrado por cohortes y exportación a CSV.
+- **Content Libraries**: Repositorio centralizado de bloques y lecciones reutilizables entre múltiples cursos.
+- **Advanced Grading (Rubrics)**: Sistema de evaluación basado en rúbricas detalladas con indicadores de desempeño por criterio.
 
 ##  Requisitos del Sistema
 
@@ -101,14 +103,14 @@ npm install
 npm run dev
 ```
 
-#### 📦 Course Portability
-Manage content mobility across different organizations using standardized JSON exports.
+#### 📦 Portabilidad de Cursos
+Gestiona la movilidad de contenidos entre diferentes organizaciones utilizando exportaciones estandarizadas en JSON.
 
 #### GET /courses/{id}/export
-Generates a complete bundle of the course, including modules, lessons, and grading settings.
+Genera un paquete completo del curso, incluyendo módulos, lecciones y configuraciones de calificación.
 
 #### POST /courses/import
-Creates a new course based on a provided export bundle. Automatic dependency mapping ensures data integrity in the new organization.
+Crea un nuevo curso basado en un paquete de exportación proporcionado. El mapeo automático de dependencias asegura la integridad de los datos en la nueva organización.
 #### Experience & LMS
 ```bash
 # Iniciar backend LMS
@@ -512,16 +514,16 @@ curl -X POST "http://localhost:3002/posts/{post_id}/vote" \
 
 ---
 
-### 5. Course Announcements (Anuncios)
+### 5. Anuncios del Curso (Announcements)
 
-| Action | Method | Endpoint | Description |
+| Acción | Método | Endpoint | Descripción |
 |--------|--------|----------|-------------|
-| List | GET | `/courses/{id}/announcements` | Get all announcements for a course |
-| Create | POST | `/courses/{id}/announcements` | Create a new announcement (Instructor/Admin only) |
-| Update | PUT | `/announcements/{id}` | Update an announcement (Instructor/Admin only) |
-| Delete | DELETE| `/announcements/{id}` | Delete an announcement (Instructor/Admin only) |
+| Listar | GET | `/courses/{id}/announcements` | Obtiene todos los anuncios de un curso |
+| Crear | POST | `/courses/{id}/announcements` | Crea un nuevo anuncio (Solo Instructor/Admin) |
+| Actualizar | PUT | `/announcements/{id}` | Actualiza un anuncio (Solo Instructor/Admin) |
+| Eliminar | DELETE| `/announcements/{id}` | Elimina un anuncio (Solo Instructor/Admin) |
 
-#### Create Announcement Example
+#### Ejemplo de Creación de Anuncio
 ```bash
 curl -X POST http://localhost:3002/courses/{course_id}/announcements \
   -H "Authorization: Bearer $TOKEN" \
@@ -535,24 +537,25 @@ curl -X POST http://localhost:3002/courses/{course_id}/announcements \
 
 ---
 
-### 6. Multi-tenancy and Global Management (Super Admin)
-OpenCCB is built for multi-tenancy. Organizations are isolated, but a **Super Admin** can manage everything.
+### 6. Multi-tenencia y Gestión Global (Super Admin)
+OpenCCB está diseñado para multi-tenencia. Las organizaciones están aisladas, pero un **Super Admin** puede gestionarlo todo.
 
-#### Super Admin Definition
-- **Default Organization ID**: `00000000-0000-0000-0000-000000000001`
-- Any user with `role: admin` in this organization is a **Super Admin**.
+#### Definición de Super Admin
+- **ID de Organización por Defecto**: `00000000-0000-0000-0000-000000000001`
+- Cualquier usuario con `role: admin` en esta organización es un **Super Admin**.
 #### Global Control Panel (`/admin`)
 - **Dashboard**: Resumen de organizaciones, usuarios y salud del sistema.
 - **Audit Logs**: Seguimiento detallado de todas las acciones administrativas.
 - **Service Monitor**: Estado en tiempo real del API Cluster, AI Services y Background Workers.
 
-#### Global Courses
-Courses created by Super Admins in the **Default Organization** are automatically marked as **Global**.
-- They appear in the catalog of **all organizations**.
-- Users from any organization can enroll in global courses.
+#### Cursos Globales
+Los cursos creados por los Super Admins en la **Organización por Defecto** son automáticamente marcados como **Globales**.
+- Aparecen en el catálogo de **todas las organizaciones**.
+- Los usuarios de cualquier organización pueden inscribirse en cursos globales.
+ Riverside
 
-#### Cross-Tenant Publishing
-Super Admins can publish courses to **any organization**. When publishing through the Studio, a premium **Organization Selector** (with search-as-you-type) allows choosing the target destination.
+#### Publicación Entre Organizaciones
+Los Super Admins pueden publicar cursos en **cualquier organización**. Al publicar a través de Studio, un **Selector de Organizaciones** premium permite elegir el destino.
 
 #### X-Organization-Id Header
 Super Admins can simulate the context of any organization by sending this header in their requests:
@@ -570,32 +573,34 @@ Obtiene una lista de todas las organizaciones registradas.
 
 ---
 
-## 🏆 Premium UI Components
-- **Course Portability**: Full JSON-based import/export system for multi-tenant content mobility.
-- **AI Course Wizard**: Instant curriculum generation from natural language prompts.
-- **Global Admin Console**: Centralized control for organizations, users, and audit logs.
-- **Experience Player**: A high-performance, accessible learning interface with glassmorphism design.
-- **Organization Selector**: A searchable combobox for managing large lists of tenants.
-- **Engagement Heatmaps**: Dynamic bar charts showing video retention signatures.
-- **Notification Center**: Real-time alerts for deadlines and achievements.
-- **Custom Report Builder**: Professional reports with one-click CSV export.
-- **Glassmorphism Design**: Consistent aesthetic across Studio and Experience portals.
-- **Global Localization**: Native support for English, Spanish, and Portuguese.
-- **PDF Integrated Viewer**: Read academic documents without leaving the platform.
-- **Interactive Video Markers**: Pause-and-answer questions embedded in video lessons.
-- **White-Label Branding**: Fully custom platform name, logo, favicon, and color themes per organization.
-- **Dynamic LAN Connectivity**: Automatic server IP detection for seamless multi-device access.
-- **Mobile-First Navigation**: Responsive sliding menus and adaptive layouts for all screen sizes.
-- **Context-Aware AI Tutor**: Smart assistant with RAG that remembers past lessons and protects activity answers.
-- **Personalized AI Feedback**: Motivational and instructional feedback generated uniquely for each student's results.
-- **Color-Coded Navigation**: Real-time visual progress indicators for lessons and modules (Green/Yellow/Red).
-- **Discussion Forums**: Complete forum system with threaded replies, voting, instructor moderation, and subscriptions.
-- **Course Announcements**: Instructor-to-student communication system with automatic notifications and pinning functionality.
-- **Split Authentication**: Separate login flows for personal users and enterprise organizations with SSO support.
-- **Mercado Pago Monetization**: Integrated payment gateway with automatic course unlocking and transaction tracking.
-- **Student Notes Panel**: Personal lesson annotations with glassmorphism UI and intelligent auto-save.
-- **Cohort Management**: Comprehensive group management system with member assignment and progress tracking.
-- **Advanced Gradebook**: Student performance tracking with cohort-based filtering and analytics.
+## 🏆 Componentes UI Premium
+- **Advanced Grading (Rubrics)**: Sistema completo de evaluación por rúbricas configurables.
+- **Content Libraries**: Repositorio reutilizable de bloques y lecciones para máxima eficiencia.
+- **Course Portability**: Sistema de importación/exportación basado en JSON para movilidad de contenidos.
+- **AI Course Wizard**: Generación instantánea de currículos a partir de prompts.
+- **Global Admin Console**: Control centralizado para organizaciones, usuarios y registros de auditoría.
+- **Experience Player**: Interfaz de aprendizaje de alto rendimiento y accesible con diseño glassmorphism.
+- **Organization Selector**: Combobox con búsqueda para gestionar grandes listas de inquilinos.
+- **Engagement Heatmaps**: Gráficos dinámicos que muestran la retención en videos.
+- **Notification Center**: Alertas en tiempo real para fechas límite y logros.
+- **Custom Report Builder**: Reportes profesionales con exportación a CSV en un clic.
+- **Glassmorphism Design**: Estética consistente en los portales Studio y Experience.
+- **Global Localization**: Soporte nativo para Inglés, Español y Portugués.
+- **PDF Integrated Viewer**: Lectura de documentos académicos sin salir de la plataforma.
+- **Interactive Video Markers**: Preguntas que pausan el video integradas en las lecciones.
+- **White-Label Branding**: Nombre de plataforma, logo, favicon y temas de color personalizados por organización.
+- **Dynamic LAN Connectivity**: Detección automática de la IP del servidor para acceso fluido multi-dispositivo.
+- **Mobile-First Navigation**: Menús laterales responsivos y diseños adaptativos para todas las pantallas.
+- **Context-Aware AI Tutor**: Asistente inteligente con RAG que recuerda lecciones pasadas y protege respuestas.
+- **Personalized AI Feedback**: Retroalimentación motivacional e instruccional generada únicamente para cada estudiante.
+- **Color-Coded Navigation**: Indicadores visuales de progreso en tiempo real (Verde/Amarillo/Rojo).
+- **Discussion Forums**: Sistema completo de foros con hilos, votos, moderación y suscripciones.
+- **Course Announcements**: Sistema de comunicación instructor-estudiante con notificaciones automáticas.
+- **Split Authentication**: Flujos de inicio de sesión separados para usuarios personales y empresas con soporte SSO.
+- **Mercado Pago Monetization**: Pasarela de pagos integrada con desbloqueo automático de cursos.
+- **Student Notes Panel**: Anotaciones personales con interfaz glassmorphism y autoguardado inteligente.
+- **Cohort Management**: Sistema de gestión de grupos con seguimiento de progreso por cohorte.
+- **Advanced Gradebook**: Seguimiento del desempeño estudiantil con analíticas y filtrado avanzado.
 
 ## 📄 Licencia
 Este proyecto es código abierto y está disponible bajo los términos de la licencia especificada en el repositorio.

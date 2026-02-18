@@ -183,8 +183,8 @@
 - [x] **Student Notes**: Anotaciones personales por lección con exportación a PDF.
 - [x] **Peer Assessment**: Evaluación entre pares con rúbricas configurables.
 - [x] **Cohorts & Groups**: Segmentación de estudiantes con contenido específico.
-- [ ] **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
-- [ ] **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
+- [x] **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
+- [x] **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
 - [ ] **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
 - [ ] **Bulk Operations**: Inscripción masiva, exportación de calificaciones, comunicación masiva.
 - [ ] **Course Teams**: Múltiples instructores con roles y permisos granulares.
@@ -215,9 +215,9 @@
 
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios** y **monetización integrada con Mercado Pago**.
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios**, **monetización integrada con Mercado Pago**, **Librerías de Contenido reutilizables** y **Sistema de Rúbricas Avanzado**.
 
 **Próximas Prioridades**:
-1. **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
-2. **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
-3. **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
+1. **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
+2. **Bulk Operations**: Inscripción masiva y exportación avanzada de datos.
+3. **Course Teams**: Gestión de múltiples instructores por curso.
