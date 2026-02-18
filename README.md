@@ -41,6 +41,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Student Notes**: Sistema de anotaciones personales por lección con auto-guardado inteligente (debounced).
 - **Interactive Gradebook**: Libro de calificaciones avanzado con filtrado por cohortes, exportación masiva a CSV con desgloses por categoría y pertenencia a cohortes.
 - **Bulk Operations**: Herramientas administrativas para inscripción masiva de usuarios vía email y comunicación segmentada.
+- **Course Teams (Multi-instructor support)**
 - **Segmented Announcements**: Sistema de anuncios con capacidad de dirigirse a cohortes específicas y notificaciones filtradas.
 - **Content Libraries**: Repositorio centralizado de bloques y lecciones reutilizables entre múltiples cursos.
 - **Advanced Grading (Rubrics)**: Sistema de evaluación basado en rúbricas detalladas con indicadores de desempeño por criterio.

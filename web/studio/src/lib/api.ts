@@ -503,6 +503,16 @@ export interface PeerReview {
     created_at: string;
 }
 
+export interface CourseInstructor {
+    id: string;
+    course_id: string;
+    user_id: string;
+    role: 'primary' | 'instructor' | 'assistant';
+    created_at: string;
+    email: string;
+    full_name: string;
+}
+
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('studio_token') : null;
 const getSelectedOrgId = () => typeof window !== 'undefined' ? localStorage.getItem('studio_selected_org_id') : null;
 
@@ -552,6 +562,12 @@ export const cmsApi = {
     getCourseWithFullOutline: (id: string): Promise<Course> => apiFetch(`/courses/${id}/outline`),
     updateCourse: (id: string, payload: Partial<Course>): Promise<Course> => apiFetch(`/courses/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     publishCourse: (id: string, targetOrganizationId?: string): Promise<void> => apiFetch(`/courses/${id}/publish`, { method: 'POST', body: JSON.stringify({ target_organization_id: targetOrganizationId }) }),
+    getPreviewToken: (id: string): Promise<{ token: string }> => apiFetch(`/courses/${id}/preview-token`, { method: 'POST' }),
+
+    // Team Management
+    getCourseTeam: (courseId: string): Promise<CourseInstructor[]> => apiFetch(`/courses/${courseId}/team`),
+    addTeamMember: (courseId: string, email: string, role: string): Promise<CourseInstructor> => apiFetch(`/courses/${courseId}/team`, { method: 'POST', body: JSON.stringify({ email, role }) }),
+    removeTeamMember: (courseId: string, userId: string): Promise<void> => apiFetch(`/courses/${courseId}/team/${userId}`, { method: 'DELETE' }),
 
     // Modules & Lessons
     createModule: (course_id: string, title: string, position: number): Promise<Module> => apiFetch('/modules', { method: 'POST', body: JSON.stringify({ course_id, title, position }) }),

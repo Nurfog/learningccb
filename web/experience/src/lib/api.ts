@@ -346,7 +346,20 @@ export interface UpdateAnnouncementPayload {
 
 
 
-const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('experience_token') : null;
+const getToken = () => {
+    if (typeof window === 'undefined') return null;
+
+    // Check for preview token in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const previewToken = urlParams.get('preview_token');
+
+    if (previewToken) {
+        sessionStorage.setItem('preview_token', previewToken);
+        return previewToken;
+    }
+
+    return sessionStorage.getItem('preview_token') || localStorage.getItem('experience_token');
+};
 
 const apiFetch = async (url: string, options: RequestInit = {}, isCMS: boolean = false) => {
     const token = getToken();

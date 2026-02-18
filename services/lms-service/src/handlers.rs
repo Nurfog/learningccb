@@ -734,10 +734,32 @@ pub async fn ingest_course(
 
 pub async fn get_course_outline(
     Org(org_ctx): Org,
+    claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<common::models::PublishedCourse>, StatusCode> {
-    tracing::info!("get_course_outline: id={}, caller_org={}", id, org_ctx.id);
+    tracing::info!(
+        "get_course_outline: id={}, user={}, caller_org={}",
+        id,
+        claims.sub,
+        org_ctx.id
+    );
+
+    // If it's a preview token, ensure it's for the correct course
+    if claims.token_type.as_deref() == Some("preview") {
+        if claims.course_id != Some(id) {
+            tracing::warn!(
+                "get_course_outline: Preview token course_id mismatch. Token for {:?}, requested {}",
+                claims.course_id,
+                id
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+        tracing::info!(
+            "get_course_outline: Authorized via preview token for course {}",
+            id
+        );
+    }
     // 1. Fetch Course
     let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = $1")
         .bind(id)
@@ -857,35 +879,59 @@ pub async fn get_lesson_content(
         claims.sub
     );
 
-    // 1. Check if user is enrolled in the course this lesson belongs to
-    let lesson = sqlx::query_as::<_, Lesson>(
-        "SELECT l.* FROM lessons l
-         JOIN modules m ON l.module_id = m.id
-         JOIN enrollments e ON m.course_id = e.course_id
-         WHERE l.id = $1 AND e.user_id = $2",
-    )
-    .bind(id)
-    .bind(claims.sub)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("get_lesson_content: DB error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    // 1. Check for preview token override
+    let is_preview = claims.token_type.as_deref() == Some("preview");
+
+    let lesson = if is_preview {
+        tracing::info!("get_lesson_content: Using preview token for lesson {}", id);
+        // Ensure the preview token is for the correct course (if we want to be strict)
+        // or just fetch the lesson and verify it belongs to the same org.
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l 
+             JOIN modules m ON l.module_id = m.id 
+             WHERE l.id = $1 AND l.organization_id = $2",
+        )
+        .bind(id)
+        .bind(claims.org)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("get_lesson_content: DB error (preview): {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    } else {
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l
+             JOIN modules m ON l.module_id = m.id
+             JOIN enrollments e ON m.course_id = e.course_id
+             WHERE l.id = $1 AND e.user_id = $2",
+        )
+        .bind(id)
+        .bind(claims.sub)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("get_lesson_content: DB error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    };
 
     let lesson = match lesson {
         Some(l) => l,
         None => {
             tracing::warn!(
-                "get_lesson_content: User {} not enrolled or lesson {} not found",
-                claims.sub,
-                id
+                "get_lesson_content: Access denied or lesson {} not found (is_preview={})",
+                id,
+                is_preview
             );
             return Err(StatusCode::FORBIDDEN);
         }
     };
 
-    // 2. Enforce Prerequisites
+    // 2. Enforce Prerequisites (Skip for previews)
+    if is_preview {
+        return Ok(Json(lesson));
+    }
     // We check if there are any prerequisites that the user hasn't completed yet.
     // A prerequisite is completed if:
     // a) It's graded and the user has a grade >= min_score_percentage (default 0)

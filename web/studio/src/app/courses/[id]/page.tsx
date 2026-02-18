@@ -246,8 +246,20 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <button className="flex items-center gap-2 px-6 py-3 glass hover:bg-white/20 transition-all rounded-xl text-sm font-bold shadow-lg active:scale-95">
-                            Preview
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const { token } = await cmsApi.getPreviewToken(params.id);
+                                    const expUrl = process.env.NEXT_PUBLIC_EXPERIENCE_URL || "http://localhost:3000";
+                                    window.open(`${expUrl}/courses/${params.id}?preview_token=${token}`, "_blank");
+                                } catch (err) {
+                                    console.error("Failed to get preview token", err);
+                                    alert("Failed to start preview.");
+                                }
+                            }}
+                            className="flex items-center gap-2 px-6 py-3 glass hover:bg-white/20 transition-all rounded-xl text-sm font-bold shadow-lg active:scale-95"
+                        >
+                            <PlayCircle size={18} /> Preview
                         </button>
                         <button
                             onClick={handlePublish}

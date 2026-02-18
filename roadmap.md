@@ -104,6 +104,7 @@
 - [x] **Mejoras en la Gestión de Cursos**:
   - [x] Nombrado manual de módulos, lecciones y actividades
   - [x] Pacing de cursos: Modo autodidacta (Evergreen) o Dirigido por instructor (Cohort)
+
   - [x] Calendario de hitos y recordatorios automáticos de fechas límite
 
 ## Fase 8: Funcionalidades Enterprise (En Progreso)
@@ -186,8 +187,8 @@
 - [x] **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
 - [x] **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
 - [x] **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
-- [x] **Bulk Operations**: Inscripción masiva, exportación de calificaciones, comunicación masiva. ✅
-- [ ] **Course Teams**: Múltiples instructores con roles y permisos granulares.
+- [x] **Bulk Operations**: Bulk enrollment, advanced grade export, and segmented announcements.
+- [x] **Course Teams**: Support for multiple instructors per course with granular roles.
 - [ ] **Course Preview**: Vista previa de lecciones sin inscripción.
 - [ ] **Bookmarks**: Sistema de favoritos para lecciones importantes.
 - [ ] **Progress Dashboard**: Gráficos de progreso temporal y predicción de finalización.

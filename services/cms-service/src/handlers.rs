@@ -8,7 +8,7 @@ use axum::{
 };
 use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{DateTime, Utc};
-use common::auth::{Claims, create_jwt};
+use common::auth::{Claims, create_jwt, create_preview_token};
 use common::middleware::Org;
 use common::models::{
     AuthResponse, Course, CourseAnalytics, Lesson, Module, Organization, PublishedCourse,
@@ -120,6 +120,7 @@ pub async fn publish_course(
         organization,
         grading_categories,
         modules: pub_modules,
+        dependencies: None,
     };
 
     // 4. Send to LMS
@@ -3288,6 +3289,164 @@ pub async fn import_course(
     Ok(Json(new_course))
 }
 
+pub async fn check_course_access(
+    pool: &PgPool,
+    course_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<bool, (StatusCode, String)> {
+    if role == "admin" {
+        return Ok(true);
+    }
+
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM course_instructors WHERE course_id = $1 AND user_id = $2)"
+    )
+    .bind(course_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(exists)
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CourseInstructor {
+    pub id: Uuid,
+    pub course_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+    pub email: String,
+    pub full_name: String,
+}
+
+pub async fn get_course_team(
+    Org(_org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<CourseInstructor>>, (StatusCode, String)> {
+    if !check_course_access(&pool, id, claims.sub, &claims.role).await? {
+        return Err((StatusCode::FORBIDDEN, "No access to this course team".into()));
+    }
+
+    let team = sqlx::query_as::<_, CourseInstructor>(
+        "SELECT ci.*, u.email, u.full_name FROM course_instructors ci 
+         JOIN users u ON ci.user_id = u.id 
+         WHERE ci.course_id = $1"
+    )
+    .bind(id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(team))
+}
+
+#[derive(Deserialize)]
+pub struct AddTeamMemberPayload {
+    pub email: String,
+    pub role: String,
+}
+
+pub async fn add_team_member(
+    Org(_org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<AddTeamMemberPayload>,
+) -> Result<Json<CourseInstructor>, (StatusCode, String)> {
+    // Only primary instructors or admins can add members
+    let is_authorized = if claims.role == "admin" {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM course_instructors WHERE course_id = $1 AND user_id = $2 AND role = 'primary')"
+        )
+        .bind(id)
+        .bind(claims.sub)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+
+    if !is_authorized {
+        return Err((StatusCode::FORBIDDEN, "Only primary instructors can add team members".into()));
+    }
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&payload.email)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "User not found".into()))?;
+
+    let instructor = sqlx::query_as::<_, CourseInstructor>(
+        "INSERT INTO course_instructors (course_id, user_id, role) 
+         VALUES ($1, $2, $3) 
+         RETURNING *, (SELECT email FROM users WHERE id = $2) as email, (SELECT full_name FROM users WHERE id = $2) as full_name"
+    )
+    .bind(id)
+    .bind(user.id)
+    .bind(&payload.role)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    Ok(Json(instructor))
+}
+
+pub async fn remove_team_member(
+    Org(_org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path((course_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let is_authorized = if claims.role == "admin" {
+        true
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM course_instructors WHERE course_id = $1 AND user_id = $2 AND role = 'primary')"
+        )
+        .bind(course_id)
+        .bind(claims.sub)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+
+    if !is_authorized && claims.sub != user_id {
+        return Err((StatusCode::FORBIDDEN, "Unauthorized to remove this member".into()));
+    }
+
+    sqlx::query("DELETE FROM course_instructors WHERE course_id = $1 AND user_id = $2")
+        .bind(course_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn create_course_preview_token(
+    Org(_org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Verify user has access to this course (must be an instructor/admin)
+    if !check_course_access(&pool, id, claims.sub, &claims.role).await? {
+        return Err((StatusCode::FORBIDDEN, "No access to this course preview".into()));
+    }
+
+    let token = create_preview_token(claims.sub, claims.org, id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(json!({ "token": token })))
+}
+
 // --- AI Course Generation ---
 
 #[derive(Deserialize)]
@@ -3540,7 +3699,7 @@ pub async fn delete_course(
     .map_err(|_| StatusCode::NOT_FOUND)?;
 
     // 2. Additional permission check for instructors
-    if !is_super_admin && claims.role == "instructor" && course.instructor_id != claims.sub {
+    if !is_super_admin && !check_course_access(&pool, course.id, claims.sub, &claims.role).await? {
         return Err(StatusCode::FORBIDDEN);
     }
 

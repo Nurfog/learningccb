@@ -104,6 +104,18 @@ async fn main() {
             "/courses/{id}/analytics/advanced",
             get(handlers::get_advanced_analytics),
         )
+        .route(
+            "/courses/{id}/team",
+            get(handlers::get_course_team).post(handlers::add_team_member),
+        )
+        .route(
+            "/courses/{id}/team/{user_id}",
+            delete(handlers::remove_team_member),
+        )
+        .route(
+            "/courses/{id}/preview-token",
+            post(handlers::create_course_preview_token),
+        )
         .route("/lessons/{id}/heatmap", get(handlers::get_lesson_heatmap))
         .route(
             "/modules",

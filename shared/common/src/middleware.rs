@@ -26,16 +26,27 @@ pub async fn org_extractor_middleware(
         .and_then(|header: &axum::http::HeaderValue| header.to_str().ok());
 
     let token = if let Some(token_str) = auth_header.and_then(|s: &str| s.strip_prefix("Bearer ")) {
-        token_str
+        token_str.to_string()
     } else {
-        return Err(StatusCode::UNAUTHORIZED);
+        // Check for preview_token in query string
+        let query = req.uri().query().unwrap_or_default();
+        let preview_token = query
+            .split('&')
+            .find(|part| part.starts_with("preview_token="))
+            .and_then(|part| part.split('=').nth(1));
+
+        if let Some(token) = preview_token {
+            token.to_string()
+        } else {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     };
 
     // NOTA: El secreto debe venir de una variable de entorno en producción.
     let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
 
     let mut claims = decode::<Claims>(
-        token,
+        &token,
         &DecodingKey::from_secret(secret.as_ref()),
         &Validation::default(),
     )

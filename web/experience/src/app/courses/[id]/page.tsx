@@ -32,7 +32,15 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
                     setUserGrades(grades);
 
                     const enrollmentData = await lmsApi.getEnrollments(user.id);
-                    setIsEnrolled(enrollmentData.some(e => e.course_id === params.id));
+                    const enrolled = enrollmentData.some(e => e.course_id === params.id);
+
+                    // Allow preview token to override enrollment status
+                    const isPreview = typeof window !== 'undefined' && !!sessionStorage.getItem('preview_token');
+                    setIsEnrolled(enrolled || isPreview);
+                } else {
+                    // Even if not logged in, if there's a preview token, consider "enrolled" for UI
+                    const isPreview = typeof window !== 'undefined' && !!sessionStorage.getItem('preview_token');
+                    if (isPreview) setIsEnrolled(true);
                 }
             } catch (err) {
                 console.error(err);
