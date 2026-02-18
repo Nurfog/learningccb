@@ -2,6 +2,7 @@ use axum::{
     Json,
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
+    response::IntoResponse,
 };
 use bcrypt::{DEFAULT_COST, hash, verify};
 use common::auth::{Claims, create_jwt};
@@ -112,6 +113,123 @@ pub async fn bulk_enroll_users(
         failed_emails,
         already_enrolled_emails,
     }))
+}
+
+pub async fn export_course_grades(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(course_id): Path<Uuid>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err((StatusCode::FORBIDDEN, "Unauthorized".to_string()));
+    }
+
+    // 1. Get Categories
+    let categories = sqlx::query!(
+        "SELECT id, name FROM grading_categories WHERE course_id = $1 ORDER BY name",
+        course_id
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 2. Get Student general data
+    let students = sqlx::query!(
+        r#"
+        SELECT 
+            u.id, 
+            u.full_name, 
+            u.email, 
+            COALESCE(e.progress, 0)::float4 as progress,
+            (SELECT name FROM cohorts c JOIN user_cohorts uc ON c.id = uc.cohort_id WHERE uc.user_id = u.id LIMIT 1) as cohort_name,
+            AVG(g.score)::float4 as average_score
+        FROM users u
+        JOIN enrollments e ON u.id = e.user_id AND e.course_id = $1
+        LEFT JOIN user_grades g ON u.id = g.user_id AND g.course_id = $1
+        WHERE e.organization_id = $2
+        GROUP BY u.id, u.full_name, u.email, e.progress
+        ORDER BY u.full_name
+        "#,
+        course_id,
+        org_ctx.id
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 3. Get detailed grades per user/category
+    struct UserCategoryGrade {
+        user_id: Uuid,
+        grading_category_id: Option<Uuid>,
+        avg_score: Option<f32>,
+    }
+
+    let detailed_grades = sqlx::query_as!(
+        UserCategoryGrade,
+        r#"
+        SELECT 
+            g.user_id, 
+            l.grading_category_id, 
+            AVG(g.score)::float4 as avg_score
+        FROM user_grades g
+        JOIN lessons l ON g.lesson_id = l.id
+        WHERE g.course_id = $1
+        GROUP BY g.user_id, l.grading_category_id
+        "#,
+        course_id
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 4. Build CSV
+    let mut csv = "Name,Email,Cohort,Progress,Overall Score".to_string();
+    for cat in &categories {
+        csv.push_str(&format!(",{}", cat.name));
+    }
+    csv.push('\n');
+
+    for s in students {
+        let cohort = s.cohort_name.unwrap_or_else(|| "N/A".to_string());
+        let progress = format!("{:.1}%", s.progress * 100.0);
+        let overall = s
+            .average_score
+            .map(|v| format!("{:.1}%", v * 100.0))
+            .unwrap_or_else(|| "N/A".to_string());
+
+        csv.push_str(&format!(
+            "\"{}\",{},\"{}\",{},{}",
+            s.full_name, s.email, cohort, progress, overall
+        ));
+
+        for cat in &categories {
+            let score = detailed_grades
+                .iter()
+                .find(|g| g.user_id == s.id && g.grading_category_id == Some(cat.id))
+                .and_then(|g| g.avg_score);
+
+            match score {
+                Some(v) => csv.push_str(&format!(", {:.1}%", v * 100.0)),
+                None => csv.push_str(",N/A"),
+            }
+        }
+        csv.push('\n');
+    }
+
+    let disposition = format!("attachment; filename=\"grades-{}.csv\"", course_id);
+
+    Ok(axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "text/csv")
+        .header(axum::http::header::CONTENT_DISPOSITION, disposition)
+        .body(axum::body::Body::from(csv))
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Response building failed".to_string(),
+            )
+        })?
+        .into_response())
 }
 
 pub async fn enroll_user(

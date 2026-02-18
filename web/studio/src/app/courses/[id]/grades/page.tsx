@@ -84,26 +84,29 @@ export default function GradebookPage() {
         ? students.reduce((acc, s) => acc + (s.average_score || 0), 0) / students.length
         : 0;
 
-    const exportCSV = () => {
-        const headers = ["Name", "Email", "Progress", "Average Score", "Last Active"];
-        const rows = filteredStudents.map(s => [
-            s.full_name,
-            s.email,
-            `${(s.progress * 100).toFixed(1)}%`,
-            s.average_score ? `${(s.average_score * 100).toFixed(1)}%` : "N/A",
-            s.last_active_at ? new Date(s.last_active_at).toLocaleDateString() : "Never"
-        ]);
-
-        const csvContent = "data:text/csv;charset=utf-8,"
-            + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `${courseTitle}_gradebook.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const exportCSV = async () => {
+        try {
+            const token = localStorage.getItem('studio_token');
+            const selectedOrgId = localStorage.getItem('studio_selected_org_id');
+            const res = await fetch(lmsApi.exportGradesUrl(id), {
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    ...(selectedOrgId ? { 'X-Organization-Id': selectedOrgId } : {})
+                }
+            });
+            if (!res.ok) throw new Error('Export failed');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${courseTitle}_grades_detailed.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            console.error("Export failed", err);
+        }
     };
 
     const handleBulkEnroll = async () => {

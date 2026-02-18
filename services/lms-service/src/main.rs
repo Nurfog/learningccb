@@ -70,6 +70,10 @@ async fn main() {
         )
         .route("/courses/{id}/grades", get(handlers::get_course_grades))
         .route(
+            "/courses/{id}/export-grades",
+            get(handlers::export_course_grades),
+        )
+        .route(
             "/courses/{id}/analytics/advanced",
             get(handlers::get_advanced_analytics),
         )
