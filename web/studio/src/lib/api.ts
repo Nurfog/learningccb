@@ -448,6 +448,12 @@ export interface StudentGradeReport {
     last_active_at: string | null;
 }
 
+export interface BulkEnrollResponse {
+    successful_emails: string[];
+    failed_emails: string[];
+    already_enrolled_emails: string[];
+}
+
 export interface CourseSubmission {
     id: string;
     user_id: string;
@@ -734,10 +740,12 @@ export const lmsApi = {
     addMember: (cohortId: string, userId: string): Promise<UserCohort> => apiFetch(`/cohorts/${cohortId}/members`, { method: 'POST', body: JSON.stringify({ user_id: userId }) }, true),
     removeMember: (cohortId: string, userId: string): Promise<void> => apiFetch(`/cohorts/${cohortId}/members/${userId}`, { method: 'DELETE' }, true),
     getMembers: (id: string): Promise<string[]> => apiFetch(`/cohorts/${id}/members`, {}, true),
-    getGrades: (id: string, cohortId?: string): Promise<any> => {
+    getCourseGrades: (id: string, cohortId?: string): Promise<StudentGradeReport[]> => {
         const query = cohortId ? `?cohort_id=${cohortId}` : '';
         return apiFetch(`/courses/${id}/grades${query}`, {}, true);
     },
+    bulkEnroll: (courseId: string, emails: string[]): Promise<BulkEnrollResponse> =>
+        apiFetch('/bulk-enroll', { method: 'POST', body: JSON.stringify({ course_id: courseId, emails }) }, true),
     // Peer Assessment
     submitAssignment: (courseId: string, lessonId: string, content: string): Promise<CourseSubmission> =>
         apiFetch(`/courses/${courseId}/lessons/${lessonId}/submit`, { method: 'POST', body: JSON.stringify({ content }) }, true),

@@ -43,6 +43,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Interactive Gradebook**: Libro de calificaciones avanzado con filtrado por cohortes y exportación a CSV.
 - **Content Libraries**: Repositorio centralizado de bloques y lecciones reutilizables entre múltiples cursos.
 - **Advanced Grading (Rubrics)**: Sistema de evaluación basado en rúbricas detalladas con indicadores de desempeño por criterio.
+- **Learning Sequences**: Gestión de prerrequisitos entre lecciones con cumplimiento forzado en el LMS.
 
 ##  Requisitos del Sistema
 
@@ -326,6 +327,22 @@ Genera un quiz basado en el contenido de la lección.
   }
   ```
 
+#### POST /lessons/{id}/dependencies
+Asigna una lección como prerrequisito de otra.
+- **Cuerpo ( LessonDependencyRequest ):**
+  ```json
+  {
+    "prerequisite_lesson_id": "uuid",
+    "min_score_percentage": "number (opcional)"
+  }
+  ```
+
+#### GET /lessons/{id}/dependencies
+Lista los prerrequisitos de una lección específica.
+
+#### DELETE /lessons/{lesson_id}/dependencies/{prereq_id}
+Elimina un prerrequisito de una lección.
+
 #### DELETE /courses/{id}
 Elimina un curso y todos sus contenidos relacionados (módulos, lecciones, assets).
 
@@ -601,6 +618,7 @@ Obtiene una lista de todas las organizaciones registradas.
 - **Student Notes Panel**: Anotaciones personales con interfaz glassmorphism y autoguardado inteligente.
 - **Cohort Management**: Sistema de gestión de grupos con seguimiento de progreso por cohorte.
 - **Advanced Gradebook**: Seguimiento del desempeño estudiantil con analíticas y filtrado avanzado.
+- **Learning Sequences UI**: Interfaz visual para gestionar dependencias y visualización de bloqueos con iconos de candado.
 
 ## 📄 Licencia
 Este proyecto es código abierto y está disponible bajo los términos de la licencia especificada en el repositorio.

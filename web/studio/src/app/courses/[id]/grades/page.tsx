@@ -14,7 +14,11 @@ import {
     AlertCircle,
     User,
     Mail,
-    Clock
+    Clock,
+    Users,
+    X,
+    AlertTriangle,
+    Loader2
 } from "lucide-react";
 
 export default function GradebookPage() {
@@ -28,6 +32,14 @@ export default function GradebookPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [courseTitle, setCourseTitle] = useState("");
+    const [showBulkEnroll, setShowBulkEnroll] = useState(false);
+    const [bulkEmails, setBulkEmails] = useState("");
+    const [bulkResults, setBulkResults] = useState<{
+        successful_emails: string[];
+        failed_emails: string[];
+        already_enrolled_emails: string[];
+    } | null>(null);
+    const [bulkLoading, setBulkLoading] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -94,6 +106,32 @@ export default function GradebookPage() {
         document.body.removeChild(link);
     };
 
+    const handleBulkEnroll = async () => {
+        if (!bulkEmails.trim()) return;
+
+        const emails = bulkEmails
+            .split(/[\n,]/)
+            .map(e => e.trim())
+            .filter(e => e.length > 0 && e.includes("@"));
+
+        if (emails.length === 0) return;
+
+        try {
+            setBulkLoading(true);
+            const results = await lmsApi.bulkEnroll(id, emails);
+            setBulkResults(results);
+            // Refresh list if any were successful
+            if (results.successful_emails.length > 0) {
+                const refreshedGrades = await lmsApi.getCourseGrades(id, selectedCohortId || undefined);
+                setStudents(refreshedGrades);
+            }
+        } catch (err) {
+            console.error("Bulk enrollment failed", err);
+        } finally {
+            setBulkLoading(false);
+        }
+    };
+
     if (loading && students.length === 0) return (
         <div className="min-h-screen bg-[#0f1115] flex items-center justify-center">
             <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
@@ -121,6 +159,12 @@ export default function GradebookPage() {
                     </div>
                     <div className="flex items-center gap-4">
                         <button
+                            onClick={() => setShowBulkEnroll(true)}
+                            className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 transition-all font-medium"
+                        >
+                            <Users size={16} /> Bulk Enroll
+                        </button>
+                        <button
                             onClick={exportCSV}
                             className="btn-premium px-4 flex items-center gap-2"
                         >
@@ -128,6 +172,110 @@ export default function GradebookPage() {
                         </button>
                     </div>
                 </div>
+
+                {/* Bulk Enroll Modal */}
+                {showBulkEnroll && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <div className="bg-[#1a1d23] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+                            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                                <h3 className="text-xl font-bold flex items-center gap-2">
+                                    <Users className="text-blue-400" /> Bulk Student Enrollment
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        setShowBulkEnroll(false);
+                                        setBulkResults(null);
+                                        setBulkEmails("");
+                                    }}
+                                    className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                {!bulkResults ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                Enter email addresses (separated by commas or new lines)
+                                            </label>
+                                            <textarea
+                                                value={bulkEmails}
+                                                onChange={(e) => setBulkEmails(e.target.value)}
+                                                placeholder="student1@example.com&#10;student2@example.com"
+                                                className="w-full h-48 bg-black/20 border border-white/10 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white placeholder-gray-600 resize-none font-mono"
+                                            />
+                                        </div>
+                                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3 italic text-sm text-blue-400">
+                                            <AlertTriangle size={18} className="shrink-0" />
+                                            Students must already have an account in this organization to be enrolled.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center">
+                                                <div className="text-2xl font-black text-green-400">{bulkResults.successful_emails.length}</div>
+                                                <div className="text-xs uppercase tracking-widest text-gray-500 font-bold mt-1">Enrolled</div>
+                                            </div>
+                                            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-center">
+                                                <div className="text-2xl font-black text-yellow-400">{bulkResults.already_enrolled_emails.length}</div>
+                                                <div className="text-xs uppercase tracking-widest text-gray-500 font-bold mt-1">Skipped</div>
+                                            </div>
+                                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                                                <div className="text-2xl font-black text-red-400">{bulkResults.failed_emails.length}</div>
+                                                <div className="text-xs uppercase tracking-widest text-gray-500 font-bold mt-1">Failed</div>
+                                            </div>
+                                        </div>
+
+                                        {bulkResults.failed_emails.length > 0 && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Failed Emails (Not Found):</p>
+                                                <div className="bg-black/20 rounded-xl p-3 text-xs text-red-400 max-h-32 overflow-y-auto font-mono">
+                                                    {bulkResults.failed_emails.map(e => (
+                                                        <div key={e}>{e}</div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-6 bg-white/5 border-t border-white/5 flex justify-end gap-3">
+                                {!bulkResults ? (
+                                    <>
+                                        <button
+                                            onClick={() => setShowBulkEnroll(false)}
+                                            className="px-6 py-2 rounded-xl hover:bg-white/5 transition-colors font-medium"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleBulkEnroll}
+                                            disabled={bulkLoading || !bulkEmails.trim()}
+                                            className="btn-premium px-8 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {bulkLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Process Enrollment'}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            setShowBulkEnroll(false);
+                                            setBulkResults(null);
+                                            setBulkEmails("");
+                                        }}
+                                        className="btn-premium px-8"
+                                    >
+                                        Done
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <CourseEditorLayout activeTab="grades">
                     <div className="p-8 space-y-8">

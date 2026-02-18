@@ -51,6 +51,7 @@ async fn main() {
 
     let protected_routes = Router::new()
         .route("/enroll", post(handlers::enroll_user))
+        .route("/bulk-enroll", post(handlers::bulk_enroll_users))
         .route("/enrollments/{id}", get(handlers::get_user_enrollments))
         .route(
             "/payments/preference",

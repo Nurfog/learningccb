@@ -15,6 +15,105 @@ use sqlx::{PgPool, Row};
 use std::env;
 use uuid::Uuid;
 
+#[derive(Deserialize)]
+pub struct BulkEnrollPayload {
+    pub course_id: Uuid,
+    pub emails: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct BulkEnrollResponse {
+    pub successful_emails: Vec<String>,
+    pub failed_emails: Vec<String>,
+    pub already_enrolled_emails: Vec<String>,
+}
+
+pub async fn bulk_enroll_users(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Json(payload): Json<BulkEnrollPayload>,
+) -> Result<Json<BulkEnrollResponse>, StatusCode> {
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut successful_emails = Vec::new();
+    let mut failed_emails = Vec::new();
+    let mut already_enrolled_emails = Vec::new();
+
+    for email in payload.emails {
+        // 1. Find user by email in the organization
+        let user: Option<User> = sqlx::query_as("SELECT * FROM users WHERE email = $1")
+            .bind(&email)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        match user {
+            Some(user) => {
+                // 2. Check if already enrolled
+                let is_enrolled: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM enrollments WHERE user_id = $1 AND course_id = $2)"
+                )
+                .bind(user.id)
+                .bind(payload.course_id)
+                .fetch_one(&pool)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                if is_enrolled {
+                    already_enrolled_emails.push(email);
+                    continue;
+                }
+
+                // 3. Enroll (Admin enrollment ignores payment)
+                let mut tx = pool
+                    .begin()
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                // Set session context for audit
+                crate::db_util::set_session_context(
+                    &mut tx,
+                    Some(claims.sub),
+                    Some(org_ctx.id),
+                    None,
+                    None,
+                    Some("BULK_ENROLL".to_string()),
+                )
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                let res = sqlx::query("SELECT * FROM fn_enroll_student($1, $2, $3)")
+                    .bind(org_ctx.id)
+                    .bind(user.id)
+                    .bind(payload.course_id)
+                    .execute(&mut *tx)
+                    .await;
+
+                if res.is_ok() {
+                    tx.commit()
+                        .await
+                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                    successful_emails.push(email);
+                } else {
+                    failed_emails.push(email);
+                }
+            }
+            None => {
+                failed_emails.push(email);
+            }
+        }
+    }
+
+    Ok(Json(BulkEnrollResponse {
+        successful_emails,
+        failed_emails,
+        already_enrolled_emails,
+    }))
+}
+
 pub async fn enroll_user(
     Org(org_ctx): Org,
     claims: Claims,

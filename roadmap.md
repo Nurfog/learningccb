@@ -185,7 +185,7 @@
 - [x] **Cohorts & Groups**: Segmentación de estudiantes con contenido específico.
 - [x] **Content Libraries**: Repositorio reutilizable de bloques y lecciones.
 - [x] **Advanced Grading**: Rúbricas detalladas y workflows de calificación.
-- [ ] **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
+- [x] **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
 - [ ] **Bulk Operations**: Inscripción masiva, exportación de calificaciones, comunicación masiva.
 - [ ] **Course Teams**: Múltiples instructores con roles y permisos granulares.
 - [ ] **Course Preview**: Vista previa de lecciones sin inscripción.
@@ -215,9 +215,9 @@
 
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios**, **monetización integrada con Mercado Pago**, **Librerías de Contenido reutilizables** y **Sistema de Rúbricas Avanzado**.
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios**, **monetización integrada con Mercado Pago**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado** y **Secuencias de Aprendizaje (Prerrequisitos)**.
 
 **Próximas Prioridades**:
-1. **Learning Sequences**: Prerequisitos y rutas condicionales entre lecciones.
-2. **Bulk Operations**: Inscripción masiva y exportación avanzada de datos.
-3. **Course Teams**: Gestión de múltiples instructores por curso.
+1. **Bulk Operations**: Inscripción masiva y exportación avanzada de datos.
+2. **Course Teams**: Gestión de múltiples instructores por curso.
+3. **Course Preview**: Vista previa de lecciones sin inscripción.
