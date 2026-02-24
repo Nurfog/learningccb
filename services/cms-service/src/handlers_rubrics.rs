@@ -57,6 +57,7 @@ pub struct UpdateLevelPayload {
     pub position: Option<i32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateAssessmentPayload {
     pub lesson_id: Uuid,
@@ -65,6 +66,7 @@ pub struct CreateAssessmentPayload {
     pub submission_id: Option<Uuid>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAssessmentPayload {
     pub total_score: f32,
@@ -72,6 +74,7 @@ pub struct UpdateAssessmentPayload {
     pub scores: Vec<CriterionScorePayload>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CriterionScorePayload {
     pub criterion_id: Uuid,
@@ -531,7 +534,7 @@ pub async fn delete_level(
 
 /// Assign a rubric to a lesson
 pub async fn assign_rubric_to_lesson(
-    Org(org_ctx): Org,
+    Org(_org_ctx): Org,
     State(pool): State<PgPool>,
     Path((lesson_id, rubric_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<LessonRubric>, (StatusCode, String)> {
@@ -555,7 +558,7 @@ pub async fn assign_rubric_to_lesson(
 
 /// Unassign a rubric from a lesson
 pub async fn unassign_rubric_from_lesson(
-    Org(org_ctx): Org,
+    Org(_org_ctx): Org,
     State(pool): State<PgPool>,
     Path((lesson_id, rubric_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {

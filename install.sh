@@ -223,7 +223,6 @@ docker compose up -d --build
 if [ "$ADMIN_EXISTS" != "t" ]; then
     echo "⏳ Esperando a que el API CMS esté listo..."
     API_URL="http://localhost:3001"
-    START_WAIT=$SECONDS
     PAYLOAD=$(cat <<EOF
 {
   "email": "$ADMIN_EMAIL",
@@ -235,15 +234,30 @@ if [ "$ADMIN_EXISTS" != "t" ]; then
 EOF
 )
 
+    # Wait until the API actually responds (not just the port being open)
+    MAX_RETRIES=30
+    count=0
+    echo -n "Esperando API"
+    until curl -s -o /dev/null "$API_URL/auth/login" -H "Content-Type: application/json" -d '{}' 2>/dev/null; do
+        echo -n "."
+        sleep 2
+        count=$((count+1))
+        if [ $count -ge $MAX_RETRIES ]; then
+            echo ""
+            echo "⚠️  Tiempo de espera agotado. El API no respondió."
+            break
+        fi
+    done
+    echo ""
+
     RESPONSE=$(curl -s -X POST "$API_URL/auth/register" -H "Content-Type: application/json" -d "$PAYLOAD")
 
     if echo "$RESPONSE" | grep -q "token"; then
         echo "✅ ¡Éxito! Administrador creado."
-        # Generate and show initial API Key
-        API_KEY=$(docker exec openccb-db-1 psql -U user -d openccb_cms -t -c "SELECT api_key FROM organizations WHERE name = 'Organización por Defecto' LIMIT 1;" | xargs)
+        API_KEY=$(docker exec openccb-db-1 psql -U user -d openccb_cms -t -c "SELECT api_key FROM organizations LIMIT 1;" | xargs)
         echo "🔑 API Key Inicial: $API_KEY"
     else
-        echo "⚠️  Fallo al crear el administrador."
+        echo "⚠️  Fallo al crear el administrador. Respuesta: $RESPONSE"
     fi
 else
     echo "✅ El administrador ya existe. Saltando registro."

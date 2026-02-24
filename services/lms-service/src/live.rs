@@ -6,7 +6,7 @@ use axum::{
 use chrono::Utc;
 use common::auth::Claims;
 use common::models::Meeting;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use uuid::Uuid;
 use serde::Deserialize;
 

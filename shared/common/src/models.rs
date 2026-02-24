@@ -399,6 +399,7 @@ pub struct RetentionData {
     pub lesson_id: Uuid,
     pub lesson_title: String,
     pub student_count: i64,
+    pub completion_rate: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

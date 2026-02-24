@@ -8,7 +8,7 @@ use jsonwebtoken::{decode, decode_header, jwk::JwkSet, DecodingKey, Validation};
 use serde::{Deserialize};
 use sqlx::{PgPool};
 use uuid::Uuid;
-use common::models::{LtiLaunchClaims, LtiRegistration, LtiResourceLink, User};
+use common::models::{LtiLaunchClaims, LtiRegistration, User};
 use common::auth::Claims;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 

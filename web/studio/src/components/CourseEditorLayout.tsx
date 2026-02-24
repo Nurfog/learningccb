@@ -30,7 +30,7 @@ export default function CourseEditorLayout({ children, activeTab }: CourseEditor
         <div className="space-y-8">
             {/* Tabs Navigation */}
             <div className="glass p-1">
-                <div className="flex border-b border-white/10">
+                <div className="flex border-b border-white/10 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                     {tabs.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = tab.key === activeTab;
@@ -38,12 +38,12 @@ export default function CourseEditorLayout({ children, activeTab }: CourseEditor
                             <Link
                                 key={tab.key}
                                 href={tab.href}
-                                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${isActive
-                                    ? "border-b-2 border-blue-500 bg-white/5"
+                                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${isActive
+                                    ? "border-b-2 border-blue-500 bg-white/5 text-white"
                                     : "text-gray-500 hover:text-white"
                                     }`}
                             >
-                                <Icon className="w-4 h-4" />
+                                <Icon className="w-4 h-4 flex-shrink-0" />
                                 {tab.label}
                             </Link>
                         );

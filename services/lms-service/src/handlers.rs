@@ -1240,7 +1240,7 @@ pub async fn get_user_gamification(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let badges = sqlx::query_as::<_, BadgeResponse>(
-        "SELECT b.id, b.name, b.description, b.icon_url, ub.earned_at 
+        "SELECT b.id, b.name, b.description, b.icon_url, ub.awarded_at AS earned_at 
          FROM user_badges ub 
          JOIN badges b ON ub.badge_id = b.id 
          WHERE ub.user_id = $1 AND ub.organization_id = $2",
@@ -1550,7 +1550,7 @@ pub async fn get_advanced_analytics(
 
     // 2. Retention Analysis using DB function
     let retention_data = sqlx::query_as::<_, common::models::RetentionData>(
-        "SELECT lesson_id, lesson_title, student_count FROM fn_get_retention_data($1, $2)",
+        "SELECT lesson_id, lesson_title, student_count, completion_rate FROM fn_get_retention_data($1, $2)",
     )
     .bind(course_id)
     .bind(org_ctx.id)

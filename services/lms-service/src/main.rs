@@ -16,7 +16,6 @@ use axum::{
     Router, middleware,
     routing::{delete, get, post, put},
 };
-use axum::Json; // Added based on instruction
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;

@@ -33,6 +33,7 @@ services:
     env_file: .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "t-800:192.168.0.5"
     depends_on:
       - db
 
@@ -58,6 +59,7 @@ services:
     env_file: .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "t-800:192.168.0.5"
     depends_on:
       - db
 

@@ -31,3 +31,5 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# --- Project-specific Development Keys ---
+services/lms-service/dev_keys/

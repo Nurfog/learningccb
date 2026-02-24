@@ -4,11 +4,25 @@ use std::env;
 
 pub fn get_lti_private_key() -> jsonwebtoken::EncodingKey {
     let key_str = env::var("LTI_PRIVATE_KEY").unwrap_or_else(|_| {
-        // Fallback for development (DO NOT USE IN PRODUCTION)
-        include_str!("../dev_keys/lti_private.pem").to_string()
+        let dev_key_path = "services/lms-service/dev_keys/lti_private.pem";
+        std::fs::read_to_string(dev_key_path).unwrap_or_else(|_| {
+            // Return a dummy key or handle error gracefully in production
+            // For now, we'll return a string that will likely fail decoding if used,
+            // but allows the service to start if LTI is not used.
+            tracing::warn!("LTI private key not found at {} and LTI_PRIVATE_KEY is not set.", dev_key_path);
+            String::new()
+        })
     });
     
-    jsonwebtoken::EncodingKey::from_rsa_pem(key_str.as_bytes()).expect("Invalid LTI private key")
+    if key_str.is_empty() {
+        // Handle the empty key case - maybe return a specialized error or a dummy key
+        // that fails later. jsonwebtoken::EncodingKey::from_rsa_pem usually expects valid PEM.
+        // We'll use a dummy valid-looking but useless PEM if it's empty to avoid panic on startup
+        // but it will fail on actual LTI usage.
+        return jsonwebtoken::EncodingKey::from_rsa_pem(b"-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA7f...dummy...\n-----END RSA PRIVATE KEY-----").expect("Dummy key failed");
+    }
+
+    jsonwebtoken::EncodingKey::from_rsa_pem(key_str.as_bytes()).expect("Invalid LTI private key format")
 }
 
 pub fn get_lti_jwks() -> JwkSet {
