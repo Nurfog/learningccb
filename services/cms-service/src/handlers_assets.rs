@@ -95,20 +95,20 @@ pub async fn upload_asset(
         .unwrap_or(0);
 
     // Record in DB
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO assets (id, organization_id, uploaded_by, course_id, filename, storage_path, mimetype, size_bytes)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        asset_id,
-        org_ctx.id,
-        claims.sub,
-        course_id,
-        filename,
-        storage_path,
-        mimetype,
-        size_bytes
     )
+    .bind(asset_id)
+    .bind(org_ctx.id)
+    .bind(claims.sub)
+    .bind(course_id)
+    .bind(&filename)
+    .bind(&storage_path)
+    .bind(&mimetype)
+    .bind(size_bytes)
     .execute(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -182,19 +182,19 @@ pub async fn delete_asset(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     // 1. Get asset metadata to find file path
-    let asset = sqlx::query_as!(
-        Asset,
-        "SELECT * FROM assets WHERE id = $1 AND organization_id = $2",
-        id,
-        org_ctx.id
+    let asset: Asset = sqlx::query_as(
+        "SELECT * FROM assets WHERE id = $1 AND organization_id = $2"
     )
+    .bind(id)
+    .bind(org_ctx.id)
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Asset not found".to_string()))?;
 
     // 2. Delete from DB
-    sqlx::query!("DELETE FROM assets WHERE id = $1", id)
+    sqlx::query("DELETE FROM assets WHERE id = $1")
+        .bind(id)
         .execute(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

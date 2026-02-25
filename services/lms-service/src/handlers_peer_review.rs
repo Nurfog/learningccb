@@ -8,7 +8,7 @@ use common::models::{
     SubmitPeerReviewPayload,
 };
 use common::{auth::Claims, middleware::Org};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 pub async fn submit_assignment(

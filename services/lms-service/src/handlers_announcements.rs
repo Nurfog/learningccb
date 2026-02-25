@@ -52,16 +52,16 @@ pub async fn list_announcements(
 
     // Attach cohort_ids to each announcement
     for a in &mut announcements {
-        let cohorts = sqlx::query!(
-            "SELECT cohort_id FROM announcement_cohorts WHERE announcement_id = $1",
-            a.id
+        let cohorts: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT cohort_id FROM announcement_cohorts WHERE announcement_id = $1"
         )
+        .bind(a.id)
         .fetch_all(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
         if !cohorts.is_empty() {
-            a.cohort_ids = Some(cohorts.into_iter().map(|c| c.cohort_id).collect());
+            a.cohort_ids = Some(cohorts.into_iter().map(|c| c.0).collect());
         }
     }
 

@@ -24,21 +24,20 @@ pub async fn create_library_block(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateLibraryBlockPayload>,
 ) -> Result<Json<LibraryBlock>, (StatusCode, String)> {
-    let block = sqlx::query_as!(
-        LibraryBlock,
+    let block: LibraryBlock = sqlx::query_as(
         r#"
         INSERT INTO library_blocks (organization_id, created_by, name, description, block_type, block_data, tags)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count as "usage_count!", created_at, updated_at
-        "#,
-        org_ctx.id,
-        claims.sub,
-        payload.name,
-        payload.description,
-        payload.block_type,
-        payload.block_data,
-        payload.tags.as_deref()
+        RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count, created_at, updated_at
+        "#
     )
+    .bind(org_ctx.id)
+    .bind(claims.sub)
+    .bind(&payload.name)
+    .bind(&payload.description)
+    .bind(&payload.block_type)
+    .bind(&payload.block_data)
+    .bind(payload.tags.as_deref())
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -110,12 +109,11 @@ pub async fn get_library_block(
     State(pool): State<PgPool>,
     Path(block_id): Path<Uuid>,
 ) -> Result<Json<LibraryBlock>, (StatusCode, String)> {
-    let block = sqlx::query_as!(
-        LibraryBlock,
-        r#"SELECT id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count as "usage_count!", created_at, updated_at FROM library_blocks WHERE id = $1 AND organization_id = $2"#,
-        block_id,
-        org_ctx.id
+    let block: Option<LibraryBlock> = sqlx::query_as(
+        r#"SELECT id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count, created_at, updated_at FROM library_blocks WHERE id = $1 AND organization_id = $2"#
     )
+    .bind(block_id)
+    .bind(org_ctx.id)
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -134,14 +132,12 @@ pub async fn update_library_block(
     Json(payload): Json<UpdateLibraryBlockPayload>,
 ) -> Result<Json<LibraryBlock>, (StatusCode, String)> {
     // Verificar que el bloque existe y pertenece a la org
-    let existing = sqlx::query!(
-        "SELECT id FROM library_blocks WHERE id = $1 AND organization_id = $2",
-        block_id,
-        org_ctx.id
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let existing = sqlx::query("SELECT id FROM library_blocks WHERE id = $1 AND organization_id = $2")
+        .bind(block_id)
+        .bind(org_ctx.id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if existing.is_none() {
         return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));
@@ -149,8 +145,7 @@ pub async fn update_library_block(
 
     // Update dinámico basado en campos provistos
     let updated = if let Some(name) = &payload.name {
-        sqlx::query_as!(
-            LibraryBlock,
+        sqlx::query_as(
             r#"
             UPDATE library_blocks 
             SET name = COALESCE($1, name),
@@ -158,33 +153,32 @@ pub async fn update_library_block(
                 tags = COALESCE($3, tags),
                 updated_at = NOW()
             WHERE id = $4 AND organization_id = $5
-            RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count as "usage_count!", created_at, updated_at
-            "#,
-            Some(name),
-            payload.description,
-            payload.tags.as_deref(),
-            block_id,
-            org_ctx.id
+            RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count, created_at, updated_at
+            "#
         )
+        .bind(Some(name))
+        .bind(payload.description)
+        .bind(payload.tags.as_deref())
+        .bind(block_id)
+        .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     } else {
-        sqlx::query_as!(
-            LibraryBlock,
+        sqlx::query_as(
             r#"
             UPDATE library_blocks 
             SET description = COALESCE($1, description),
                 tags = COALESCE($2, tags),
                 updated_at = NOW()
             WHERE id = $3 AND organization_id = $4
-            RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count as "usage_count!", created_at, updated_at
-            "#,
-            payload.description,
-            payload.tags.as_deref(),
-            block_id,
-            org_ctx.id
+            RETURNING id, organization_id, created_by, name, description, block_type, block_data, tags, usage_count, created_at, updated_at
+            "#
         )
+        .bind(payload.description)
+        .bind(payload.tags.as_deref())
+        .bind(block_id)
+        .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -199,14 +193,12 @@ pub async fn delete_library_block(
     State(pool): State<PgPool>,
     Path(block_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let result = sqlx::query!(
-        "DELETE FROM library_blocks WHERE id = $1 AND organization_id = $2",
-        block_id,
-        org_ctx.id
-    )
-    .execute(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let result = sqlx::query("DELETE FROM library_blocks WHERE id = $1 AND organization_id = $2")
+        .bind(block_id)
+        .bind(org_ctx.id)
+        .execute(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));
@@ -221,14 +213,12 @@ pub async fn increment_block_usage(
     State(pool): State<PgPool>,
     Path(block_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let result = sqlx::query!(
-        "UPDATE library_blocks SET usage_count = usage_count + 1 WHERE id = $1 AND organization_id = $2",
-        block_id,
-        org_ctx.id
-    )
-    .execute(&pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let result = sqlx::query("UPDATE library_blocks SET usage_count = usage_count + 1 WHERE id = $1 AND organization_id = $2")
+        .bind(block_id)
+        .bind(org_ctx.id)
+        .execute(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));

@@ -164,16 +164,27 @@ pub async fn export_course_grades(
     }
 
     // 1. Get Categories
-    let categories = sqlx::query!(
-        "SELECT id, name FROM grading_categories WHERE course_id = $1 ORDER BY name",
-        course_id
+    #[derive(sqlx::FromRow)]
+    struct Cat { id: Uuid, name: String }
+    let categories: Vec<Cat> = sqlx::query_as(
+        "SELECT id, name FROM grading_categories WHERE course_id = $1 ORDER BY name"
     )
+    .bind(course_id)
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 2. Get Student general data
-    let students = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct StudentRow {
+        id: Uuid,
+        full_name: String,
+        email: String,
+        progress: Option<f32>,
+        cohort_name: Option<String>,
+        average_score: Option<f32>,
+    }
+    let students: Vec<StudentRow> = sqlx::query_as(
         r#"
         SELECT 
             u.id, 
@@ -188,23 +199,23 @@ pub async fn export_course_grades(
         WHERE e.organization_id = $2
         GROUP BY u.id, u.full_name, u.email
         ORDER BY u.full_name
-        "#,
-        course_id,
-        org_ctx.id
+        "#
     )
+    .bind(course_id)
+    .bind(org_ctx.id)
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 3. Get detailed grades per user/category
+    #[derive(sqlx::FromRow)]
     struct UserCategoryGrade {
         user_id: Uuid,
         grading_category_id: Option<Uuid>,
         avg_score: Option<f32>,
     }
 
-    let detailed_grades = sqlx::query_as!(
-        UserCategoryGrade,
+    let detailed_grades: Vec<UserCategoryGrade> = sqlx::query_as(
         r#"
         SELECT 
             g.user_id, 
@@ -214,9 +225,9 @@ pub async fn export_course_grades(
         JOIN lessons l ON g.lesson_id = l.id
         WHERE g.course_id = $1
         GROUP BY g.user_id, l.grading_category_id
-        "#,
-        course_id
+        "#
     )
+    .bind(course_id)
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -906,17 +917,16 @@ pub async fn get_course_outline(
     }
 
     // 6. Fetch all dependencies for this course
-    let dependencies = sqlx::query_as!(
-        LessonDependency,
+    let dependencies: Vec<LessonDependency> = sqlx::query_as(
         r#"
         SELECT ld.* 
         FROM lesson_dependencies ld
         JOIN lessons l ON ld.lesson_id = l.id
         JOIN modules m ON l.module_id = m.id
         WHERE m.course_id = $1
-        "#,
-        id
+        "#
     )
+    .bind(id)
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| {
@@ -1011,12 +1021,15 @@ pub async fn get_lesson_content(
         return Ok(Json(lesson));
     }
     // We check if there are any prerequisites that the user hasn't completed yet.
-    // A prerequisite is completed if:
-    // a) It's graded and the user has a grade >= min_score_percentage (default 0)
-    // b) It's not graded and the user has a 'complete' interaction
-    let unmet_dependencies = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct UnmetDep { 
+        prerequisite_lesson_id: Uuid, 
+        prereq_title: String, 
+        min_score_percentage: Option<f32> 
+    }
+    let unmet_dependencies: Vec<UnmetDep> = sqlx::query_as(
         r#"
-        SELECT ld.prerequisite_lesson_id, p.title as prereq_title, ld.min_score_percentage
+        SELECT ld.prerequisite_lesson_id, p.title as prereq_title, ld.min_score_percentage::float4 as min_score_percentage
         FROM lesson_dependencies ld
         JOIN lessons p ON ld.prerequisite_lesson_id = p.id
         LEFT JOIN user_grades ug ON ld.prerequisite_lesson_id = ug.lesson_id AND ug.user_id = $2
@@ -1028,10 +1041,10 @@ pub async fn get_lesson_content(
             OR
             (p.is_graded = false AND li.id IS NULL)
         )
-        "#,
-        id,
-        claims.sub
+        "#
     )
+    .bind(id)
+    .bind(claims.sub)
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| {

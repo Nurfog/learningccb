@@ -37,20 +37,19 @@ pub async fn assign_dependency(
     }
 
     // 2. Insertar la dependencia
-    let dependency = sqlx::query_as!(
-        LessonDependency,
+    let dependency: LessonDependency = sqlx::query_as(
         r#"
         INSERT INTO lesson_dependencies (organization_id, lesson_id, prerequisite_lesson_id, min_score_percentage)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (lesson_id, prerequisite_lesson_id) 
         DO UPDATE SET min_score_percentage = EXCLUDED.min_score_percentage
         RETURNING id, organization_id, lesson_id, prerequisite_lesson_id, min_score_percentage, created_at
-        "#,
-        org_ctx.id,
-        lesson_id,
-        payload.prerequisite_lesson_id,
-        payload.min_score_percentage
+        "#
     )
+    .bind(org_ctx.id)
+    .bind(lesson_id)
+    .bind(payload.prerequisite_lesson_id)
+    .bind(payload.min_score_percentage)
     .fetch_one(&pool)
     .await
     .map_err(|e| {
@@ -66,12 +65,12 @@ pub async fn remove_dependency(
     State(pool): State<PgPool>,
     Path((lesson_id, prerequisite_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, StatusCode> {
-    let result = sqlx::query!(
-        "DELETE FROM lesson_dependencies WHERE lesson_id = $1 AND prerequisite_lesson_id = $2 AND organization_id = $3",
-        lesson_id,
-        prerequisite_id,
-        org_ctx.id
+    let result = sqlx::query(
+        "DELETE FROM lesson_dependencies WHERE lesson_id = $1 AND prerequisite_lesson_id = $2 AND organization_id = $3"
     )
+    .bind(lesson_id)
+    .bind(prerequisite_id)
+    .bind(org_ctx.id)
     .execute(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -88,12 +87,11 @@ pub async fn list_lesson_dependencies(
     State(pool): State<PgPool>,
     Path(lesson_id): Path<Uuid>,
 ) -> Result<Json<Vec<LessonDependency>>, StatusCode> {
-    let dependencies = sqlx::query_as!(
-        LessonDependency,
-        "SELECT * FROM lesson_dependencies WHERE lesson_id = $1 AND organization_id = $2",
-        lesson_id,
-        org_ctx.id
+    let dependencies: Vec<LessonDependency> = sqlx::query_as(
+        "SELECT * FROM lesson_dependencies WHERE lesson_id = $1 AND organization_id = $2"
     )
+    .bind(lesson_id)
+    .bind(org_ctx.id)
     .fetch_all(&pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
