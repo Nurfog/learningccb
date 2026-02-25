@@ -41,11 +41,18 @@ export const NewAnnouncementModal: React.FC<NewAnnouncementModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#1a1c1e] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={onClose}>
+            <div
+                className="bg-[#1a1c1e] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-announcement-title"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="flex items-center justify-between p-6 border-b border-white/5">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <Send className="w-5 h-5 text-primary-500" />
+                    <h2 id="modal-announcement-title" className="text-xl font-bold text-white flex items-center gap-2">
+                        <Send className="w-5 h-5 text-primary-500" aria-hidden="true" />
                         Publicar Nuevo Anuncio
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-gray-400 transition-colors">
@@ -62,20 +69,23 @@ export const NewAnnouncementModal: React.FC<NewAnnouncementModalProps> = ({
                     )}
 
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-400 ml-1">Título del Anuncio</label>
+                        <label htmlFor="ann-title" className="text-sm font-medium text-gray-400 ml-1">Título del Anuncio</label>
                         <input
+                            id="ann-title"
                             type="text"
                             required
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Ej: Nuevos materiales disponibles"
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary-500/50 transition-colors"
+                            autoFocus
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-400 ml-1">Contenido</label>
+                        <label htmlFor="ann-content" className="text-sm font-medium text-gray-400 ml-1">Contenido</label>
                         <textarea
+                            id="ann-content"
                             required
                             rows={6}
                             value={content}

@@ -33,10 +33,12 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
     };
 
     return (
-        <div className={`relative p-6 rounded-2xl border transition-all duration-300 ${announcement.is_pinned
+        <article
+            aria-labelledby={`ann-title-${announcement.id}`}
+            className={`relative p-6 rounded-2xl border transition-all duration-300 ${announcement.is_pinned
                 ? 'bg-primary-500/10 border-primary-500/30'
                 : 'bg-white/5 border-white/10 hover:border-white/20'
-            }`}>
+                }`}>
             {announcement.is_pinned && (
                 <div className="absolute top-4 right-4 text-primary-400">
                     <Pin className="w-4 h-4 fill-current" />
@@ -67,17 +69,18 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
                             disabled={isDeleting}
                             className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors"
                             title="Eliminar anuncio"
+                            aria-label="Eliminar anuncio"
                         >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
                     </div>
                 )}
             </div>
 
-            <h3 className="text-xl font-bold text-white mb-2">{announcement.title}</h3>
+            <h3 id={`ann-title-${announcement.id}`} className="text-xl font-bold text-white mb-2">{announcement.title}</h3>
             <div className="text-gray-300 whitespace-pre-wrap leading-relaxed">
                 {announcement.content}
             </div>
-        </div>
+        </article>
     );
 };

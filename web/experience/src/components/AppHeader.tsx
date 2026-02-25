@@ -25,14 +25,14 @@ export default function AppHeader() {
             <Link href="/" className="flex items-center gap-2 md:gap-3 group" aria-label={`${platformName} - Dashboard`}>
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-all overflow-hidden relative">
                     {branding?.logo_url ? (
-                        <Image src={getImageUrl(branding.logo_url)} alt={branding.name} fill className="object-contain" sizes="40px" />
+                        <Image src={getImageUrl(branding.logo_url)} alt="" fill className="object-contain" sizes="40px" />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-700" aria-hidden="true">
                             {platformName.charAt(0).toUpperCase()}
                         </div>
                     )}
                 </div>
-                <div className="flex flex-col -gap-1">
+                <div className="flex flex-col -gap-1" aria-hidden="true">
                     <span className="font-black text-sm md:text-lg tracking-tighter text-white leading-none">
                         {platformName.toUpperCase()}
                     </span>
@@ -41,7 +41,7 @@ export default function AppHeader() {
             </Link>
 
             <div className="flex items-center gap-4">
-                <nav className="hidden md:flex items-center gap-8 mr-4">
+                <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
                     <Link href="/" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-white transition-colors">
                         {t('nav.catalog')}
                     </Link>
@@ -106,8 +106,17 @@ export default function AppHeader() {
 
             {/* Mobile Sidebar Overlay */}
             {isMenuOpen && (
-                <div className="fixed inset-0 z-[150] md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="absolute right-0 top-0 bottom-0 w-64 glass border-l border-white/10 p-6 flex flex-col animate-in slide-in-from-right duration-300">
+                <div
+                    className="fixed inset-0 z-[150] md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={() => setIsMenuOpen(false)}
+                >
+                    <div
+                        className="absolute right-0 top-0 bottom-0 w-64 glass border-l border-white/10 p-6 flex flex-col animate-in slide-in-from-right duration-300"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Menú móvil"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="flex justify-between items-center mb-8">
                             <span className="font-black text-xs uppercase tracking-[0.2em] text-gray-500">Menú</span>
                             <button
@@ -119,7 +128,7 @@ export default function AppHeader() {
                             </button>
                         </div>
 
-                        <nav className="flex flex-col gap-6 flex-1">
+                        <nav className="flex flex-col gap-6 flex-1" aria-label="Mobile navigation">
                             <Link
                                 href="/"
                                 onClick={() => setIsMenuOpen(false)}
@@ -175,7 +184,7 @@ export default function AppHeader() {
                                 onClick={() => setIsMenuOpen(false)}
                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors"
                             >
-                                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center font-bold text-xs text-blue-400">
+                                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center font-bold text-xs text-blue-400" aria-hidden="true">
                                     {user?.full_name?.charAt(0) || 'U'}
                                 </div>
                                 <span className="text-sm font-bold">{user?.full_name || 'Mi Perfil'}</span>
@@ -184,7 +193,7 @@ export default function AppHeader() {
                                 onClick={logout}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
                             >
-                                <LogOut size={18} />
+                                <LogOut size={18} aria-hidden="true" />
                                 <span className="text-sm font-bold">{t('nav.signOut')}</span>
                             </button>
                         </div>

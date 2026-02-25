@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { lmsApi, User } from "@/lib/api";
-import { Trophy, Medal, Award } from "lucide-react";
+import { Trophy, Medal } from "lucide-react";
 
 export default function Leaderboard() {
     const [topUsers, setTopUsers] = useState<User[]>([]);
@@ -33,21 +33,21 @@ export default function Leaderboard() {
     return (
         <div className="glass-card p-8 border-white/5 bg-white/[0.01] rounded-3xl overflow-hidden relative">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6 flex items-center gap-2">
-                <Trophy size={14} className="text-amber-500" /> Tabla de Clasificación
+                <Trophy size={14} className="text-amber-500" aria-hidden="true" /> Tabla de Clasificación
             </h3>
 
-            <div className="space-y-3">
+            <ol className="space-y-3" aria-label="Ranking de estudiantes">
                 {topUsers.map((user, index) => (
-                    <div
+                    <li
                         key={user.id}
                         className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${index === 0 ? 'bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20 shadow-lg shadow-amber-500/5' :
-                                'bg-white/5 border border-white/5 hover:bg-white/10'
+                            'bg-white/5 border border-white/5 hover:bg-white/10'
                             }`}
                     >
-                        <div className="flex-shrink-0 w-8 text-center font-black text-xs text-gray-600">
-                            {index === 0 ? <Medal className="text-amber-500 mx-auto" size={18} /> :
-                                index === 1 ? <Medal className="text-gray-400 mx-auto" size={18} /> :
-                                    index === 2 ? <Medal className="text-amber-700 mx-auto" size={18} /> :
+                        <div className="flex-shrink-0 w-8 text-center font-black text-xs text-gray-600" aria-label={`Posición ${index + 1}`}>
+                            {index === 0 ? <Medal className="text-amber-500 mx-auto" size={18} aria-hidden="true" /> :
+                                index === 1 ? <Medal className="text-gray-400 mx-auto" size={18} aria-hidden="true" /> :
+                                    index === 2 ? <Medal className="text-amber-700 mx-auto" size={18} aria-hidden="true" /> :
                                         index + 1}
                         </div>
 
@@ -60,7 +60,7 @@ export default function Leaderboard() {
                             <div className="text-sm font-black text-white">{user.xp || 0}</div>
                             <div className="text-[8px] font-black text-blue-500 uppercase tracking-widest">XP</div>
                         </div>
-                    </div>
+                    </li>
                 ))}
 
                 {topUsers.length === 0 && (
@@ -68,10 +68,10 @@ export default function Leaderboard() {
                         Aún no hay datos de clasificación disponibles.
                     </div>
                 )}
-            </div>
+            </ol>
 
             {/* Visual background flair */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 blur-[100px] rounded-full pointer-events-none" aria-hidden="true"></div>
         </div>
     );
 }

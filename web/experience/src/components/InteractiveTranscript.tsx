@@ -56,12 +56,14 @@ export default function InteractiveTranscript({ transcription, currentTime, onSe
                 <div className="flex bg-black/40 rounded-lg p-1 border border-white/5">
                     <button
                         onClick={() => setLang('en')}
+                        aria-pressed={lang === 'en'}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all ${lang === 'en' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
                     >
                         EN
                     </button>
                     <button
                         onClick={() => setLang('es')}
+                        aria-pressed={lang === 'es'}
                         className={`px-3 py-1 text-[10px] font-black rounded-md transition-all ${lang === 'es' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white'}`}
                     >
                         ES
@@ -71,6 +73,9 @@ export default function InteractiveTranscript({ transcription, currentTime, onSe
 
             <div
                 ref={scrollRef}
+                role="region"
+                aria-label="Contenido de la transcripción"
+                aria-live="polite"
                 className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
             >
                 {cues.length === 0 ? (
@@ -88,14 +93,23 @@ export default function InteractiveTranscript({ transcription, currentTime, onSe
                             <div
                                 key={index}
                                 ref={active ? activeCueRef : null}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`${formatTime(cue.start)}: ${cue.text}`}
+                                aria-current={active ? "true" : undefined}
                                 onClick={() => onSeek(cue.start)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        onSeek(cue.start);
+                                    }
+                                }}
                                 className={`group cursor-pointer p-4 rounded-2xl transition-all border ${active
                                     ? 'bg-blue-500/10 border-blue-500/30 text-white translate-x-1'
                                     : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10'
                                     }`}
                             >
                                 <div className="flex items-start gap-4">
-                                    <span className={`text-[10px] font-mono mt-1 ${active ? 'text-blue-400' : 'text-gray-600'}`}>
+                                    <span className={`text-[10px] font-mono mt-1 ${active ? 'text-blue-400' : 'text-gray-600'}`} aria-hidden="true">
                                         {formatTime(cue.start)}
                                     </span>
                                     <p className={`text-sm leading-relaxed ${active ? 'font-medium' : ''}`}>

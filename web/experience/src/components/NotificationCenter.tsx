@@ -149,6 +149,7 @@ export default function NotificationCenter() {
                             <div className="p-4 border-t border-white/5 bg-white/5 text-center">
                                 <button
                                     className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
+                                    aria-label="Marcar todas las notificaciones como leídas"
                                     onClick={() => {
                                         notifications.filter(n => !n.is_read).forEach(n => markAsRead(n.id));
                                     }}

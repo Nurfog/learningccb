@@ -46,10 +46,15 @@ export default function NewThreadModal({ courseId, lessonId, onClose, onSuccess 
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div
+                className="bg-slate-900 border border-white/10 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-thread-title"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-white/10">
-                    <h2 className="text-2xl font-black text-white">Nuevo Hilo de Discusión</h2>
+                    <h2 id="modal-thread-title" className="text-2xl font-black text-white">Nuevo Hilo de Discusión</h2>
                     <button
                         onClick={onClose}
                         className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-all"
@@ -68,10 +73,11 @@ export default function NewThreadModal({ courseId, lessonId, onClose, onSuccess 
 
                     {/* Title */}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        <label htmlFor="thread-title" className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                             Título
                         </label>
                         <input
+                            id="thread-title"
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
@@ -79,19 +85,21 @@ export default function NewThreadModal({ courseId, lessonId, onClose, onSuccess 
                             className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors"
                             disabled={submitting}
                             maxLength={200}
+                            autoFocus
                         />
-                        <p className="text-xs text-gray-500">{title.length}/200 caracteres</p>
+                        <p id="thread-title-hint" className="text-xs text-gray-500">{title.length}/200 caracteres</p>
                     </div>
 
                     {/* Content */}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        <label htmlFor="thread-content" className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                             Contenido
                         </label>
                         <textarea
+                            id="thread-content"
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
-                            placeholder="Describe tu pregunta o tema en detalle..."
+                            placeholder="Describe tu pregunta o tema en detail..."
                             className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors resize-none"
                             rows={8}
                             disabled={submitting}

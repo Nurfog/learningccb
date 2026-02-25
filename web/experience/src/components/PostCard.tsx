@@ -32,14 +32,17 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
     const indentClass = depth > 0 ? `ml-${Math.min(depth * 4, 16)} pl-4 border-l-2 border-white/10` : '';
 
     return (
-        <div className={`${indentClass} ${depth > 0 ? 'mt-4' : 'mt-6'}`}>
+        <article
+            className={`${indentClass} ${depth > 0 ? 'mt-4' : 'mt-6'}`}
+            aria-labelledby={`post-content-${post.id}`}
+        >
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/[0.07] transition-all">
                 {/* Header */}
                 <div className="flex items-start gap-3 mb-3">
                     {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400 flex-shrink-0" aria-hidden="true">
                         {post.author_avatar ? (
-                            <img src={post.author_avatar} alt={post.author_name} className="w-full h-full rounded-full object-cover" />
+                            <img src={post.author_avatar} alt="" className="w-full h-full rounded-full object-cover" />
                         ) : (
                             <User size={20} />
                         )}
@@ -63,7 +66,7 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
                 </div>
 
                 {/* Content */}
-                <div className="text-gray-300 text-sm mb-4 whitespace-pre-wrap break-words">
+                <div id={`post-content-${post.id}`} className="text-gray-300 text-sm mb-4 whitespace-pre-wrap break-words">
                     {post.content}
                 </div>
 
@@ -73,12 +76,14 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
                     <button
                         onClick={() => handleVote('upvote')}
                         disabled={isVoting}
+                        aria-label={`Votar positivo (${post.upvotes} votos)`}
+                        aria-pressed={post.user_vote === 'upvote'}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${post.user_vote === 'upvote'
-                                ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/50'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10'
+                            ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/50'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10'
                             } disabled:opacity-50`}
                     >
-                        <ThumbsUp size={14} />
+                        <ThumbsUp size={14} aria-hidden="true" />
                         <span className="font-bold">{post.upvotes}</span>
                     </button>
 
@@ -86,9 +91,10 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
                     {depth < maxDepth && (
                         <button
                             onClick={() => onReply(post.id)}
+                            aria-label={`Responder al post de ${post.author_name}`}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/10 transition-all"
                         >
-                            <MessageSquare size={14} />
+                            <MessageSquare size={14} aria-hidden="true" />
                             <span className="font-bold">Responder</span>
                         </button>
                     )}
@@ -97,12 +103,14 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
                     {isInstructor && onEndorse && (
                         <button
                             onClick={() => onEndorse(post.id)}
+                            aria-label={post.is_endorsed ? 'Quitar aprobación de respuesta' : 'Marcar como respuesta correcta'}
+                            aria-pressed={!!post.is_endorsed}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${post.is_endorsed
-                                    ? 'bg-green-600/30 text-green-400 border border-green-500/50'
-                                    : 'bg-white/5 text-gray-400 hover:bg-green-600/20 hover:text-green-400 border border-white/10'
+                                ? 'bg-green-600/30 text-green-400 border border-green-500/50'
+                                : 'bg-white/5 text-gray-400 hover:bg-green-600/20 hover:text-green-400 border border-white/10'
                                 }`}
                         >
-                            <CheckCircle2 size={14} />
+                            <CheckCircle2 size={14} aria-hidden="true" />
                             <span className="font-bold text-xs">{post.is_endorsed ? 'Aprobada' : 'Aprobar'}</span>
                         </button>
                     )}
@@ -125,6 +133,6 @@ export default function PostCard({ post, onReply, onVote, onEndorse, depth, isIn
                     ))}
                 </div>
             )}
-        </div>
+        </article>
     );
 }
