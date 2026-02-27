@@ -91,17 +91,17 @@ export default function ProfilePage() {
     return (
         <div className="max-w-5xl mx-auto py-12 px-6">
             <div className="mb-12">
-                <h1 className="text-4xl font-black tracking-tight text-white mb-2">User Profile</h1>
-                <p className="text-gray-400">Manage your identity and preferences across the platform.</p>
+                <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white mb-2 transition-colors">User Profile</h1>
+                <p className="text-slate-500 dark:text-gray-400 transition-colors">Manage your identity and preferences across the platform.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Profile Card */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="glass p-8 rounded-[2rem] border border-white/5 flex flex-col items-center text-center relative overflow-hidden group">
+                    <div className="bg-white dark:bg-black/20 backdrop-blur-xl p-8 rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none flex flex-col items-center text-center relative overflow-hidden group transition-colors">
                         {/* Avatar Section */}
                         <div className="relative mb-6">
-                            <div className="w-32 h-32 rounded-full bg-blue-600/20 border-4 border-white/5 flex items-center justify-center overflow-hidden shadow-2xl relative">
+                            <div className="w-32 h-32 rounded-full bg-blue-50 dark:bg-blue-600/20 border-4 border-white dark:border-white/5 flex items-center justify-center overflow-hidden shadow-xl dark:shadow-2xl relative transition-colors">
                                 {avatarUrl ? (
                                     <Image
                                         src={getImageUrl(avatarUrl)}
@@ -111,7 +111,7 @@ export default function ProfilePage() {
                                         sizes="128px"
                                     />
                                 ) : (
-                                    <span className="text-5xl font-black text-blue-400">
+                                    <span className="text-5xl font-black text-blue-500 dark:text-blue-400">
                                         {fullName.charAt(0)}
                                     </span>
                                 )}
@@ -125,7 +125,7 @@ export default function ProfilePage() {
 
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl border-4 border-[#0a0a0b] transition-transform active:scale-90"
+                                className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white shadow-xl border-4 border-white dark:border-[#0a0a0b] transition-transform active:scale-90"
                             >
                                 <Camera size={18} />
                             </button>
@@ -138,35 +138,35 @@ export default function ProfilePage() {
                             />
                         </div>
 
-                        <h2 className="text-2xl font-black text-white">{fullName}</h2>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white transition-colors">{fullName}</h2>
                         <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/10">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-500/10 transition-colors">
                                 {user.role}
                             </span>
                         </div>
 
-                        <div className="w-full h-px bg-white/5 my-8" />
+                        <div className="w-full h-px bg-slate-200 dark:bg-white/5 my-8 transition-colors" />
 
                         <div className="w-full space-y-4 text-left">
-                            <div className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/5">
-                                <Building size={18} className="text-gray-500" />
+                            <div className="flex items-center gap-4 p-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-colors">
+                                <Building size={18} className="text-slate-400 dark:text-gray-500" />
                                 <div className="min-w-0">
-                                    <p className="text-[10px] font-black uppercase tracking-tighter text-gray-500">Organization</p>
-                                    <p className="text-xs font-bold text-white truncate">{user.organization_id}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-tighter text-slate-500 dark:text-gray-500 transition-colors">Organization</p>
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate transition-colors">{user.organization_id}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/5">
-                                <Shield size={18} className="text-gray-500" />
+                            <div className="flex items-center gap-4 p-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-colors">
+                                <Shield size={18} className="text-slate-400 dark:text-gray-500" />
                                 <div className="min-w-0">
-                                    <p className="text-[10px] font-black uppercase tracking-tighter text-gray-500">Access Level</p>
-                                    <p className="text-xs font-bold text-white truncate capitalize">{user.role}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-tighter text-slate-500 dark:text-gray-500 transition-colors">Access Level</p>
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate capitalize transition-colors">{user.role}</p>
                                 </div>
                             </div>
                         </div>
 
                         <button
                             onClick={logout}
-                            className="mt-10 w-full py-4 rounded-2xl border border-white/5 bg-white/5 text-sm font-black text-gray-400 hover:text-white hover:bg-red-500/10 hover:border-red-500/20 transition-all flex items-center justify-center gap-3 group/logout"
+                            className="mt-10 w-full py-4 rounded-2xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/5 text-sm font-black text-slate-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-white hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-200 dark:hover:border-red-500/20 transition-all flex items-center justify-center gap-3 group/logout"
                         >
                             <LogOut size={18} className="group-hover/logout:-translate-x-1 transition-transform" />
                             Sign Out
@@ -176,49 +176,49 @@ export default function ProfilePage() {
 
                 {/* Right Column: Settings Form */}
                 <div className="lg:col-span-2 space-y-6">
-                    <form onSubmit={handleSave} className="glass p-10 rounded-[2.5rem] border border-white/5 space-y-8">
+                    <form onSubmit={handleSave} className="bg-white dark:bg-black/20 backdrop-blur-xl p-10 rounded-[2.5rem] border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none space-y-8 transition-colors">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-3">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2 transition-colors">
                                     <UserIcon size={14} className="text-blue-500" /> Personal Name
                                 </label>
                                 <input
                                     type="text"
                                     value={fullName}
                                     onChange={(e) => setFullName(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all outline-none"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
                                     placeholder="Enter your full name"
                                     required
                                 />
                             </div>
 
-                            <div className="space-y-3 opacity-60">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
+                            <div className="space-y-3 opacity-80 dark:opacity-60">
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2 transition-colors">
                                     <Mail size={14} className="text-blue-500" /> Email Address
                                 </label>
                                 <input
                                     type="email"
                                     value={email}
                                     disabled
-                                    className="w-full bg-black/20 border border-white/5 rounded-2xl px-6 py-4 text-white/50 cursor-not-allowed"
+                                    className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-2xl px-6 py-4 text-slate-500 dark:text-white/50 cursor-not-allowed transition-colors"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-3">
-                            <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
+                            <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2 transition-colors">
                                 <FileText size={14} className="text-blue-500" /> Biography
                             </label>
                             <textarea
                                 value={bio}
                                 onChange={(e) => setBio(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all min-h-[140px] resize-none outline-none"
+                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all min-h-[140px] resize-none outline-none"
                                 placeholder="Tell us a bit about yourself..."
                             />
                         </div>
 
                         <div className="space-y-3">
-                            <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
+                            <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2 transition-colors">
                                 <Languages size={14} className="text-blue-500" /> Preferred Language
                             </label>
                             <div className="grid grid-cols-3 gap-3">
@@ -233,7 +233,7 @@ export default function ProfilePage() {
                                         onClick={() => setLanguage(lang.code)}
                                         className={`flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${language === lang.code
                                             ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-black/20 border-white/5 text-gray-400 hover:border-white/20 hover:text-white'
+                                            : 'bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-white/5 text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-white/20 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                     >
                                         <span className="text-xl">{lang.flag}</span>
@@ -245,8 +245,8 @@ export default function ProfilePage() {
 
                         {message && (
                             <div className={`p-5 rounded-2xl text-sm font-bold animate-in fade-in slide-in-from-top-4 ${message.type === 'success'
-                                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/20'
+                                : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20'
                                 }`}>
                                 {message.text}
                             </div>
@@ -256,7 +256,7 @@ export default function ProfilePage() {
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="w-full py-5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 rounded-2xl font-black text-white shadow-2xl shadow-blue-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
+                                className="w-full py-5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 rounded-2xl font-black text-white shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
                             >
                                 {saving ? (
                                     <div className="w-6 h-6 border-3 border-white/20 border-t-white rounded-full animate-spin" />
@@ -269,17 +269,17 @@ export default function ProfilePage() {
                     </form>
 
                     {/* Danger Zone */}
-                    <div className="glass p-8 rounded-[2rem] border border-red-500/10 bg-red-500/5 flex items-center justify-between">
+                    <div className="bg-red-50 dark:bg-red-500/5 backdrop-blur-xl p-8 rounded-[2rem] border border-red-200 dark:border-red-500/10 flex items-center justify-between transition-colors">
                         <div className="flex items-center gap-6">
-                            <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-400 border border-red-500/20 shadow-lg">
+                            <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-500/10 flex items-center justify-center text-red-500 dark:text-red-400 border border-red-200 dark:border-red-500/20 shadow-sm dark:shadow-lg transition-colors">
                                 <Trash2 size={24} />
                             </div>
                             <div>
-                                <h3 className="text-red-400 font-black text-lg">Danger Zone</h3>
-                                <p className="text-xs text-red-400/60 mt-1">This will permanently delete your identity and data.</p>
+                                <h3 className="text-red-600 dark:text-red-400 font-black text-lg transition-colors">Danger Zone</h3>
+                                <p className="text-xs text-red-500 dark:text-red-400/60 mt-1 transition-colors">This will permanently delete your identity and data.</p>
                             </div>
                         </div>
-                        <button className="px-8 py-3 border border-red-500/20 rounded-xl text-xs font-black text-red-400 hover:bg-red-500/10 transition-all uppercase tracking-widest active:scale-95">
+                        <button className="px-8 py-3 border border-red-200 dark:border-red-500/20 rounded-xl text-xs font-black text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10 transition-all uppercase tracking-widest active:scale-95">
                             Purge Account
                         </button>
                     </div>

@@ -58,30 +58,30 @@ export default function StudioLoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-950 via-blue-950 to-gray-950 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-gray-950 dark:via-blue-950 dark:to-gray-950 flex items-center justify-center p-4 transition-colors">
             <div className="w-full max-w-md">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/30">
                         <BookOpen className="w-8 h-8 text-white" />
                     </div>
-                    <h1 className="text-3xl font-black text-white mb-2">OpenCCB Studio</h1>
-                    <p className="text-gray-400">Instructor & Administrator Portal</p>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">OpenCCB Studio</h1>
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">Instructor & Administrator Portal</p>
                 </div>
 
                 {/* Login/Register Form */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8">
-                    <div className="flex gap-2 mb-6 bg-white/5 rounded-xl p-1">
+                <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-xl dark:shadow-none rounded-3xl p-8 transition-colors">
+                    <div className="flex gap-2 mb-6 bg-gray-100 dark:bg-white/5 rounded-xl p-1 transition-colors">
                         <button
                             onClick={() => setIsLogin(true)}
-                            className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${isLogin ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                            className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${isLogin ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                                 }`}
                         >
                             Login
                         </button>
                         <button
                             onClick={() => setIsLogin(false)}
-                            className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${!isLogin ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                            className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${!isLogin ? "bg-blue-600 text-white shadow" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                                 }`}
                         >
                             Register
@@ -94,16 +94,16 @@ export default function StudioLoginPage() {
                                 {!isLogin && (
                                     <>
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-300 mb-2">
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                 Full Name
                                             </label>
                                             <div className="relative">
-                                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                                                 <input
                                                     type="text"
                                                     value={fullName}
                                                     onChange={(e) => setFullName(e.target.value)}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                                                     placeholder="John Doe"
                                                     autoComplete="name"
                                                     required
@@ -111,21 +111,21 @@ export default function StudioLoginPage() {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-300 mb-2">
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                                 Organization Name (Optional)
                                             </label>
                                             <div className="relative">
-                                                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                                                 <input
                                                     type="text"
                                                     value={organizationName}
                                                     onChange={(e) => setOrganizationName(e.target.value)}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                                                     placeholder="Your School or Company"
                                                     autoComplete="organization"
                                                 />
                                             </div>
-                                            <p className="text-xs text-gray-500 mt-2 pl-1">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 pl-1">
                                                 If left blank, an organization will be created based on your email domain.
                                             </p>
                                         </div>
@@ -133,16 +133,16 @@ export default function StudioLoginPage() {
                                 )}
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-300 mb-2">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                         Email
                                     </label>
                                     <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                                         <input
                                             type="email"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                                             placeholder="instructor@example.com"
                                             autoComplete="email"
                                             required
@@ -151,16 +151,16 @@ export default function StudioLoginPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-300 mb-2">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                         Password
                                     </label>
                                     <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                                         <input
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                                             placeholder="••••••••"
                                             autoComplete="current-password"
                                             required
@@ -170,28 +170,30 @@ export default function StudioLoginPage() {
                             </>
                         ) : (
                             <div className="z-50 relative">
-                                <label className="block text-sm font-bold text-gray-300 mb-2">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                                     Organization ID
                                 </label>
-                                <AsyncCombobox
-                                    id="orgIdForSSO"
-                                    value={orgIdForSSO}
-                                    onChange={setOrgIdForSSO}
-                                    onSearch={async (q) => {
-                                        const res = await cmsApi.searchOrganizations(q);
-                                        return res.map(o => ({ id: o.id, name: o.name }));
-                                    }}
-                                    placeholder="Search for your organization..."
-                                    leftIcon={<Building2 size={20} />}
-                                />
-                                <p className="text-xs text-gray-500 mt-2 pl-1">
+                                <div className="text-gray-900 dark:text-white">
+                                    <AsyncCombobox
+                                        id="orgIdForSSO"
+                                        value={orgIdForSSO}
+                                        onChange={setOrgIdForSSO}
+                                        onSearch={async (q) => {
+                                            const res = await cmsApi.searchOrganizations(q);
+                                            return res.map(o => ({ id: o.id, name: o.name }));
+                                        }}
+                                        placeholder="Search for your organization..."
+                                        leftIcon={<Building2 size={20} />}
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 pl-1">
                                     Please search and select your organization to continue.
                                 </p>
                             </div>
                         )}
 
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-sm">
+                            <div className="bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl p-3 text-red-600 dark:text-red-400 text-sm">
                                 {error}
                             </div>
                         )}
@@ -209,17 +211,17 @@ export default function StudioLoginPage() {
                                     cmsApi.initSSOLogin(orgIdForSSO);
                                 }
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                         >
                             {loading ? "Processing..." : ssoMode ? "Continue with SSO" : isLogin ? "Sign In" : "Create Account"}
                         </button>
 
                         <div className="relative my-6">
                             <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-white/10"></span>
+                                <span className="w-full border-t border-gray-200 dark:border-white/10 transition-colors"></span>
                             </div>
                             <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-[#020617] px-2 text-gray-500">Or</span>
+                                <span className="bg-white dark:bg-[#020617] px-2 text-gray-500 dark:text-gray-400 transition-colors">Or</span>
                             </div>
                         </div>
 
@@ -229,23 +231,23 @@ export default function StudioLoginPage() {
                                 setSSOMode(!ssoMode);
                                 setError("");
                             }}
-                            className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl border border-white/10 transition-colors"
+                            className="w-full bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-900 dark:text-white font-bold py-3 rounded-xl border border-gray-200 dark:border-white/10 transition-colors"
                         >
                             {ssoMode ? "Use Email & Password" : "Login with Enterprise SSO"}
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-white/10 text-center">
-                        <p className="text-sm text-gray-400">
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10 text-center transition-colors">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                             Are you a student?{" "}
-                            <a href="http://192.168.0.254:3003/auth/login" className="text-blue-400 hover:text-blue-300 font-bold">
+                            <a href="http://192.168.0.254:3003/auth/login" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition-colors">
                                 Go to Student Portal
                             </a>
                         </p>
                     </div>
                 </div>
 
-                <p className="text-center text-xs text-gray-500 mt-6">
+                <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-6">
                     OpenCCB Studio - Instructor & Administrator Portal
                 </p>
             </div>
