@@ -18,7 +18,7 @@ pub struct GradeSubmissionRequest {
     pub user_id: String,
     pub course_id: String,
     pub lesson_id: String,
-    /// Puntaje entre 0.0 y 1.0 — se convertirá a la escala local (ej: 1-7)
+    /// Puntaje entre 0 y 100
     pub score: f32,
     pub metadata: Option<serde_json::Value>,
 }
@@ -184,8 +184,8 @@ pub fn enroll_user() {}
 /// localmente en PostgreSQL y se sincroniza automáticamente a MySQL en la tabla `notas`
 /// usando el `idDetalleContrato` guardado al momento de la inscripción.
 ///
-/// El campo `score` debe estar entre 0.0 y 1.0 — se convertirá a la escala
-/// entera configurada (por defecto a escala chilena 1–7).
+/// El campo `score` debe estar entre 0 y 100 — la nota se insertará
+/// directamente en la base de datos externa como valor entero.
 #[utoipa::path(
     post,
     path = "/grades",

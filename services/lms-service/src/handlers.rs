@@ -1205,12 +1205,8 @@ pub async fn submit_lesson_score(
         if let Some(id_detalle_contrato) = external_id {
             let table = env::var("EXTERNAL_TABLE_GRADES").unwrap_or_else(|_| "notas".to_string());
 
-            // Convert score from 0.0-1.0 to integer scale (1-7 Chilean grades by default)
-            let scale_max: f32 = env::var("EXTERNAL_GRADE_SCALE_MAX")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(7.0);
-            let scale_min: f32 = env::var("EXTERNAL_GRADE_SCALE_MIN")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(1.0);
-            let nota = (scale_min + (payload.score * (scale_max - scale_min))).round() as i32;
+            // The external MySQL table uses the exact same 0-100 scale.
+            let nota = payload.score.round() as i32;
 
             // Resolve idTipoNota from the lesson's grading category (tipo_nota_id),
             // falling back to the EXTERNAL_ID_TIPO_NOTA env var.
