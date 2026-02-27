@@ -213,6 +213,7 @@ pub struct GradingPayload {
     pub name: String,
     pub weight: i32,
     pub drop_count: i32,
+    pub tipo_nota_id: Option<i32>, // idTipoNota from tiponota table
 }
 
 #[derive(Deserialize)]
@@ -1441,8 +1442,8 @@ pub async fn create_grading_category(
     Json(payload): Json<GradingPayload>,
 ) -> Result<Json<common::models::GradingCategory>, (StatusCode, String)> {
     let category = sqlx::query_as::<_, common::models::GradingCategory>(
-        "INSERT INTO grading_categories (organization_id, course_id, name, weight, drop_count) 
-         VALUES ($1, $2, $3, $4, $5) 
+        "INSERT INTO grading_categories (organization_id, course_id, name, weight, drop_count, tipo_nota_id) 
+         VALUES ($1, $2, $3, $4, $5, $6) 
          RETURNING *",
     )
     .bind(org_ctx.id)
@@ -1450,11 +1451,34 @@ pub async fn create_grading_category(
     .bind(payload.name)
     .bind(payload.weight)
     .bind(payload.drop_count)
+    .bind(payload.tipo_nota_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(category))
+}
+
+// Tipo Nota (Assessment type catalog)
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct TipoNota {
+    pub id_tipo_nota: i32,
+    pub nombre: String,
+    pub descripcion: Option<String>,
+    pub activo: i16,
+}
+
+pub async fn get_tipo_nota(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<TipoNota>>, StatusCode> {
+    let tipos = sqlx::query_as::<_, TipoNota>(
+        "SELECT * FROM tipo_nota WHERE activo = 1 ORDER BY id_tipo_nota"
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(tipos))
 }
 
 pub async fn delete_grading_category(

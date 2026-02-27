@@ -3,6 +3,7 @@ use axum::{
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
+    Extension,
 };
 use bcrypt::{DEFAULT_COST, hash, verify};
 use common::auth::{Claims, create_jwt};
@@ -12,6 +13,7 @@ use common::models::{
     Module, Notification, Organization, RecommendationResponse, User, UserResponse,
     LessonDependency,
 };
+use crate::external_db::MySqlPool;
 
 pub async fn get_me(
     claims: common::auth::Claims,
@@ -295,6 +297,9 @@ pub async fn enroll_user(
     let course_id = Uuid::parse_str(course_id_str).map_err(|_| StatusCode::BAD_REQUEST)?;
     let user_id = claims.sub;
 
+    // Optional: ID from the external system (idDetalleContrato)
+    let external_id: Option<i32> = payload.get("external_id").and_then(|v| v.as_i64()).map(|v| v as i32);
+
     // 1. Check if course exists and get its price
     let course_info: (f64, String) =
         sqlx::query_as("SELECT price, currency FROM courses WHERE id = $1")
@@ -357,6 +362,19 @@ pub async fn enroll_user(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
+    // If an external_id was provided, persist it on the enrollment now
+    if let Some(ext_id) = external_id {
+        sqlx::query("UPDATE enrollments SET external_id = $1 WHERE id = $2")
+            .bind(ext_id)
+            .bind(enrollment.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e: sqlx::Error| {
+                tracing::error!("Failed to set external_id on enrollment: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
+
     tx.commit()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -370,7 +388,8 @@ pub async fn enroll_user(
             &serde_json::json!({
                 "user_id": user_id,
                 "course_id": course_id,
-                "enrollment_id": enrollment.id
+                "enrollment_id": enrollment.id,
+                "external_id": external_id
             }),
         )
         .await;
@@ -1092,6 +1111,7 @@ pub async fn submit_lesson_score(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
+    Extension(mysql_pool): Extension<Option<MySqlPool>>,
     headers: axum::http::HeaderMap,
     Json(payload): Json<GradeSubmissionPayload>,
 ) -> Result<Json<common::models::UserGrade>, (StatusCode, String)> {
@@ -1168,6 +1188,71 @@ pub async fn submit_lesson_score(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 3.1 Synchronize with external MySQL if available
+    if let Some(mysql_pool) = mysql_pool {
+        // Fetch the external_id (idDetalleContrato) from the enrollment record
+        let external_id: Option<i32> = sqlx::query_scalar(
+            "SELECT external_id FROM enrollments WHERE user_id = $1 AND course_id = $2"
+        )
+        .bind(payload.user_id)
+        .bind(payload.course_id)
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None)
+        .flatten();
+
+        if let Some(id_detalle_contrato) = external_id {
+            let table = env::var("EXTERNAL_TABLE_GRADES").unwrap_or_else(|_| "notas".to_string());
+
+            // Convert score from 0.0-1.0 to integer scale (1-7 Chilean grades by default)
+            let scale_max: f32 = env::var("EXTERNAL_GRADE_SCALE_MAX")
+                .ok().and_then(|v| v.parse().ok()).unwrap_or(7.0);
+            let scale_min: f32 = env::var("EXTERNAL_GRADE_SCALE_MIN")
+                .ok().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+            let nota = (scale_min + (payload.score * (scale_max - scale_min))).round() as i32;
+
+            // Resolve idTipoNota from the lesson's grading category (tipo_nota_id),
+            // falling back to the EXTERNAL_ID_TIPO_NOTA env var.
+            let tipo_nota_from_category: Option<i32> = sqlx::query_scalar(
+                "SELECT gc.tipo_nota_id FROM grading_categories gc \
+                 JOIN lessons l ON l.grading_category_id = gc.id \
+                 WHERE l.id = $1"
+            )
+            .bind(payload.lesson_id)
+            .fetch_optional(&pool)
+            .await
+            .unwrap_or(None)
+            .flatten();
+
+            let id_tipo_nota: i32 = tipo_nota_from_category
+                .or_else(|| {
+                    env::var("EXTERNAL_ID_TIPO_NOTA").ok().and_then(|v| v.parse().ok())
+                })
+                .unwrap_or(1); // Default: CA (Continuous Assessment)
+
+            let query = format!(
+                "INSERT INTO {} (idDetalleContrato, FechaIngresoNota, idTipoNota, Nota, Activo) VALUES (?, NOW(), ?, ?, 1)",
+                table
+            );
+
+            let _ = sqlx::query(&query)
+                .bind(id_detalle_contrato)
+                .bind(id_tipo_nota)
+                .bind(nota)
+                .execute(&mysql_pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to sync grade to external MySQL (notas): {}", e);
+                });
+        } else {
+            tracing::warn!(
+                "No external_id found for enrollment (user_id={}, course_id={}). Grade not synced to MySQL.",
+                payload.user_id,
+                payload.course_id
+            );
+        }
+    }
 
     tx.commit()
         .await

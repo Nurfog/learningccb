@@ -62,6 +62,7 @@ pub struct GradingCategory {
     pub name: String,
     pub weight: i32, // 0-100
     pub drop_count: i32,
+    pub tipo_nota_id: Option<i32>, // Maps to idTipoNota in external MySQL system
     pub created_at: DateTime<Utc>,
 }
 
@@ -126,6 +127,7 @@ pub struct Enrollment {
     pub user_id: Uuid,
     pub organization_id: Uuid,
     pub course_id: Uuid,
+    pub external_id: Option<i32>, // idDetalleContrato from the external system
     pub enrolled_at: DateTime<Utc>,
 }
 

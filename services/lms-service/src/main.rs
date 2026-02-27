@@ -11,16 +11,20 @@ mod jwks;
 mod predictive;
 mod live;
 mod portfolio;
+mod external_db;
+mod openapi;
 
 use axum::{
     Router, middleware,
     routing::{delete, get, post, put},
+    response::Html,
 };
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+use utoipa::OpenApi;
 
 #[tokio::main]
 async fn main() {
@@ -33,6 +37,8 @@ async fn main() {
         .connect(&db_url)
         .await
         .expect("Failed to connect to database");
+
+    let mysql_pool = external_db::init_mysql_pool().await;
 
     // Run migrations automatically
     sqlx::migrate!("./migrations")
@@ -223,6 +229,25 @@ async fn main() {
         ));
 
     let public_routes = Router::new()
+        .route("/api-docs/openapi.json", get(|| async {
+            axum::Json(openapi::ApiDoc::openapi())
+        }))
+        .route("/scalar", get(|| async {
+            Html(r#"
+<!doctype html>
+<html>
+  <head>
+    <title>OpenCCB LMS API</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" data-url="/api-docs/openapi.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>
+            "#)
+        }))
         .route("/catalog", get(handlers::get_course_catalog))
         .route("/ingest", post(handlers::ingest_course))
         .route("/auth/register", post(handlers::register))
@@ -237,7 +262,8 @@ async fn main() {
         .route("/lti/deep-linking/response", post(lti::lti_deep_linking_response))
         .merge(protected_routes)
         .layer(cors)
-        .with_state(pool);
+        .with_state(pool)
+        .layer(axum::Extension(mysql_pool));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3002));
     tracing::info!("LMS Service listening on {}", addr);

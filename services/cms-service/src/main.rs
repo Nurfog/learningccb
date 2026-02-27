@@ -154,6 +154,7 @@ async fn main() {
             "/courses/{id}/grading",
             get(handlers::get_grading_categories),
         )
+        .route("/tipo-nota", get(handlers::get_tipo_nota))
         .route("/auth/me", get(handlers::get_me))
         .route(
             "/users",
