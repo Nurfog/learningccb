@@ -141,15 +141,15 @@ export default function CourseEditorLayout({
                             <ChevronLeft className="w-5 h-5" />
                         </button>
                         <div>
-                            <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
+                            <h1 className="heading-premium">
                                 {displayTitle}
                             </h1>
-                            <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">
+                            <p className="text-description-premium mt-1.5 flex items-center gap-2">
                                 {displayDescription}
                                 {course?.pacing_mode && (
-                                    <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded ${course.pacing_mode === "instructor_led"
-                                            ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400"
-                                            : "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400"
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${course.pacing_mode === "instructor_led"
+                                        ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400"
+                                        : "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400"
                                         }`}>
                                         {course.pacing_mode.replace("_", " ").toUpperCase()}
                                     </span>
@@ -179,8 +179,8 @@ export default function CourseEditorLayout({
                                     <Link
                                         href={groupHref}
                                         className={`flex items-center gap-2 px-6 py-3 text-sm font-black uppercase tracking-wider transition-all border-b-2 whitespace-nowrap ${isGroupActive
-                                                ? "border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10"
-                                                : "border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-100 hover:bg-slate-50 dark:hover:bg-white/5"
+                                            ? "border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10"
+                                            : "border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-100 hover:bg-slate-50 dark:hover:bg-white/5"
                                             }`}
                                     >
                                         <Icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
@@ -206,8 +206,8 @@ export default function CourseEditorLayout({
                                             href={tab.href}
                                             aria-current={isActive ? "page" : undefined}
                                             className={`flex items-center gap-1.5 px-4 py-2 my-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap ${isActive
-                                                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
-                                                    : "text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5"
+                                                ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                                                : "text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5"
                                                 }`}
                                         >
                                             <Icon className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />

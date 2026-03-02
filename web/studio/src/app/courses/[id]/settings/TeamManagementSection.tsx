@@ -79,8 +79,8 @@ export default function TeamManagementSection({ courseId }: TeamManagementSectio
                         <Users size={24} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black">Course Team</h2>
-                        <p className="text-sm text-gray-400">Manage instructors and assistants for this course</p>
+                        <h2 className="section-title">Equipo del Curso</h2>
+                        <p className="text-sm text-gray-400">Gestiona los instructores y asistentes de este curso</p>
                     </div>
                 </div>
             </div>

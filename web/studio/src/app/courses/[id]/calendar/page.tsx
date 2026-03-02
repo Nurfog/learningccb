@@ -98,98 +98,80 @@ export default function CourseCalendarPage({ params }: { params: { id: string } 
     const year = currentDate.getFullYear();
 
     return (
-        <div className="min-h-screen bg-transparent text-gray-900 dark:text-white p-8">
-            <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-12">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                        >
-                            <ArrowLeft className="w-6 h-6" />
-                        </button>
-                        <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                                Course Calendar
-                            </h1>
-                            <p className="text-gray-400 mt-1">Manage important dates and deadlines for {course?.title}</p>
+        <CourseEditorLayout
+            activeTab="calendar"
+            pageTitle="Calendario del Curso"
+            pageDescription={`Gestiona fechas importantes y plazos para ${course?.title || 'este curso'}.`}
+        >
+            <div className="p-8">
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-6">
+                        <h3 className="text-2xl font-black uppercase tracking-tight">{monthName} <span className="text-blue-500">{year}</span></h3>
+                        <div className="flex items-center gap-2 bg-white/5 rounded-xl p-1 border border-white/10">
+                            <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+                            <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-xs font-bold uppercase tracking-widest hover:text-blue-400 transition-colors">Hoy</button>
+                            <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                            <span className="w-2 h-2 rounded-full bg-red-500"></span> Examen
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Tarea
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                            <span className="w-2 h-2 rounded-full bg-purple-500"></span> En Vivo
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                            <span className="w-2 h-2 rounded-full bg-green-500"></span> Lección
                         </div>
                     </div>
                 </div>
 
-                <CourseEditorLayout activeTab="calendar">
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-6">
-                                <h3 className="text-2xl font-black uppercase tracking-tight">{monthName} <span className="text-blue-500">{year}</span></h3>
-                                <div className="flex items-center gap-2 bg-white/5 rounded-xl p-1 border border-white/10">
-                                    <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-                                    <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-xs font-bold uppercase tracking-widest hover:text-blue-400 transition-colors">Today</button>
-                                    <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronRight className="w-5 h-5" /></button>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-4">
-                                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                                    <span className="w-2 h-2 rounded-full bg-red-500"></span> Exam
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span> Assignment
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span> Live
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                                    <span className="w-2 h-2 rounded-full bg-green-500"></span> Lesson
-                                </div>
-                            </div>
+                <div className="grid grid-cols-7 border-t border-l border-white/5 rounded-xl overflow-hidden shadow-2xl overflow-hidden">
+                    {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
+                        <div key={day} className="bg-white/5 py-4 text-center text-xs font-black uppercase tracking-widest text-gray-500 border-r border-b border-white/5">
+                            {day}
                         </div>
+                    ))}
+                    {renderCalendar()}
+                </div>
 
-                        <div className="grid grid-cols-7 border-t border-l border-white/5 rounded-xl overflow-hidden shadow-2xl overflow-hidden">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                                <div key={day} className="bg-white/5 py-4 text-center text-xs font-black uppercase tracking-widest text-gray-500 border-r border-b border-white/5">
-                                    {day}
-                                </div>
-                            ))}
-                            {renderCalendar()}
-                        </div>
-
-                        <div className="mt-12 space-y-4">
-                            <h4 className="text-lg font-bold flex items-center gap-2">
-                                <AlertCircle className="w-5 h-5 text-blue-500" />
-                                Upcoming Deadlines
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {lessons
-                                    .filter(l => l.due_date && new Date(l.due_date) >= new Date())
-                                    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-                                    .slice(0, 6)
-                                    .map(lesson => (
-                                        <div key={lesson.id} className="glass p-4 border-white/5 hover:border-blue-500/30 transition-all group">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${lesson.important_date_type === 'exam' ? 'text-red-400' :
-                                                        lesson.important_date_type === 'assignment' ? 'text-blue-400' :
-                                                            'text-green-400'
-                                                        }`}>
-                                                        {lesson.important_date_type || 'Activity'}
-                                                    </div>
-                                                    <h5 className="font-bold group-hover:text-blue-400 transition-colors">{lesson.title}</h5>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-sm font-black">{new Date(lesson.due_date!).toLocaleDateString()}</div>
-                                                    <div className="text-[10px] text-gray-500 uppercase font-bold">Due Date</div>
-                                                </div>
+                <div className="mt-12 space-y-4">
+                    <h4 className="text-lg font-bold flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-blue-500" />
+                        Upcoming Deadlines
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {lessons
+                            .filter(l => l.due_date && new Date(l.due_date) >= new Date())
+                            .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+                            .slice(0, 6)
+                            .map(lesson => (
+                                <div key={lesson.id} className="glass p-4 border-white/5 hover:border-blue-500/30 transition-all group">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${lesson.important_date_type === 'exam' ? 'text-red-400' :
+                                                lesson.important_date_type === 'assignment' ? 'text-blue-400' :
+                                                    'text-green-400'
+                                                }`}>
+                                                {lesson.important_date_type || 'Activity'}
                                             </div>
+                                            <h5 className="font-bold group-hover:text-blue-400 transition-colors">{lesson.title}</h5>
                                         </div>
-                                    ))
-                                }
-                            </div>
-                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-black">{new Date(lesson.due_date!).toLocaleDateString()}</div>
+                                            <div className="text-[10px] text-gray-500 uppercase font-bold">Due Date</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        }
                     </div>
-                </CourseEditorLayout>
+                </div>
             </div>
-        </div>
+        </CourseEditorLayout>
     );
 }

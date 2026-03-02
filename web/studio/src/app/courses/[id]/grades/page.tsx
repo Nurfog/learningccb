@@ -6,7 +6,6 @@ import { lmsApi, cmsApi, StudentGradeReport, Cohort } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import CourseEditorLayout from "@/components/CourseEditorLayout";
 import {
-    ArrowLeft,
     Search,
     GraduationCap,
     Download,
@@ -142,39 +141,28 @@ export default function GradebookPage() {
     );
 
     return (
-        <div className="min-h-screen bg-transparent text-gray-900 dark:text-white p-8">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-12">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                        >
-                            <ArrowLeft className="w-6 h-6" />
-                        </button>
-                        <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                                Gradebook
-                            </h1>
-                            <p className="text-gray-400 mt-1">Student, progress, and performance tracking</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setShowBulkEnroll(true)}
-                            className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 transition-all font-medium"
-                        >
-                            <Users size={16} /> Bulk Enroll
-                        </button>
-                        <button
-                            onClick={exportCSV}
-                            className="btn-premium px-4 flex items-center gap-2"
-                        >
-                            <Download size={16} /> Export CSV
-                        </button>
-                    </div>
+        <CourseEditorLayout
+            activeTab="grades"
+            pageTitle="Libro de Calificaciones"
+            pageDescription="Seguimiento del progreso, calificaciones y rendimiento de los estudiantes."
+            pageActions={
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowBulkEnroll(true)}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 transition-all font-medium text-sm"
+                    >
+                        <Users size={16} /> Inscripción Masiva
+                    </button>
+                    <button
+                        onClick={exportCSV}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all active:scale-95"
+                    >
+                        <Download size={16} /> Exportar CSV
+                    </button>
                 </div>
+            }
+        >
+            <>
 
                 {/* Bulk Enroll Modal */}
                 {showBulkEnroll && (
@@ -182,7 +170,7 @@ export default function GradebookPage() {
                         <div className="bg-[#1a1d23] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
                             <div className="p-6 border-b border-white/5 flex items-center justify-between">
                                 <h3 className="text-xl font-bold flex items-center gap-2">
-                                    <Users className="text-blue-400" /> Bulk Student Enrollment
+                                    <Users className="text-blue-400" /> Inscripción Masiva de Estudiantes
                                 </h3>
                                 <button
                                     onClick={() => {
@@ -201,7 +189,7 @@ export default function GradebookPage() {
                                     <>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                Enter email addresses (separated by commas or new lines)
+                                                Ingresa las direcciones de correo (separadas por comas o saltos de línea)
                                             </label>
                                             <textarea
                                                 value={bulkEmails}
@@ -212,7 +200,7 @@ export default function GradebookPage() {
                                         </div>
                                         <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3 italic text-sm text-blue-400">
                                             <AlertTriangle size={18} className="shrink-0" />
-                                            Students must already have an account in this organization to be enrolled.
+                                            Los estudiantes deben tener una cuenta en esta organización para ser inscritos.
                                         </div>
                                     </>
                                 ) : (
@@ -260,7 +248,7 @@ export default function GradebookPage() {
                                             disabled={bulkLoading || !bulkEmails.trim()}
                                             className="btn-premium px-8 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            {bulkLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Process Enrollment'}
+                                            {bulkLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Procesar Inscripción'}
                                         </button>
                                     </>
                                 ) : (
@@ -280,133 +268,135 @@ export default function GradebookPage() {
                     </div>
                 )}
 
-                <CourseEditorLayout activeTab="grades">
-                    <div className="p-8 space-y-8">
-                        {/* Controls & Stats */}
-                        <div className="flex flex-col md:flex-row gap-6 justify-between items-center bg-white/5 border border-white/10 rounded-2xl p-6">
-                            <div className="flex items-center gap-4 w-full md:w-auto">
-                                <div className="relative">
-                                    <select
-                                        value={selectedCohortId}
-                                        onChange={(e) => setSelectedCohortId(e.target.value)}
-                                        className="appearance-none bg-black/20 text-gray-900 dark:text-white border border-white/10 rounded-xl pl-4 pr-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[200px]"
-                                    >
-                                        <option value="">All Cohorts</option>
-                                        {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                        ▼
-                                    </div>
-                                </div>
-                                <div className="relative flex-1 md:w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search students..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white placeholder-gray-600"
-                                    />
+                <div className="space-y-8">
+                    <h2 className="section-title">
+                        <Users className="text-blue-500" />
+                        Registro de Calificaciones
+                    </h2>
+                    {/* Controls & Stats */}
+                    <div className="flex flex-col md:flex-row gap-6 justify-between items-center bg-white/5 border border-white/10 rounded-2xl p-6">
+                        <div className="flex items-center gap-4 w-full md:w-auto">
+                            <div className="relative">
+                                <select
+                                    value={selectedCohortId}
+                                    onChange={(e) => setSelectedCohortId(e.target.value)}
+                                    className="appearance-none bg-black/20 text-gray-900 dark:text-white border border-white/10 rounded-xl pl-4 pr-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-w-[200px]"
+                                >
+                                    <option value="">All Cohorts</option>
+                                    {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                    ▼
                                 </div>
                             </div>
-
-                            <div className="flex gap-8 border-l border-white/10 pl-8">
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Students</p>
-                                    <p className="text-2xl font-black">{filteredStudents.length}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Avg Score</p>
-                                    <p className={`text-2xl font-black ${averageScore < 0.7 ? 'text-orange-400' : 'text-green-400'}`}>
-                                        {(averageScore * 100).toFixed(0)}%
-                                    </p>
-                                </div>
+                            <div className="relative flex-1 md:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    placeholder="Search students..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white placeholder-gray-600"
+                                />
                             </div>
                         </div>
 
-                        {/* Student List */}
-                        <div className="rounded-3xl border border-white/10 bg-white/[0.02] overflow-hidden">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-white/5 border-b border-white/5">
-                                        <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Student</th>
-                                        <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Progress</th>
-                                        <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Avg. Score</th>
-                                        <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Last Active</th>
-                                        <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500 text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {filteredStudents.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className="p-12 text-center text-gray-600 italic">No students found.</td>
-                                        </tr>
-                                    ) : filteredStudents.map((s) => (
-                                        <tr key={s.user_id} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="p-6">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-gray-900 dark:text-white font-bold text-sm">
-                                                        {s.full_name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-400 transition-colors">{s.full_name}</div>
-                                                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                                            <Mail size={10} /> {s.email}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-6 align-middle">
-                                                <div className="w-full max-w-[140px]">
-                                                    <div className="flex justify-between text-xs mb-1 font-bold text-gray-400">
-                                                        <span>{(s.progress * 100).toFixed(0)}%</span>
-                                                    </div>
-                                                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-blue-500 rounded-full"
-                                                            style={{ width: `${s.progress * 100}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-6 align-middle">
-                                                {s.average_score !== null ? (
-                                                    <span className={`font-black ${(s.average_score || 0) >= 0.8 ? 'text-green-400' : (s.average_score || 0) >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                        {((s.average_score || 0) * 100).toFixed(0)}%
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-600 text-xs italic">No grades</span>
-                                                )}
-                                            </td>
-                                            <td className="p-6 align-middle">
-                                                <div className="text-sm text-gray-400 flex items-center gap-2">
-                                                    <Clock size={14} />
-                                                    {s.last_active_at ? new Date(s.last_active_at).toLocaleDateString() : 'Never'}
-                                                </div>
-                                            </td>
-                                            <td className="p-6 text-right align-middle">
-                                                {s.progress >= 1 ? (
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20">
-                                                        <CheckCircle size={12} /> Completed
-                                                    </span>
-                                                ) : s.last_active_at && (Date.now() - new Date(s.last_active_at).getTime() > 7 * 24 * 60 * 60 * 1000) ? (
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/20">
-                                                        <AlertCircle size={12} /> Inactive
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                                        <GraduationCap size={12} /> Active
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="flex gap-8 border-l border-white/10 pl-8">
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Students</p>
+                                <p className="text-2xl font-black">{filteredStudents.length}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Avg Score</p>
+                                <p className={`text-2xl font-black ${averageScore < 0.7 ? 'text-orange-400' : 'text-green-400'}`}>
+                                    {(averageScore * 100).toFixed(0)}%
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </CourseEditorLayout>
-            </div>
-        </div>
+
+                    {/* Student List */}
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-white/5 border-b border-white/5">
+                                    <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Student</th>
+                                    <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Progress</th>
+                                    <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Avg. Score</th>
+                                    <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500">Last Active</th>
+                                    <th className="p-6 text-xs font-black uppercase tracking-widest text-gray-500 text-right">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {filteredStudents.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="p-12 text-center text-gray-600 italic">No students found.</td>
+                                    </tr>
+                                ) : filteredStudents.map((s) => (
+                                    <tr key={s.user_id} className="hover:bg-white/[0.02] transition-colors group">
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-gray-900 dark:text-white font-bold text-sm">
+                                                    {s.full_name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-400 transition-colors">{s.full_name}</div>
+                                                    <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                                        <Mail size={10} /> {s.email}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-6 align-middle">
+                                            <div className="w-full max-w-[140px]">
+                                                <div className="flex justify-between text-xs mb-1 font-bold text-gray-400">
+                                                    <span>{(s.progress * 100).toFixed(0)}%</span>
+                                                </div>
+                                                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-blue-500 rounded-full"
+                                                        style={{ width: `${s.progress * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-6 align-middle">
+                                            {s.average_score !== null ? (
+                                                <span className={`font-black ${(s.average_score || 0) >= 0.8 ? 'text-green-400' : (s.average_score || 0) >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                    {((s.average_score || 0) * 100).toFixed(0)}%
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-600 text-xs italic">No grades</span>
+                                            )}
+                                        </td>
+                                        <td className="p-6 align-middle">
+                                            <div className="text-sm text-gray-400 flex items-center gap-2">
+                                                <Clock size={14} />
+                                                {s.last_active_at ? new Date(s.last_active_at).toLocaleDateString() : 'Never'}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-right align-middle">
+                                            {s.progress >= 1 ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20">
+                                                    <CheckCircle size={12} /> Completed
+                                                </span>
+                                            ) : s.last_active_at && (Date.now() - new Date(s.last_active_at).getTime() > 7 * 24 * 60 * 60 * 1000) ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/20">
+                                                    <AlertCircle size={12} /> Inactive
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                    <GraduationCap size={12} /> Active
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </>
+        </CourseEditorLayout>
     );
 }
