@@ -46,17 +46,18 @@ export default function AppHeader() {
 
             <div className="flex items-center gap-4">
                 <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
-                    <Link href="/" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                    <Link href="/" className="nav-link-standard text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.catalog')}
                     </Link>
-                    <Link href="/my-learning" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                    <Link href="/my-learning" className="nav-link-standard text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.myLearning')}
                     </Link>
-                    <Link href="/bookmarks" className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                    <Link href="/bookmarks" className="nav-link-standard text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.bookmarks')}
                     </Link>
+
                     {user && (
-                        <Link href={`/profile/${user.id}`} className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+                        <Link href={`/profile/${user.id}`} className="nav-link-standard text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                             MI PORTAFOLIO
                         </Link>
                     )}
