@@ -25,16 +25,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ];
 
     return (
-        <div className="flex min-h-screen bg-transparent text-gray-900 dark:text-white transition-colors duration-300">
+        <div className="flex min-h-screen bg-slate-50 dark:bg-transparent text-slate-900 dark:text-white transition-colors duration-300">
             {/* Sidebar */}
-            <aside className="w-64 border-r border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 backdrop-blur-xl p-6 flex flex-col gap-8">
+            <aside className="w-64 border-r border-slate-200 dark:border-white/5 bg-white dark:bg-black/20 backdrop-blur-xl p-6 flex flex-col gap-8 shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                         <ShieldCheck className="text-white" size={24} />
                     </div>
                     <div>
-                        <h2 className="font-black text-xs uppercase tracking-widest text-gray-500 leading-tight">Control Panel</h2>
-                        <h1 className="font-black text-lg tracking-tighter">SUPER ADMIN</h1>
+                        <h2 className="font-black text-[10px] uppercase tracking-widest text-slate-400 dark:text-gray-500 leading-tight">Control Panel</h2>
+                        <h1 className="font-black text-lg tracking-tighter text-slate-900 dark:text-white">SUPER ADMIN</h1>
                     </div>
                 </div>
 
@@ -44,8 +44,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${pathname === item.href
-                                ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-glow-sm"
-                                : "text-gray-500 hover:text-white hover:bg-white/5 border border-transparent"
+                                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
+                                : "text-slate-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent"
                                 }`}
                         >
                             <item.icon size={18} />
@@ -54,10 +54,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     ))}
                 </nav>
 
-                <div className="pt-6 border-t border-white/5">
+                <div className="pt-6 border-t border-slate-200 dark:border-white/5">
                     <Link
                         href="/"
-                        className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-600 hover:text-white transition-colors"
+                        className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 dark:text-gray-600 hover:text-slate-900 dark:hover:text-white transition-colors"
                     >
                         <ArrowLeft size={14} />
                         Back to Studio
@@ -66,7 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 p-12 overflow-y-auto">
+            <main className="flex-1 p-8 md:p-12 overflow-y-auto">
                 <div className="max-w-6xl mx-auto">
                     {children}
                 </div>

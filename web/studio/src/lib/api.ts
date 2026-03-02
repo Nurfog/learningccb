@@ -596,6 +596,7 @@ export const cmsApi = {
     getOrganization: (): Promise<Organization> => apiFetch('/organization'),
     getOrganizations: (): Promise<Organization[]> => apiFetch('/organizations'),
     createOrganization: (name: string, domain?: string): Promise<Organization> => apiFetch('/organizations', { method: 'POST', body: JSON.stringify({ name, domain }) }),
+    updateOrganization: (id: string, payload: { name?: string, domain?: string }): Promise<Organization> => apiFetch(`/organizations/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     provisionOrganization: (data: ProvisionPayload): Promise<Organization> => apiFetch('/admin/provision', { method: 'POST', body: JSON.stringify(data) }),
 
     // Auth

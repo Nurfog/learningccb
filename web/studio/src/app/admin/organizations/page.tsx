@@ -4,16 +4,20 @@ import { useState, useEffect } from 'react';
 import { cmsApi, Organization, getImageUrl, API_BASE_URL } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
-import { Plus, Building2, Globe, Calendar, ExternalLink, ShieldCheck, Palette, Upload, Save, X, Fingerprint, Key, Settings2 } from 'lucide-react';
+import { Plus, Building2, Globe, Calendar, ExternalLink, ShieldCheck, Palette, Upload, Save, X, Fingerprint, Key, Settings2, Edit2 } from 'lucide-react';
 
 export default function OrganizationsPage() {
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Create/Edit States
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
     const [newName, setNewName] = useState('');
     const [newDomain, setNewDomain] = useState('');
 
-    // Admin User States
+    // Admin User States (Only for creation)
     const [adminFullName, setAdminFullName] = useState('');
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
@@ -54,24 +58,45 @@ export default function OrganizationsPage() {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await cmsApi.provisionOrganization({
-                org_name: newName,
-                org_domain: newDomain || undefined,
-                admin_full_name: adminFullName,
-                admin_email: adminEmail,
-                admin_password: adminPassword
-            });
-            setNewName('');
-            setNewDomain('');
-            setAdminFullName('');
-            setAdminEmail('');
-            setAdminPassword('');
-            setIsModalOpen(false);
+            if (isEditing && editingOrgId) {
+                await cmsApi.updateOrganization(editingOrgId, {
+                    name: newName,
+                    domain: newDomain || undefined
+                });
+            } else {
+                await cmsApi.provisionOrganization({
+                    org_name: newName,
+                    org_domain: newDomain || undefined,
+                    admin_full_name: adminFullName,
+                    admin_email: adminEmail,
+                    admin_password: adminPassword
+                });
+            }
+            resetForm();
             loadOrganizations();
         } catch (error) {
-            console.error('Failed to create organization', error);
-            alert('Failed to provision organization. Please ensure the email is unique.');
+            console.error('Failed to save organization', error);
+            alert('Failed to save organization. Please check the details.');
         }
+    };
+
+    const resetForm = () => {
+        setNewName('');
+        setNewDomain('');
+        setAdminFullName('');
+        setAdminEmail('');
+        setAdminPassword('');
+        setIsEditing(false);
+        setEditingOrgId(null);
+        setIsModalOpen(false);
+    };
+
+    const openEdit = (org: Organization) => {
+        setNewName(org.name);
+        setNewDomain(org.domain || '');
+        setEditingOrgId(org.id);
+        setIsEditing(true);
+        setIsModalOpen(true);
     };
 
     const openBranding = (org: Organization) => {
@@ -170,7 +195,7 @@ export default function OrganizationsPage() {
                     <ShieldCheck className="w-12 h-12 text-red-500" />
                 </div>
                 <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-                <p className="text-gray-400">Only system administrators can access this page.</p>
+                <p className="text-gray-600 dark:text-gray-400">Only system administrators can access this page.</p>
             </div>
         );
     }
@@ -179,11 +204,11 @@ export default function OrganizationsPage() {
         <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 p-4 md:p-0">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Organizations</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Manage tenants and isolated environments.</p>
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Organizations</h1>
+                    <p className="text-slate-600 dark:text-gray-400 mt-1 text-sm">Manage tenants and isolated environments.</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => { resetForm(); setIsModalOpen(true); }}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all shadow-lg shadow-blue-500/20 shadow-glow"
                 >
                     <Plus className="w-4 h-4" />
@@ -194,7 +219,7 @@ export default function OrganizationsPage() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="h-48 rounded-xl glass animate-pulse" />
+                        <div key={i} className="h-48 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 animate-pulse" />
                     ))}
                 </div>
             ) : (
@@ -202,59 +227,68 @@ export default function OrganizationsPage() {
                     {organizations.map((org) => (
                         <div
                             key={org.id}
-                            className="group relative p-6 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:border-blue-500/50 transition-all hover:translate-y-[-2px] overflow-hidden"
+                            className="group relative p-6 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-blue-500/50 transition-all hover:translate-y-[-2px] overflow-hidden shadow-sm dark:shadow-none"
                         >
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-slate-400 dark:text-white">
                                 <Building2 className="w-16 h-16" />
                             </div>
 
                             <div className="flex items-start gap-4 mb-4">
-                                <div className="p-3 rounded-lg bg-blue-500/10 text-blue-400 overflow-hidden w-12 h-12 flex items-center justify-center relative">
+                                <div className="p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 overflow-hidden w-12 h-12 flex items-center justify-center relative border border-blue-500/20">
                                     {org.logo_url ? (
                                         <Image src={getImageUrl(org.logo_url)} alt={org.name} fill className="object-contain" unoptimized />
                                     ) : (
                                         <Building2 className="w-6 h-6" />
                                     )}
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{org.name}</h3>
-                                    <div className="flex items-center gap-1.5 text-sm text-gray-400">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <h3 className="font-semibold text-lg text-slate-900 dark:text-white truncate">{org.name}</h3>
+                                        <button
+                                            onClick={() => openEdit(org)}
+                                            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                                            title="Edit Organization"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-gray-400">
                                         <Globe className="w-3 h-3" />
-                                        {org.domain || 'No custom domain'}
+                                        <span className="truncate">{org.domain || 'No custom domain'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="flex gap-2 mt-4 mb-2">
-                                <div className="flex-1 h-1 rounded-full" style={{ backgroundColor: org.primary_color || '#3B82F6' }} title="Primary Color" />
-                                <div className="flex-1 h-1 rounded-full" style={{ backgroundColor: org.secondary_color || '#8B5CF6' }} title="Secondary Color" />
+                                <div className="flex-1 h-1 rounded-full opacity-60" style={{ backgroundColor: org.primary_color || '#3B82F6' }} title="Primary Color" />
+                                <div className="flex-1 h-1 rounded-full opacity-60" style={{ backgroundColor: org.secondary_color || '#8B5CF6' }} title="Secondary Color" />
                             </div>
 
                             <div className="space-y-3 mt-4">
-                                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-500 bg-black/5 dark:bg-black/20 p-2 rounded-lg">
+                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-500 bg-slate-50 dark:bg-black/20 p-2 rounded-lg border border-slate-100 dark:border-white/5">
                                     <div className="flex items-center gap-1">
                                         <Calendar className="w-3 h-3" />
-                                        Created: {new Date(org.created_at).toLocaleDateString()}
+                                        {new Date(org.created_at).toLocaleDateString()}
                                     </div>
-                                    <div className="text-blue-500 font-mono">
+                                    <div className="text-blue-600 dark:text-blue-500 font-mono">
                                         {org.id.split('-')[0]}...
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
                                     <button
                                         onClick={() => openBranding(org)}
-                                        className="py-2 px-2 text-[10px] font-medium border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-1"
+                                        className="py-2 px-2 text-[10px] font-bold border border-blue-500/20 bg-blue-50 dark:bg-blue-500/5 hover:bg-blue-100 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-1"
                                     >
-                                        <Palette className="w-3 h-3" /> Brand
+                                        <Palette className="w-3 h-3" /> BRAND
                                     </button>
                                     <button
                                         onClick={() => openSSOConfig(org)}
-                                        className="py-2 px-2 text-[10px] font-medium border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-1"
+                                        className="py-2 px-2 text-[10px] font-bold border border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/5 hover:bg-indigo-100 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors flex items-center justify-center gap-1"
                                     >
                                         <Fingerprint className="w-3 h-3" /> SSO
                                     </button>
-                                    <button className="py-2 px-2 text-[10px] font-medium border border-black/10 dark:border-white/5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-gray-600 dark:text-gray-400">
-                                        Docs <ExternalLink className="w-3 h-3" />
+                                    <button className="py-2 px-2 text-[10px] font-bold border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-slate-600 dark:text-gray-400">
+                                        DOCS <ExternalLink className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
@@ -263,85 +297,99 @@ export default function OrganizationsPage() {
                 </div>
             )}
 
-            {/* Create Organization Modal */}
+            {/* Create/Edit Organization Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-black/10 dark:border-white/10 rounded-2xl p-8 shadow-2xl">
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Create New Organization</h2>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                                {isEditing ? 'Edit Organization' : 'Create New Organization'}
+                            </h2>
+                            <button onClick={resetForm} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Organization Name</label>
+                                <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Organization Name</label>
                                 <input
                                     type="text"
                                     required
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400"
                                     placeholder="e.g. Acme Corp"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Domain (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={newDomain}
-                                    onChange={(e) => setNewDomain(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm"
-                                    placeholder="e.g. acme.com"
-                                />
-                            </div>
-
-                            <div className="pt-4 border-t border-white/5">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">Initial Administrator</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1.5">Admin Full Name</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={adminFullName}
-                                            onChange={(e) => setAdminFullName(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                                            placeholder="e.g. John Doe"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1.5">Admin Email</label>
-                                        <input
-                                            type="email"
-                                            required
-                                            value={adminEmail}
-                                            onChange={(e) => setAdminEmail(e.target.value)}
-                                            className="w-full bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-gray-900 dark:text-white"
-                                            placeholder="admin@acme.com"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1.5">Admin Password</label>
-                                        <input
-                                            type="password"
-                                            required
-                                            value={adminPassword}
-                                            onChange={(e) => setAdminPassword(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                                            placeholder="••••••••"
-                                        />
-                                    </div>
+                                <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Domain (Optional)</label>
+                                <div className="relative">
+                                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        value={newDomain}
+                                        onChange={(e) => setNewDomain(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
+                                        placeholder="e.g. acme.com"
+                                    />
                                 </div>
                             </div>
+
+                            {!isEditing && (
+                                <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-500 mb-4">Initial Administrator</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Admin Full Name</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={adminFullName}
+                                                onChange={(e) => setAdminFullName(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400"
+                                                placeholder="e.g. John Doe"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Admin Email</label>
+                                            <input
+                                                type="email"
+                                                required
+                                                value={adminEmail}
+                                                onChange={(e) => setAdminEmail(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400"
+                                                placeholder="admin@acme.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Admin Password</label>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={adminPassword}
+                                                onChange={(e) => setAdminPassword(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex gap-3 mt-8">
                                 <button
                                     type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all"
+                                    onClick={resetForm}
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg transition-all text-slate-600 dark:text-white font-medium"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all shadow-lg shadow-blue-500/20"
+                                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all shadow-lg shadow-blue-500/20 font-bold"
                                 >
-                                    Create
+                                    {isEditing ? 'Save Changes' : 'Create'}
                                 </button>
                             </div>
                         </form>
@@ -351,14 +399,14 @@ export default function OrganizationsPage() {
 
             {/* Branding Management Modal */}
             {isBrandingModalOpen && selectedOrg && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-2xl bg-white dark:bg-gray-900 border border-black/10 dark:border-white/10 rounded-2xl p-8 shadow-2xl">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Branding Management</h2>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">{selectedOrg.name}</p>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Branding Management</h2>
+                                <p className="text-sm text-slate-600 dark:text-gray-400">{selectedOrg.name}</p>
                             </div>
-                            <button onClick={() => setIsBrandingModalOpen(false)} className="p-2 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
+                            <button onClick={() => setIsBrandingModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -367,22 +415,22 @@ export default function OrganizationsPage() {
                             <div className="space-y-6">
                                 {/* Logo Upload */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-3 text-brand">Organization Logo</label>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-3 uppercase tracking-wider text-[10px] font-black">Organization Logo</label>
                                     <div className="flex items-center gap-4">
-                                        <div className="w-20 h-20 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden relative">
+                                        <div className="w-20 h-20 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden relative">
                                             {selectedOrg.logo_url ? (
                                                 <Image src={getImageUrl(selectedOrg.logo_url)} alt="Preview" fill className="object-contain" unoptimized />
                                             ) : (
-                                                <Building2 className="w-8 h-8 text-gray-600" />
+                                                <Building2 className="w-8 h-8 text-slate-300 dark:text-gray-600" />
                                             )}
                                         </div>
                                         <div className="flex-1">
-                                            <label className="relative flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg cursor-pointer transition-all border border-blue-500/20">
+                                            <label className="relative flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer transition-all border border-blue-500/20 font-bold text-xs uppercase">
                                                 <Upload className="w-4 h-4" />
                                                 {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
                                                 <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={uploadingLogo} />
                                             </label>
-                                            <p className="text-[10px] text-gray-500 mt-2">PNG, JPG or SVG. Max 2MB.</p>
+                                            <p className="text-[10px] text-slate-500 mt-2">PNG, JPG or SVG. Max 2MB.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -390,36 +438,36 @@ export default function OrganizationsPage() {
                                 {/* Colors */}
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-2">Primary Color</label>
+                                        <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-2">Primary Color</label>
                                         <div className="flex gap-2">
                                             <input
                                                 type="color"
                                                 value={primaryColor}
                                                 onChange={(e) => setPrimaryColor(e.target.value)}
-                                                className="w-10 h-10 rounded cursor-pointer bg-transparent border-none"
+                                                className="w-10 h-10 rounded cursor-pointer border border-slate-200 dark:border-white/10 p-1 bg-white dark:bg-black/40"
                                             />
                                             <input
                                                 type="text"
                                                 value={primaryColor}
                                                 onChange={(e) => setPrimaryColor(e.target.value)}
-                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono"
+                                                className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-white"
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-2">Secondary Color</label>
+                                        <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-2">Secondary Color</label>
                                         <div className="flex gap-2">
                                             <input
                                                 type="color"
                                                 value={secondaryColor}
                                                 onChange={(e) => setSecondaryColor(e.target.value)}
-                                                className="w-10 h-10 rounded cursor-pointer bg-transparent border-none"
+                                                className="w-10 h-10 rounded cursor-pointer border border-slate-200 dark:border-white/10 p-1 bg-white dark:bg-black/40"
                                             />
                                             <input
                                                 type="text"
                                                 value={secondaryColor}
                                                 onChange={(e) => setSecondaryColor(e.target.value)}
-                                                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono"
+                                                className="flex-1 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-white"
                                             />
                                         </div>
                                     </div>
@@ -428,10 +476,10 @@ export default function OrganizationsPage() {
 
                             {/* Live Preview */}
                             <div className="space-y-4">
-                                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Experience Portal Preview</label>
-                                <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden bg-gray-50 dark:bg-slate-900 shadow-inner">
+                                <label className="block text-sm font-medium text-slate-700 dark:text-gray-400 mb-2 uppercase tracking-wider text-[10px] font-black">Portal Preview</label>
+                                <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden bg-white dark:bg-slate-950 shadow-inner">
                                     {/* Mock Experience Header */}
-                                    <div className="h-10 px-4 flex items-center justify-between border-b border-white/5" style={{ backgroundColor: primaryColor }}>
+                                    <div className="h-10 px-4 flex items-center justify-between border-b border-black/5" style={{ backgroundColor: primaryColor }}>
                                         <div className="flex items-center gap-2">
                                             <div className="w-5 h-5 bg-white/20 rounded flex items-center justify-center overflow-hidden relative">
                                                 {selectedOrg.logo_url ? (
@@ -446,24 +494,24 @@ export default function OrganizationsPage() {
                                         </div>
                                     </div>
                                     {/* Mock Experience Content */}
-                                    <div className="p-4 space-y-3 bg-gray-50 dark:bg-[#0a0c10]">
-                                        <div className="w-2/3 h-4 bg-white/10 rounded mb-2" />
-                                        <div className="w-full h-24 bg-white/5 rounded-lg border border-white/5 p-3">
+                                    <div className="p-4 space-y-3 bg-slate-50 dark:bg-[#0a0c10]">
+                                        <div className="w-2/3 h-4 bg-slate-200 dark:bg-white/10 rounded mb-2" />
+                                        <div className="w-full h-24 bg-white dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/5 p-3 shadow-sm">
                                             <div className="w-1/3 h-3 rounded mb-2" style={{ backgroundColor: secondaryColor }} />
-                                            <div className="w-full h-2 bg-white/5 rounded mb-1" />
-                                            <div className="w-full h-2 bg-white/5 rounded mb-1" />
-                                            <div className="w-1/2 h-2 bg-white/5 rounded" />
+                                            <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded mb-1" />
+                                            <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded mb-1" />
+                                            <div className="w-1/2 h-2 bg-slate-100 dark:bg-white/5 rounded" />
                                             <div className="mt-4 flex justify-end">
-                                                <div className="px-3 py-1.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: primaryColor }}>
+                                                <div className="px-3 py-1.5 rounded text-[8px] font-bold text-white shadow-sm" style={{ backgroundColor: primaryColor }}>
                                                     GET STARTED
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                    <p className="text-[10px] text-blue-400 leading-relaxed">
-                                        This is a real-time preview of how the brand identity will apply to the student&apos;s learning experience.
+                                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                                    <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-relaxed font-medium">
+                                        Real-time preview of the brand application.
                                     </p>
                                 </div>
                             </div>
@@ -472,14 +520,14 @@ export default function OrganizationsPage() {
                         <div className="flex gap-3 mt-10">
                             <button
                                 onClick={() => setIsBrandingModalOpen(false)}
-                                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium"
+                                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl transition-all font-medium text-slate-600 dark:text-white"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleBrandingSave}
                                 disabled={isSavingBranding}
-                                className="flex-[2] px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-bold flex items-center justify-center gap-2"
+                                className="flex-[2] px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-bold flex items-center justify-center gap-2 uppercase tracking-wide"
                             >
                                 {isSavingBranding ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
                                 Save Branding
@@ -490,32 +538,32 @@ export default function OrganizationsPage() {
             )}
             {/* SSO Configuration Modal */}
             {isSSOModalOpen && selectedOrg && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-xl glass border border-white/10 rounded-2xl p-8 shadow-2xl">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                                     <Fingerprint className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold">Single Sign-On (OIDC)</h2>
-                                    <p className="text-sm text-gray-400">{selectedOrg.name}</p>
+                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Single Sign-On (OIDC)</h2>
+                                    <p className="text-sm text-slate-600 dark:text-gray-400">{selectedOrg.name}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsSSOModalOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                            <button onClick={() => setIsSSOModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-                                <div>
-                                    <h3 className="font-medium text-white">Enable OIDC SSO</h3>
-                                    <p className="text-xs text-gray-500">Allow users to log in via your identity provider.</p>
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                                <div className="pr-4">
+                                    <h3 className="font-semibold text-slate-900 dark:text-white">Enable OIDC SSO</h3>
+                                    <p className="text-xs text-slate-500 dark:text-gray-500">Allow users to log in via your identity provider.</p>
                                 </div>
                                 <button
                                     onClick={() => setSsoEnabled(!ssoEnabled)}
-                                    className={`w-12 h-6 rounded-full transition-colors relative ${ssoEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}
+                                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${ssoEnabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-gray-700'}`}
                                 >
                                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${ssoEnabled ? 'right-1' : 'left-1'}`} />
                                 </button>
@@ -523,55 +571,55 @@ export default function OrganizationsPage() {
 
                             <div className="space-y-4 pt-2">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Issuer URL</label>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Issuer URL</label>
                                     <div className="relative">
-                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input
                                             type="url"
                                             value={issuerUrl}
                                             onChange={(e) => setIssuerUrl(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm"
-                                            placeholder="https://accounts.google.com or https://okta.com/..."
+                                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
+                                            placeholder="https://accounts.google.com"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Client ID</label>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Client ID</label>
                                     <div className="relative">
-                                        <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input
                                             type="text"
                                             value={clientId}
                                             onChange={(e) => setClientId(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm"
+                                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
                                             placeholder="Your OIDC Client ID"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Client Secret</label>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1.5">Client Secret</label>
                                     <div className="relative">
-                                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input
                                             type="password"
                                             value={clientSecret}
                                             onChange={(e) => setClientSecret(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm"
+                                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
                                             placeholder="••••••••••••••••"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-2">
-                                    <div className="flex items-center gap-2 text-blue-400 text-xs font-bold">
+                                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 space-y-2">
+                                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-xs font-black uppercase tracking-wider">
                                         <Settings2 className="w-4 h-4" /> CONFIGURATION STEPS
                                     </div>
-                                    <p className="text-[10px] text-blue-300 leading-relaxed">
-                                        1. Register OpenCCB as an application in your Identity Provider (Okta, Google, Azure AD).<br />
-                                        2. Set the Redirect URI to: <span className="font-mono bg-blue-500/20 px-1">{API_BASE_URL}/auth/sso/callback</span><br />
-                                        3. Copy the Issuer URL, Client ID, and Client Secret here.
+                                    <p className="text-[10px] text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
+                                        1. Register OpenCCB in your IDP.<br />
+                                        2. Redirect URI: <span className="font-mono bg-blue-200 dark:bg-blue-500/20 px-1 rounded">{API_BASE_URL}/auth/sso/callback</span><br />
+                                        3. Copy the Issuer, ID and Secret here.
                                     </p>
                                 </div>
                             </div>
@@ -580,14 +628,14 @@ export default function OrganizationsPage() {
                         <div className="flex gap-3 mt-8">
                             <button
                                 onClick={() => setIsSSOModalOpen(false)}
-                                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium"
+                                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl transition-all font-medium text-slate-600 dark:text-white"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSSOSave}
                                 disabled={isSavingSSO}
-                                className="flex-[2] px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-bold flex items-center justify-center gap-2"
+                                className="flex-[2] px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-bold flex items-center justify-center gap-2 uppercase tracking-wide"
                             >
                                 {isSavingSSO ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
                                 Save SSO Settings

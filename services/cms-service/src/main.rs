@@ -171,6 +171,7 @@ async fn main() {
             "/organizations",
             get(handlers::get_organizations).post(handlers::create_organization),
         )
+        .route("/organizations/{id}", put(handlers::update_organization))
         .route("/admin/provision", post(handlers::provision_organization))
         .route(
             "/webhooks",

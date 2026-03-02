@@ -1721,6 +1721,7 @@ pub struct AdminCreateUserPayload {
     pub password: String,
     pub full_name: String,
     pub role: String,
+    pub organization_id: Option<Uuid>,
 }
 
 pub async fn register(
@@ -1809,6 +1810,15 @@ pub async fn admin_create_user(
     let password_hash = hash(payload.password, DEFAULT_COST)
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Hashing failed".into()))?;
 
+    let is_super_admin = claims.role == "admin"
+        && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    let target_org_id = if is_super_admin {
+        payload.organization_id.unwrap_or(org_ctx.id)
+    } else {
+        org_ctx.id
+    };
+
     let user = sqlx::query_as::<_, User>(
         "INSERT INTO users (email, password_hash, full_name, role, organization_id) VALUES ($1, $2, $3, $4, $5) RETURNING *"
     )
@@ -1816,7 +1826,7 @@ pub async fn admin_create_user(
     .bind(password_hash)
     .bind(&payload.full_name)
     .bind(&payload.role)
-    .bind(org_ctx.id)
+    .bind(target_org_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| {
@@ -2662,20 +2672,51 @@ pub async fn update_user(
         .get("organization_id")
         .and_then(|o| o.as_str())
         .and_then(|o| Uuid::parse_str(o).ok());
+    let is_super_admin = claims.role == "admin"
+        && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
-    let user = sqlx::query_as::<_, User>(
-        "UPDATE users SET role = COALESCE($1, role), organization_id = COALESCE($2, organization_id), full_name = COALESCE($3, full_name), avatar_url = COALESCE($4, avatar_url), bio = COALESCE($5, bio), language = COALESCE($6, language) WHERE id = $7 AND organization_id = $8 RETURNING *"
-    )
-    .bind(role)
-    .bind(organization_id)
-    .bind(full_name)
-    .bind(avatar_url)
-    .bind(bio)
-    .bind(language)
-    .bind(id)
-    .bind(org_ctx.id)
-    .fetch_one(&pool)
-    .await
+    let user = if is_super_admin {
+        sqlx::query_as::<_, User>(
+            "UPDATE users SET 
+                role = COALESCE($1, role), 
+                organization_id = COALESCE($2, organization_id), 
+                full_name = COALESCE($3, full_name), 
+                avatar_url = COALESCE($4, avatar_url), 
+                bio = COALESCE($5, bio), 
+                language = COALESCE($6, language) 
+             WHERE id = $7 RETURNING *"
+        )
+        .bind(role)
+        .bind(organization_id)
+        .bind(full_name)
+        .bind(avatar_url)
+        .bind(bio)
+        .bind(language)
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+    } else {
+        sqlx::query_as::<_, User>(
+            "UPDATE users SET 
+                role = COALESCE($1, role), 
+                organization_id = COALESCE($2, organization_id), 
+                full_name = COALESCE($3, full_name), 
+                avatar_url = COALESCE($4, avatar_url), 
+                bio = COALESCE($5, bio), 
+                language = COALESCE($6, language) 
+             WHERE id = $7 AND organization_id = $8 RETURNING *"
+        )
+        .bind(role)
+        .bind(organization_id)
+        .bind(full_name)
+        .bind(avatar_url)
+        .bind(bio)
+        .bind(language)
+        .bind(id)
+        .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+    }
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     log_action(
@@ -2785,6 +2826,44 @@ pub async fn create_organization(
     .map_err(|e| {
         tracing::error!("Failed to create organization: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(org))
+}
+
+pub async fn update_organization(
+    claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<Organization>, (StatusCode, String)> {
+    // Only super admins or admins of the same org? 
+    // Usually editing other orgs is a Super Admin only task.
+    let is_super_admin = claims.role == "admin"
+        && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    if !is_super_admin {
+        return Err((StatusCode::FORBIDDEN, "Super Admin access required".into()));
+    }
+
+    let name = payload.get("name").and_then(|v| v.as_str());
+    let domain = payload.get("domain").and_then(|v| v.as_str());
+
+    let org = sqlx::query_as::<_, Organization>(
+        "UPDATE organizations SET 
+            name = COALESCE($1, name), 
+            domain = COALESCE($2, domain),
+            updated_at = NOW()
+         WHERE id = $3 RETURNING *"
+    )
+    .bind(name)
+    .bind(domain)
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to update organization: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update organization".into())
     })?;
 
     Ok(Json(org))

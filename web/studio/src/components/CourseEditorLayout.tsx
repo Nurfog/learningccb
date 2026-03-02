@@ -42,9 +42,9 @@ export default function CourseEditorLayout({ children, activeTab }: CourseEditor
                                 <Link
                                     href={tab.href}
                                     aria-current={isActive ? "page" : undefined}
-                                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${isActive
-                                        ? "border-b-2 border-blue-600 dark:border-blue-500 bg-black/5 dark:bg-white/5 text-blue-600 dark:text-white"
-                                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                    className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 border-b-2 ${isActive
+                                        ? "border-blue-600 dark:border-blue-500 bg-black/5 dark:bg-white/5 text-blue-600 dark:text-white"
+                                        : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                                         }`}
                                 >
                                     <Icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />

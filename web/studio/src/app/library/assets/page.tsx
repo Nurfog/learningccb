@@ -141,7 +141,7 @@ export default function AssetLibraryPage() {
                             placeholder="Search by filename..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium focus:outline-none focus:border-blue-500/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all text-gray-900 dark:text-white"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white"
                         />
                     </div>
 
@@ -150,7 +150,7 @@ export default function AssetLibraryPage() {
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
-                            className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-blue-500/50 appearance-none cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-all text-gray-900 dark:text-white"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-slate-900 dark:text-white"
                         >
                             <option value="all" className="bg-white dark:bg-gray-900">All Types</option>
                             <option value="image/" className="bg-white dark:bg-gray-900">Images</option>
@@ -185,7 +185,7 @@ export default function AssetLibraryPage() {
                         {assets.map((asset) => (
                             <div
                                 key={asset.id}
-                                className="group bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-[32px] overflow-hidden hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/10 transition-all duration-300 hover:-translate-y-1 relative"
+                                className="group bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-[32px] overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-none transition-all duration-300 hover:-translate-y-1 relative"
                             >
                                 {/* Preview Area */}
                                 <div className="aspect-video w-full bg-black/40 flex items-center justify-center relative overflow-hidden">

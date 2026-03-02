@@ -169,7 +169,7 @@ export default function StudioDashboard() {
             <p className="text-gray-600 dark:text-gray-400 mt-2">{t('dashboard.title')}</p>
           </div>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-6 py-3 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/5 dark:border-white/10 rounded-xl font-bold transition-all cursor-pointer active:scale-95">
+            <label className="flex items-center gap-2 px-6 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl font-bold transition-all cursor-pointer active:scale-95 text-slate-900 dark:text-white">
               <Upload size={18} />
               Importar
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
@@ -183,7 +183,7 @@ export default function StudioDashboard() {
             </button>
             <button
               onClick={handleCreateCourse}
-              className="flex items-center gap-2 px-6 py-3 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 rounded-xl font-bold transition-all active:scale-95"
+              className="flex items-center gap-2 px-6 py-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl font-bold transition-all active:scale-95 text-slate-900 dark:text-white"
             >
               <Plus size={20} />
               Manual
@@ -213,7 +213,7 @@ export default function StudioDashboard() {
                       </div>
                       <button
                         onClick={(e) => handleExport(e, course.id, course.title)}
-                        className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all"
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all"
                         title="Export Course"
                       >
                         <Download size={18} />
@@ -229,7 +229,7 @@ export default function StudioDashboard() {
                     <h3 className="font-bold text-lg mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-gray-900 dark:text-white">{course.title}</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{course.description || "Sin descripción disponible."}</p>
                   </div>
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-black/5 dark:border-white/5 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500 dark:text-gray-400">
                     <span>Última actualización: {new Date(course.updated_at).toLocaleDateString()}</span>
                     <span>ID: {course.id.slice(0, 4)}...</span>
                   </div>

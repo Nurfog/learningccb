@@ -11,7 +11,7 @@
   --accent-secondary: #6366f1;
 
   --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-border: rgba(0, 0, 0, 0.15);
   --glass-blur: blur(16px);
 }
 
@@ -45,6 +45,10 @@ body {
 
 .glass-card {
   @apply glass rounded-2xl p-4 md:p-6;
+}
+
+.nav-link-standard {
+  @apply text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2;
 }
 
 .btn-premium {

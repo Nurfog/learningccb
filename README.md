@@ -58,13 +58,13 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 
 OpenCCB es altamente escalable. A continuación se detallan los requisitos recomendados según la carga de usuarios concurrentes:
 
-| Componente | **Pequeño (100 u.)** | **Mediano (500 u.)** | **Grande (1000+ u.)** |
+| Componente | **Pequeño (100 u.)** | **Mediano (500 u. concurrentes)** | **Grande (1000+ u.)** |
 | :--- | :--- | :--- | :--- |
-| **CPU** | 4 vCPUs | 8 vCPUs (AVX2) | 16+ vCPUs |
-| **RAM** | 8 GB | 16 GB | 32 GB+ |
-| **Almacenamiento** | 50 GB SSD | 200 GB NVMe | 500 GB+ NVMe |
-| **AI (Opcional)** | N/A (Solo CPU) | NVIDIA 8GB+ VRAM | Multi-GPU / Cloud API |
-| **OS** | Ubuntu 22.04 LTS | Ubuntu 22.04+ | Cloud Managed (K8s) |
+| **CPU** | 4 vCPUs | 8-12 vCPUs (AVX2/AVX-512) | 16-32+ vCPUs |
+| **RAM** | 8 GB | 16-32 GB (Recomendado 24GB+) | 64 GB+ |
+| **Almacenamiento** | 50 GB SSD | 250 GB+ NVMe (RAID-1) | 1 TB+ NVMe (S3 Backup) |
+| **AI (Opcional)** | N/A (Solo CPU) | NVIDIA RTX 3060+ (12GB VRAM) | Multi-GPU (A100/H100) |
+| **OS** | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS / Debian | Cloud Native (K8s / Terraform) |
 
 > [!NOTE]
 > Los requisitos de AI son específicos para la función de transcripción local (Whisper). Si se utiliza una API externa, el requisito de GPU desaparece.
@@ -645,5 +645,33 @@ Obtiene una lista de todas las organizaciones registradas.
 - **Global Asset Manager**: Interfaz avanzada para la administración masiva de archivos con previsualización inteligente y filtros por curso o tipo.
 - **Predictive Risk Dashboard**: Panel de control para instructores que visualiza el riesgo de deserción escolar mediante semáforos de color y motivos detallados del riesgo.
 
-## 📄 Licencia
+## �️ Próximos Pasos (Roadmap 2024-2025)
+
+OpenCCB evoluciona constantemente. Estos son los pilares de nuestro desarrollo futuro:
+
+### 📱 Movilidad Nativa
+- **Apps Android/iOS**: Aplicaciones nativas desarrolladas con Flutter para aprendizaje offline y notificaciones push críticas.
+- **Offline Sync**: Capacidad de descargar lecciones y sincronizar progreso al recuperar conexión.
+
+### 🧠 Inteligencia Artificial Avanzada
+- **AI Proctoring**: Monitoreo basado en visión artificial para exámenes de alta integridad, 100% privado y local.
+- **Multimodal Tutoring**: El tutor de IA podrá analizar imágenes y videos subidos por el alumno para dar feedback.
+- **Automated Grading for Open Questions**: Evaluación masiva de ensayos y respuestas abiertas con rúbricas personalizadas.
+
+### 🔌 Interoperabilidad y Estándares
+- **SCORM 1.2 / 2004 Support**: Player nativo para contenidos legados de la industria.
+- **Advanced xAPI (Tin Can)**: Recolección detallada de experiencias de aprendizaje granulares.
+- **Microsoft Teams / Slack Integration**: Recibe anuncios y tareas directamente en tus herramientas de trabajo.
+
+### 🏗️ Infraestructura y Escalabilidad
+- **Multi-Cloud Terraform Provider**: Despliegues automatizados en AWS, GCP y Azure.
+- **Edge Content Delivery**: Caché de videos y assets en el borde para mínima latencia global.
+
+### 🎮 Gamificación y Comunidad
+- **Real-time Leaderboards**: Tablas de clasificación en vivo por cohorte y organización.
+- **Social Learning Groups**: Grupos de estudio auto-organizados con chats integrados.
+
+---
+
+## �📄 Licencia
 Este proyecto es código abierto y está disponible bajo los términos de la licencia especificada en el repositorio.

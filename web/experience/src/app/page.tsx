@@ -126,7 +126,7 @@ export default function CatalogPage() {
                   <div className="w-24 h-24 rounded-3xl bg-blue-600 flex items-center justify-center shadow-2xl shadow-blue-500/40 rotate-3 group-hover:rotate-0 transition-transform duration-500">
                     <Zap className="text-white fill-white/20" size={48} />
                   </div>
-                  <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-white dark:bg-black text-black dark:text-gray-400 flex items-center justify-center font-black text-xs border-4 border-gray-50 dark:border-[#050505]">
+                  <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-white dark:bg-black text-slate-900 dark:text-gray-400 flex items-center justify-center font-black text-xs border-4 border-slate-50 dark:border-[#050505]">
                     {gamification.level}
                   </div>
                 </div>
@@ -134,19 +134,19 @@ export default function CatalogPage() {
                 <div className="flex-1 space-y-4">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400 mb-1">Posición Actual</div>
-                    <h2 className="text-3xl font-black text-gray-900 dark:text-white">Nivel {gamification.level} Pionero</h2>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white">Nivel {gamification.level} Pionero</h2>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex justify-between items-end">
-                      <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                         {gamification.points} / {Math.pow(gamification.level, 2) * 100} XP
                       </div>
-                      <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                      <div className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest">
                         {Math.floor(((gamification.points - Math.pow(gamification.level - 1, 2) * 100) / (Math.pow(gamification.level, 2) * 100 - Math.pow(gamification.level - 1, 2) * 100)) * 100)}% para el Nivel {gamification.level + 1}
                       </div>
                     </div>
-                    <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden border border-black/5 dark:border-white/5">
+                    <div className="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden border border-slate-200 dark:border-white/5">
                       <div
                         className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_20px_rgba(59,130,246,0.3)] dark:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-1000"
                         style={{ width: `${Math.min(100, Math.max(0, ((gamification.points - Math.pow(gamification.level - 1, 2) * 100) / (Math.pow(gamification.level, 2) * 100 - Math.pow(gamification.level - 1, 2) * 100)) * 100))}%` }}
@@ -224,7 +224,7 @@ export default function CatalogPage() {
             const isEnrolled = enrollments.includes(course.id);
 
             return (
-              <div key={course.id} className="glass-card group relative overflow-hidden h-full flex flex-col p-8 border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-all duration-500 rounded-3xl">
+              <div key={course.id} className="glass-card group relative overflow-hidden h-full flex flex-col p-8 border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.02] hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-all duration-500 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-none">
                 <div className="mb-8 flex items-start justify-between">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-blue-500/20 group-hover:scale-110 transition-transform duration-500">
                     <Rocket size={24} className="text-white fill-white/10" />
@@ -246,7 +246,7 @@ export default function CatalogPage() {
                   </p>
                 </div>
 
-                <div className="pt-8 border-t border-black/5 dark:border-white/5 flex items-center justify-between mt-auto">
+                <div className="pt-8 border-t border-slate-100 dark:border-white/5 flex items-center justify-between mt-auto">
                   {isEnrolled ? (
                     <Link href={`/courses/${course.id}`} className="btn-premium w-full !bg-blue-600/10 !text-blue-400 border border-blue-500/20 hover:!bg-blue-600/20 !shadow-none gap-2">
                       Continuar Aprendiendo <ArrowRight size={16} />
