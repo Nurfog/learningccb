@@ -239,7 +239,7 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
                             </h1>
                             <div className="flex items-center gap-3 mt-1">
                                 <p className="text-gray-600 dark:text-gray-400">Design your course structure and lesson content for {course?.title}</p>
-                                <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${course?.pacing_mode === 'instructor_led' ? 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400'}`}>
+                                <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded ${course?.pacing_mode === 'instructor_led' ? 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400'}`}>
                                     {course?.pacing_mode?.replace('_', ' ') || 'Self Paced'}
                                 </span>
                             </div>
@@ -392,7 +392,7 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
                                                                 >
                                                                     {lesson.title}
                                                                 </span>
-                                                                <div className="flex items-center gap-3 text-[10px] text-gray-500 uppercase mt-0.5 font-semibold">
+                                                                <div className="flex items-center gap-3 text-xs text-gray-500 uppercase mt-0.5 font-bold">
                                                                     <span>{lesson.content_type}</span>
                                                                     {lesson.due_date && (
                                                                         <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">

@@ -43,9 +43,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${pathname === item.href
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black text-base transition-all ${pathname === item.href
                                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
-                                : "text-slate-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent"
+                                : "text-slate-600 hover:text-slate-900 dark:text-gray-200 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent"
                                 }`}
                         >
                             <item.icon size={18} />
@@ -57,7 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="pt-6 border-t border-slate-200 dark:border-white/5">
                     <Link
                         href="/"
-                        className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 dark:text-gray-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 dark:text-gray-600 hover:text-slate-900 dark:hover:text-white transition-colors"
                     >
                         <ArrowLeft size={14} />
                         Back to Studio

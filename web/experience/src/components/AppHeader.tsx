@@ -46,18 +46,18 @@ export default function AppHeader() {
 
             <div className="flex items-center gap-4">
                 <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
-                    <Link href="/" className="nav-link-standard text-slate-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.catalog')}
                     </Link>
-                    <Link href="/my-learning" className="nav-link-standard text-slate-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/my-learning" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.myLearning')}
                     </Link>
-                    <Link href="/bookmarks" className="nav-link-standard text-slate-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/bookmarks" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.bookmarks')}
                     </Link>
 
                     {user && (
-                        <Link href={`/profile/${user.id}`} className="nav-link-standard text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                        <Link href={`/profile/${user.id}`} className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                             MI PORTAFOLIO
                         </Link>
                     )}
