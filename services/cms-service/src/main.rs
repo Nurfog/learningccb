@@ -74,6 +74,36 @@ async fn main() {
                 }
             }
 
+            // Check for queued video generations
+            let queued_video_lessons: Vec<sqlx::types::Uuid> = match sqlx::query_scalar(
+                "SELECT id FROM lessons WHERE video_generation_status = 'queued' LIMIT 5",
+            )
+            .fetch_all(&worker_pool)
+            .await
+            {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::error!("Failed to fetch queued video lessons: {}", e);
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    continue;
+                }
+            };
+
+            for lesson_id in queued_video_lessons {
+                tracing::info!("Processing video generation for lesson: {}", lesson_id);
+                if let Err(e) =
+                    handlers::run_image_generation_task(worker_pool.clone(), lesson_id, None).await
+                {
+                    tracing::error!("Image generation task failed for lesson {}: {}", lesson_id, e);
+                    let _ = sqlx::query(
+                        "UPDATE lessons SET video_generation_status = 'failed' WHERE id = $1",
+                    )
+                    .bind(lesson_id)
+                    .execute(&worker_pool)
+                    .await;
+                }
+            }
+
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
@@ -145,6 +175,7 @@ async fn main() {
         .route("/lessons/{id}/vtt", get(handlers::get_lesson_vtt))
         .route("/lessons/{id}/summarize", post(handlers::summarize_lesson))
         .route("/lessons/{id}/generate-quiz", post(handlers::generate_quiz))
+        .route("/lessons/{id}/generate-image", post(handlers::generate_image))
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))

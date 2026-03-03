@@ -27,7 +27,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
     - **Custom AI Quizzes**: Generación de quices con contexto pedagógico y tipo de pregunta personalizable (opción múltiple, V/F, etc.).
     - **Course Deletion**: Funcionalidad de eliminación de cursos con verificación de permisos y limpieza en cascada.
     - **Gamified Activities**: Nuevos tipos de bloques interactivos para niños y jóvenes, incluyendo Juegos de Memoria y Puntos Calientes (Hotspots).
-    - **Auto Transcription**: Integración con Whisper para generación automática de transcripciones y evaluación precisa de voz.
+    - **AI Video Generation**: Generación automática de contenido de video a partir de guiones de lecciones o prompts personalizados, optimizada para ejecución local o remota (servidor t-800) mediante *Stable Video Diffusion*.
 - **Dynamic API Resolution**: Resolución inteligente de endpoints que permite el acceso desde cualquier dispositivo en la red local (WiFi) sin configuración manual.
 - **Responsive UI/UX**: Interfaces optimizadas para dispositivos móviles con menús adaptativos y escalado fluido de componentes.
 - **AI Teaching Assistant (RAG)**: Tutor inteligente dentro de cada lección que ayuda a los estudiantes utilizando el contexto de la lección actual y el historial del curso.
@@ -78,6 +78,7 @@ OpenCCB es altamente escalable. A continuación se detallan los requisitos recom
 - **IA Local**:
   - **Faster-Whisper**: Transcripción de audio a texto.
   - **Ollama**: Traducción inteligente (EN -> ES), resúmenes y generación de cuestionarios.
+  - **Stable Video Diffusion**: Motor de generación de video optimizado para CPU.
 - **i18n Infrastructure**: Sistema de traducción reactivo para soporte global.
 - **Document Management**: Motor de previsualización de documentos PDF nativo.
 
@@ -654,6 +655,7 @@ OpenCCB evoluciona constantemente. Estos son los pilares de nuestro desarrollo f
 - **Offline Sync**: Capacidad de descargar lecciones y sincronizar progreso al recuperar conexión.
 
 ### 🧠 Inteligencia Artificial Avanzada
+- **AI Video Generation (v1)**: ✅ Generación de clips a partir de prompts y guiones de lecciones.
 - **AI Proctoring**: Monitoreo basado en visión artificial para exámenes de alta integridad, 100% privado y local.
 - **Multimodal Tutoring**: El tutor de IA podrá analizar imágenes y videos subidos por el alumno para dar feedback.
 - **Automated Grading for Open Questions**: Evaluación masiva de ensayos y respuestas abiertas con rúbricas personalizadas.

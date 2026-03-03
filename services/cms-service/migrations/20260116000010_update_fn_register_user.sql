@@ -12,7 +12,7 @@ DECLARE
     v_org_id UUID;
 BEGIN
     -- Find or create organization
-    IF p_org_name IS NULL OR p_org_name = '' OR p_org_name = 'Default Organization' THEN
+    IF p_org_name IS NULL OR p_org_name = '' OR p_org_name = 'Default Organization' OR p_org_name = 'Organización por Defecto' THEN
         v_org_id := '00000000-0000-0000-0000-000000000001';
     ELSE
         INSERT INTO organizations (name) 

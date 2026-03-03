@@ -117,11 +117,14 @@ read -p "Ingrese la URL de Ollama Remoto [$DEFAULT_OLLAMA]: " REMOTE_OLLAMA_URL
 REMOTE_OLLAMA_URL=${REMOTE_OLLAMA_URL:-$DEFAULT_OLLAMA}
 read -p "Ingrese la URL de Whisper Remoto [$DEFAULT_WHISPER]: " REMOTE_WHISPER_URL
 REMOTE_WHISPER_URL=${REMOTE_WHISPER_URL:-$DEFAULT_WHISPER}
+read -p "Ingrese la URL del Video Bridge Remoto [http://t-800:8080]: " REMOTE_VIDEO_URL
+REMOTE_VIDEO_URL=${REMOTE_VIDEO_URL:-"http://t-800:8080"}
 read -p "Ingrese el nombre del Modelo (en el servidor remoto) [llama3.2:3b]: " LLM_MODEL
 LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
 
 update_env "AI_PROVIDER" "local"
 update_env "LOCAL_LLM_MODEL" "$LLM_MODEL"
+update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_VIDEO_URL"
 
 if [ "$ENV_CHOICE" == "dev" ]; then
     update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
@@ -213,7 +216,7 @@ if [ "$ADMIN_EXISTS" != "t" ]; then
     read -s -p "Contraseña del Administrador [password123]: " ADMIN_PASS
     ADMIN_PASS=${ADMIN_PASS:-password123}
     echo ""
-    ORG_NAME="Organización por Defecto"
+    ORG_NAME="Default Organization"
 fi
 
 echo ""

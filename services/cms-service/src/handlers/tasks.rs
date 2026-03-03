@@ -14,6 +14,7 @@ pub struct BackgroundTask {
     pub title: String,
     pub course_title: Option<String>,
     pub transcription_status: Option<String>,
+    pub video_generation_status: Option<String>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -34,11 +35,13 @@ pub async fn get_background_tasks(
             l.title, 
             c.title as course_title,
             l.transcription_status,
+            l.video_generation_status,
             l.updated_at
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
         JOIN courses c ON m.course_id = c.id
         WHERE l.transcription_status IN ('queued', 'processing', 'failed')
+           OR l.video_generation_status IN ('queued', 'processing', 'failed')
         ORDER BY l.updated_at DESC
     "#;
 

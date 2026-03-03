@@ -112,6 +112,7 @@ export interface Lesson {
         cues?: { start: number; end: number; text: string }[];
     } | null;
     transcription_status?: 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
+    video_generation_status?: 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
     is_previewable: boolean;
     created_at: string;
 }
@@ -631,6 +632,7 @@ export const cmsApi = {
     updateLesson: (id: string, payload: Partial<Lesson>): Promise<Lesson> => apiFetch(`/lessons/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     summarizeLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}/summarize`, { method: 'POST' }),
     generateQuiz: (id: string, payload: { context?: string, quiz_type?: string }): Promise<Block[]> => apiFetch(`/lessons/${id}/generate-quiz`, { method: 'POST', body: JSON.stringify(payload) }),
+    generateImage: (id: string, payload: { prompt?: string } = {}): Promise<Lesson> => apiFetch(`/lessons/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
     reviewText: (text: string): Promise<{ suggestion: string, comments: string }> => apiFetch('/api/ai/review-text', { method: 'POST', body: JSON.stringify({ text }) }),
     deleteModule: (id: string): Promise<void> => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
     deleteLesson: (id: string): Promise<void> => apiFetch(`/lessons/${id}`, { method: 'DELETE' }),
@@ -958,5 +960,6 @@ export interface BackgroundTask {
     title: string;
     course_title?: string;
     transcription_status?: 'idle' | 'queued' | 'processing' | 'failed' | 'completed';
+    video_generation_status?: 'idle' | 'queued' | 'processing' | 'failed' | 'completed';
     updated_at: string;
 }

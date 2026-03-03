@@ -281,13 +281,13 @@ export default function StudioDashboard() {
         title="AI Course Wizard"
       >
         <form onSubmit={handleAIGenerate} className="space-y-6">
-          <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10 mb-2">
-            <p className="text-xs text-indigo-300 leading-relaxed font-medium">
+          <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 mb-2">
+            <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
               Describe the course topic and target audience. Our AI will structure the modules and lessons for you in seconds.
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+            <label className="block text-sm font-bold text-slate-700 dark:text-gray-300 mb-2">
               Course Topic or Description
             </label>
             <textarea
@@ -297,7 +297,7 @@ export default function StudioDashboard() {
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
               placeholder="e.g. A comprehensive guide to building distributed systems with Rust and Axum for intermediate developers."
-              className="w-full bg-black/5 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all text-gray-900 dark:text-white resize-none"
+              className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-900 dark:text-white resize-none placeholder:text-slate-400 dark:placeholder:text-gray-600"
               disabled={isGenerating}
             />
           </div>
@@ -306,14 +306,14 @@ export default function StudioDashboard() {
               type="button"
               onClick={() => setIsAIModalOpen(false)}
               disabled={isGenerating}
-              className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-sm font-medium"
+              className="flex-1 px-4 py-3 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl transition-all text-sm font-bold text-slate-700 dark:text-gray-300"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isGenerating}
-              className="flex-[2] px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm flex items-center justify-center gap-2"
+              className="flex-[2] px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/25 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               {isGenerating ? (
                 <>

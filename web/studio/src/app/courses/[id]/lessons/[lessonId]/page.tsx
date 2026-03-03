@@ -21,7 +21,8 @@ import {
     Brain,
     Library,
     BookMarked,
-    ArrowLeft
+    ArrowLeft,
+    ImageIcon
 } from 'lucide-react';
 import DescriptionBlock from "@/components/blocks/DescriptionBlock";
 import MediaBlock from "@/components/blocks/MediaBlock";
@@ -78,6 +79,8 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
     const [isAIQuizModalOpen, setIsAIQuizModalOpen] = useState(false);
     const [aiQuizContext, setAiQuizContext] = useState("");
     const [aiQuizType, setAiQuizType] = useState("multiple-choice");
+    const [aiImagePrompt, setAiImagePrompt] = useState("");
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
     const [editValue, setEditValue] = useState("");
 
@@ -86,7 +89,10 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
     useEffect(() => {
         let interval: NodeJS.Timeout;
 
-        if (lesson && (lesson.transcription_status === 'queued' || lesson.transcription_status === 'processing')) {
+        if (lesson && (
+            lesson.video_generation_status === 'queued' ||
+            lesson.video_generation_status === 'processing'
+        )) {
             interval = setInterval(async () => {
                 try {
                     const updated = await cmsApi.getLesson(params.lessonId);
@@ -359,6 +365,32 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             alert("Failed to generate quiz.");
         } finally {
             setIsGeneratingQuiz(false);
+        }
+    };
+
+    const handleGenerateImage = async () => {
+        if (!lesson) return;
+        setIsGeneratingImage(true);
+        try {
+            // Option 2: Use lesson content (blocks) as script if no prompt
+            const scriptFromBlocks = blocks
+                .map(b => b.content || b.description || b.title || "")
+                .filter(txt => txt.trim().length > 0)
+                .join(". ");
+
+            // Option 3: Prioritize manual prompt, then script
+            const finalPrompt = aiImagePrompt.trim() || scriptFromBlocks;
+
+            const updated = await cmsApi.generateImage(lesson.id, {
+                prompt: finalPrompt
+            });
+            setLesson(updated);
+            setAiImagePrompt("");
+            alert("Generación de imagen iniciada con el prompt/guion detectado.");
+        } catch (err: any) {
+            alert(err.message || "Failed to initiate image generation.");
+        } finally {
+            setIsGeneratingImage(false);
         }
     };
 
@@ -870,6 +902,35 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                 <div className="space-y-1">
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Knowledge Check</div>
                                     <div className="font-black text-xl tracking-tight">{isGeneratingQuiz ? 'Building Quiz...' : 'Generate New Test'}</div>
+                                </div>
+                            </button>
+
+                            <div className="col-span-full space-y-3 mt-4">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                    <ImageIcon size={14} className="text-amber-500" />
+                                    Custom Image Prompt (Optional)
+                                </label>
+                                <textarea
+                                    value={aiImagePrompt}
+                                    onChange={(e) => setAiImagePrompt(e.target.value)}
+                                    placeholder="Describe what you want to see in the image, or leave blank to use the lesson script..."
+                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all min-h-[100px] text-slate-700 dark:text-gray-300"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleGenerateImage}
+                                disabled={isGeneratingImage || lesson.video_generation_status === 'queued' || lesson.video_generation_status === 'processing'}
+                                className={`group/btn p-8 border rounded-[2rem] transition-all text-left flex flex-col gap-4 shadow-sm relative overflow-hidden ${isGeneratingImage || lesson.video_generation_status === 'queued' || lesson.video_generation_status === 'processing' ? 'bg-amber-50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-500/50 text-amber-600 dark:text-amber-300 animate-pulse' : 'bg-white dark:bg-white/5 border-slate-100 dark:border-white/10 text-slate-400 dark:text-amber-400 hover:border-amber-500/50 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-500/10'}`}
+                            >
+                                <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-sm group-hover/btn:scale-110 transition-transform">
+                                    {(isGeneratingImage || lesson.video_generation_status === 'queued' || lesson.video_generation_status === 'processing') ? '⏳' : <ImageIcon />}
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Generative AI</div>
+                                    <div className="font-black text-xl tracking-tight">
+                                        {(isGeneratingImage || lesson.video_generation_status === 'queued' || lesson.video_generation_status === 'processing') ? 'Generating Image...' : 'Generate AI Image'}
+                                    </div>
                                 </div>
                             </button>
                         </div>

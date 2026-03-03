@@ -1283,6 +1283,125 @@ pub async fn generate_quiz(
     Ok(Json(quiz_blocks))
 }
 
+#[derive(Deserialize)]
+pub struct VideoAIRequest {
+    pub prompt: Option<String>,
+}
+
+pub async fn generate_image(
+    Org(org_ctx): Org,
+    claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<VideoAIRequest>,
+) -> Result<Json<Lesson>, StatusCode> {
+    if let Some(prompt) = &payload.prompt {
+        tracing::info!("Received prompt for video generation: {}", prompt);
+    }
+
+    // 1. Fetch lesson
+    let _lesson =
+        sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
+            .bind(id)
+            .bind(org_ctx.id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // 2. Set status to queued
+    let updated_lesson = sqlx::query_as::<_, Lesson>(
+        "UPDATE lessons SET video_generation_status = 'queued', video_generation_error = NULL WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database update failed (video queued): {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    log_action(
+        &pool,
+        org_ctx.id,
+        claims.sub,
+        "VIDEO_GENERATION_QUEUED",
+        "Lesson",
+        id,
+        json!({ "status": "queued" }),
+    )
+    .await;
+
+    // 3. Spawn background task
+    let pool_clone = pool.clone();
+    let prompt_to_task = payload.prompt.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_image_generation_task(pool_clone, id, prompt_to_task).await {
+            tracing::error!("Image generation task failed for lesson {}: {}", id, e);
+        }
+    });
+
+    Ok(Json(updated_lesson))
+}
+
+pub async fn run_image_generation_task(pool: PgPool, lesson_id: Uuid, custom_prompt: Option<String>) -> Result<(), String> {
+    // 1. Set status to processing
+    sqlx::query("UPDATE lessons SET video_generation_status = 'processing' WHERE id = $1")
+        .bind(lesson_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Update to processing failed: {}", e))?;
+
+    // 2. Call Local Video Bridge (Python)
+    let client = reqwest::Client::new();
+    let bridge_base_url = std::env::var("LOCAL_VIDEO_BRIDGE_URL")
+        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let bridge_url = format!("{}/generate", bridge_base_url);
+    
+    // Fallback logic for prompt: Custom Prompt > Title
+    let final_prompt = match custom_prompt {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            sqlx::query_scalar("SELECT title FROM lessons WHERE id = $1")
+                .bind(lesson_id)
+                .fetch_one(&pool)
+                .await
+                .map_err(|e| format!("Failed to fetch fallback prompt: {}", e))?
+        }
+    };
+
+    let response = client.post(bridge_url)
+        .json(&serde_json::json!({
+            "prompt": final_prompt,
+            "lesson_id": lesson_id.to_string()
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call video bridge: {}", e))?;
+
+    if !response.status().is_success() {
+        let err_text = response.text().await.unwrap_or_default();
+        return Err(format!("Video bridge error: {}", err_text));
+    }
+
+    let result: serde_json::Value = response.json().await
+        .map_err(|e| format!("Failed to parse video bridge response: {}", e))?;
+
+    let content_url = result["url"].as_str()
+        .ok_or_else(|| "Video bridge response missing URL".to_string())?;
+
+    // 3. Complete task
+    sqlx::query(
+        "UPDATE lessons SET video_generation_status = 'completed', content_url = $1, content_type = 'image' WHERE id = $2"
+    )
+    .bind(content_url)
+    .bind(lesson_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| format!("Update to completed failed: {}", e))?;
+
+    Ok(())
+}
+
 pub async fn get_lesson(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
