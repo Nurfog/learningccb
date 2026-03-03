@@ -50,42 +50,45 @@ export default function FillInTheBlanksBlock({ id, title, content, editMode, onC
         <div className="space-y-8" id={id}>
             <div className="space-y-2">
                 {editMode ? (
-                    <div className="space-y-2 p-6 glass border-white/5 bg-white/5 mb-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Activity Title (Optional)</label>
+                    <div className="space-y-4 p-8 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] mb-6 shadow-inner relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/40"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Activity Title (Optional)</label>
                         <input
                             type="text"
                             value={title || ""}
                             onChange={(e) => onChange({ title: e.target.value })}
                             placeholder="e.g. Fill the gaps, Quote..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:border-blue-500/50 focus:outline-none"
+                            className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-tight focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none shadow-sm"
                         />
                     </div>
                 ) : (
-                    <h3 className="text-xl font-bold border-l-4 border-blue-500 pl-4 py-1 tracking-tight text-white">
+                    <h3 className="text-2xl font-black italic tracking-tight text-slate-900 dark:text-white uppercase border-l-4 border-blue-600 pl-6 py-1">
                         {title || "Fill in the Blanks"}
                     </h3>
                 )}
             </div>
 
             {editMode ? (
-                <div className="space-y-4">
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Text with blanks (use [[answer]])</label>
+                <div className="space-y-8">
+                    <div className="p-10 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Semantic Matrix (use [[answer]])</label>
                         <textarea
                             value={content}
                             onChange={(e) => onChange({ content: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[150px] text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-6 min-h-[150px] text-lg font-black tracking-tight text-slate-800 dark:text-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-slate-300 resize-none shadow-inner"
                             placeholder="Example: The [[capital]] of France is [[Paris]]."
                         />
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">Tip: Surround any word with double brackets to create a blank.</p>
+                        <p className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-black italic pl-1 leading-relaxed">Neural Protocol: Encapsulate target markers within double square brackets.</p>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 glass border-white/5 rounded-3xl space-y-8">
-                    <div className="text-lg leading-loose text-gray-100">
+                <div className="p-10 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[3rem] space-y-10 shadow-sm hover:shadow-xl transition-all duration-700 relative overflow-hidden group/fbitem">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover/fbitem:bg-indigo-500/10 transition-colors"></div>
+                    <div className="text-2xl font-black text-slate-800 dark:text-gray-100 uppercase tracking-tight leading-loose relative z-10">
                         {parsed.parts.map((part, i) => (
                             part.type === 'text' ? (
-                                <span key={i}>{part.value}</span>
+                                <span key={i} className="mx-0.5">{part.value}</span>
                             ) : (
                                 <input
                                     key={i}
@@ -97,12 +100,12 @@ export default function FillInTheBlanksBlock({ id, title, content, editMode, onC
                                         setUserAnswers(newAnswers);
                                     }}
                                     disabled={submitted}
-                                    className={`mx-1 px-2 py-0 border-b-2 bg-transparent transition-all focus:outline-none text-center rounded-t-sm ${submitted
-                                        ? (isCorrect(part.index!) ? "border-green-500 text-green-400 bg-green-500/10" : "border-red-500 text-red-100 bg-red-500/10")
-                                        : "border-blue-500/30 focus:border-blue-500 text-blue-400 focus:bg-blue-500/5"
+                                    className={`mx-2 px-4 py-1 border-b-4 bg-slate-50 dark:bg-black/20 transition-all focus:outline-none text-center rounded-t-xl font-black uppercase tracking-widest placeholder:text-slate-300 ${submitted
+                                        ? (isCorrect(part.index!) ? "border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10" : "border-red-500 text-red-700 dark:text-red-100 bg-red-50 dark:bg-red-500/10")
+                                        : "border-blue-500/40 focus:border-blue-600 text-blue-600 dark:text-blue-400 focus:bg-blue-500/5"
                                         }`}
-                                    style={{ width: `${Math.max((part.answer?.length || 5) * 12, 60)}px` }}
-                                    placeholder="..."
+                                    style={{ width: `${Math.max((part.answer?.length || 5) * 16, 120)}px` }}
+                                    placeholder="?"
                                 />
                             )
                         ))}
@@ -111,18 +114,18 @@ export default function FillInTheBlanksBlock({ id, title, content, editMode, onC
                     {!submitted && parsed.answers.length > 0 && (
                         <button
                             onClick={() => setSubmitted(true)}
-                            className="btn-premium w-full py-4 font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20"
+                            className="w-full py-6 bg-blue-600 text-white font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-[2rem] flex items-center justify-center gap-4 relative z-10"
                         >
-                            Validate Answers
+                            Execute Linguistic Validation
                         </button>
                     )}
 
                     {submitted && (
                         <button
                             onClick={handleReset}
-                            className="w-full py-4 glass text-blue-400 font-black text-xs uppercase tracking-[0.2em] hover:bg-white/5 transition-all rounded-xl border-white/5"
+                            className="w-full py-6 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-[0.3em] hover:bg-slate-50 transition-all rounded-[2rem] active:scale-[0.98] shadow-sm relative z-10"
                         >
-                            Try Again
+                            Reset Semantic Chain
                         </button>
                     )}
                 </div>

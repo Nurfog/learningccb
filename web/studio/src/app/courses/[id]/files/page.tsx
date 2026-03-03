@@ -95,60 +95,70 @@ export default function CourseFilesPage() {
                     />
                     <label
                         htmlFor="file-upload"
-                        className={`flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer active:scale-95 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}
+                        className={`flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 transition-all cursor-pointer active:scale-95 ${isUploading ? 'opacity-50 cursor-wait' : ''}`}
                     >
                         {!isUploading && <Upload className="w-4 h-4" />}
-                        {isUploading ? `Subiendo ${uploadProgress}%` : 'Subir Archivo'}
+                        {isUploading ? `UPLOADING ${uploadProgress}%` : 'SUBIR ARCHIVO'}
                     </label>
                 </div>
             }
         >
             <div className="space-y-6">
-
-                <div className="glass rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-white/5 border-b border-white/10 text-gray-400 font-medium">
-                            <tr>
-                                <th className="p-4">Name</th>
-                                <th className="p-4">Type</th>
-                                <th className="p-4">Size</th>
-                                <th className="p-4">Uploaded</th>
-                                <th className="p-4 text-right">Actions</th>
+                <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5">
+                                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500">Asset Name</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500">MIME Type</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500">Size</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500">Uploaded</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                             {isLoading ? (
-                                <tr><td colSpan={5} className="p-8 text-center text-gray-500">Loading files...</td></tr>
+                                <tr><td colSpan={5} className="p-12 text-center text-slate-400 dark:text-gray-500 font-bold italic animate-pulse">Scanning server for assets...</td></tr>
                             ) : assets.length === 0 ? (
-                                <tr><td colSpan={5} className="p-12 text-center text-gray-500">No files uploaded yet.</td></tr>
+                                <tr>
+                                    <td colSpan={5} className="p-24 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-4 text-slate-300 dark:text-gray-600">
+                                            <div className="w-20 h-20 rounded-3xl bg-slate-50 dark:bg-white/5 border-2 border-dashed border-slate-100 dark:border-white/5 flex items-center justify-center">
+                                                <FileIcon className="w-10 h-10 opacity-20" />
+                                            </div>
+                                            <p className="text-xs font-black uppercase tracking-widest">No assets found for this course</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             ) : (
                                 assets.map((asset) => (
-                                    <tr key={asset.id} className="hover:bg-white/5 transition-colors">
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                                {getIcon(asset.mimetype)}
+                                    <tr key={asset.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                                    {getIcon(asset.mimetype)}
+                                                </div>
                                                 <div>
-                                                    <div className="font-medium text-gray-900 dark:text-white">{asset.filename}</div>
-                                                    <div className="text-xs text-blue-400">{getImageUrl(asset.storage_path.replace('uploads/', '/assets/'))}</div>
+                                                    <div className="font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight text-sm">{asset.filename}</div>
+                                                    <div className="text-[11px] text-blue-500/60 font-mono mt-1 break-all max-w-sm">{getImageUrl(asset.storage_path.replace('uploads/', '/assets/'))}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4 text-gray-400 font-mono text-sm">{asset.mimetype}</td>
-                                        <td className="p-4 text-gray-400 text-sm">{formatSize(asset.size_bytes)}</td>
-                                        <td className="p-4 text-gray-400 text-sm">{new Date(asset.created_at).toLocaleDateString()}</td>
-                                        <td className="p-4 text-right">
-                                            <div className="flex justify-end gap-2">
+                                        <td className="p-6 text-slate-400 dark:text-gray-500 font-mono text-xs uppercase font-bold">{asset.mimetype}</td>
+                                        <td className="p-6 text-slate-900 dark:text-white font-black text-sm uppercase tracking-tighter">{formatSize(asset.size_bytes)}</td>
+                                        <td className="p-6 text-slate-400 dark:text-gray-500 text-xs font-bold">{new Date(asset.created_at).toLocaleDateString()}</td>
+                                        <td className="p-6 text-right">
+                                            <div className="flex justify-end gap-3">
                                                 <button
                                                     onClick={() => copyToClipboard(asset.storage_path.replace('uploads/', '/assets/'))}
                                                     title="Copy Internal URL"
-                                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-blue-400"
+                                                    className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white rounded-xl transition-all text-blue-500 shadow-sm active:scale-90"
                                                 >
                                                     <Copy className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(asset.id)}
                                                     title="Delete File"
-                                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-red-400"
+                                                    className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-white/5 hover:bg-red-600 hover:text-white rounded-xl transition-all text-red-500 shadow-sm active:scale-90"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>

@@ -75,15 +75,15 @@ export default function AnnouncementsPage() {
                         Comunicados del Curso
                     </h2>
                     {/* Search Bar */}
-                    <div className="glass p-4 rounded-2xl flex items-center gap-4">
+                    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-6 rounded-[2rem] flex items-center gap-4 shadow-sm">
                         <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
                             <input
                                 type="text"
-                                placeholder="Search announcements..."
+                                placeholder="Find an announcement..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-orange-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500"
+                                className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 font-bold shadow-inner"
                             />
                         </div>
                     </div>
@@ -95,12 +95,12 @@ export default function AnnouncementsPage() {
                             <p className="text-gray-400">Loading announcements...</p>
                         </div>
                     ) : filteredAnnouncements.length > 0 ? (
-                        <div className="grid gap-6">
+                        <div className="grid gap-8">
                             {filteredAnnouncements.map((a) => (
-                                <div key={a.id} className={`relative p-6 rounded-2xl border transition-all duration-300 ${a.is_pinned ? 'bg-orange-500/10 border-orange-500/30' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-slate-200 dark:hover:border-white/20'}`}>
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-gray-900 dark:text-white font-bold overflow-hidden">
+                                <div key={a.id} className={`relative p-8 rounded-[2.5rem] border transition-all duration-300 shadow-sm ${a.is_pinned ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30' : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'}`}>
+                                    <div className="flex items-start justify-between mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-black overflow-hidden shadow-lg shadow-orange-500/20 border-2 border-white dark:border-white/10">
                                                 {a.author_avatar ? (
                                                     <img src={a.author_avatar} alt={a.author_name} className="w-full h-full object-cover" />
                                                 ) : (
@@ -108,8 +108,8 @@ export default function AnnouncementsPage() {
                                                 )}
                                             </div>
                                             <div>
-                                                <h4 className="font-semibold text-slate-900 dark:text-white">{a.author_name}</h4>
-                                                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400">
+                                                <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{a.author_name}</h4>
+                                                <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-gray-500 font-bold uppercase tracking-widest mt-0.5">
                                                     <span>{formatDistanceToNow(new Date(a.created_at), { addSuffix: true, locale: es })}</span>
                                                     {a.cohort_ids && a.cohort_ids.length > 0 && (
                                                         <>
@@ -133,12 +133,12 @@ export default function AnnouncementsPage() {
                                             </button>
                                         </div>
                                     </div>
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{a.title}</h3>
-                                    <p className="text-slate-600 dark:text-gray-300 whitespace-pre-wrap">{a.content}</p>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-tight leading-tight">{a.title}</h3>
+                                    <p className="text-slate-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed font-medium italic">{a.content}</p>
 
                                     {/* Display Target Cohort Names if segmented */}
                                     {a.cohort_ids && a.cohort_ids.length > 0 && (
-                                        <div className="mt-4 flex flex-wrap gap-2">
+                                        <div className="mt-8 flex flex-wrap gap-2 pt-6 border-t border-slate-100 dark:border-white/5">
                                             {a.cohort_ids.map(cid => {
                                                 const cohort = cohorts.find(c => c.id === cid);
                                                 return (
@@ -153,10 +153,12 @@ export default function AnnouncementsPage() {
                             ))}
                         </div>
                     ) : (
-                        <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-2xl p-20 text-center">
-                            <Megaphone className="w-12 h-12 text-slate-400 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No announcements found</h3>
-                            <p className="text-slate-500 dark:text-gray-400">Start by creating a new announcement for your students.</p>
+                        <div className="bg-slate-50 dark:bg-white/5 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-[2.5rem] p-24 text-center shadow-inner">
+                            <div className="w-20 h-20 rounded-3xl bg-white dark:bg-white/5 flex items-center justify-center mx-auto mb-6 shadow-sm">
+                                <Megaphone className="w-10 h-10 text-slate-400 dark:text-gray-600 opacity-40" />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">No announcements yet</h3>
+                            <p className="text-xs text-slate-400 dark:text-gray-500 font-bold uppercase tracking-widest italic">Start communicating with your student body today.</p>
                         </div>
                     )}
                 </div>
@@ -212,53 +214,55 @@ function NewAnnouncementModal({ courseId, cohorts, onClose, onSuccess }: { cours
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-[#1a1c1e] border border-slate-200 dark:border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-                <div className="p-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-                    <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                        <Megaphone className="w-5 h-5 text-orange-500" />
-                        Create New Announcement
-                    </h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-900 dark:text-gray-500 dark:hover:text-white transition-colors">
-                        <Plus className="w-6 h-6 rotate-45" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-[#1a1c1e] border border-slate-200 dark:border-white/10 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="p-10 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-transparent">
+                    <div>
+                        <h2 className="text-2xl font-black flex items-center gap-3 text-slate-900 dark:text-white uppercase tracking-tight">
+                            <Megaphone className="w-6 h-6 text-orange-500" />
+                            New Announcement
+                        </h2>
+                        <p className="text-xs text-slate-400 dark:text-gray-500 font-bold uppercase tracking-widest mt-1">Share news and updates with your course</p>
+                    </div>
+                    <button onClick={onClose} className="p-3 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl transition-all group active:scale-95">
+                        <Plus size={20} className="text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors rotate-45" />
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-400">Title</label>
+                <form onSubmit={handleSubmit} className="p-10 space-y-8">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 ml-1">Topic Title</label>
                         <input
                             required
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500"
-                            placeholder="Announcement title"
+                            className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 font-bold shadow-inner"
+                            placeholder="What's this announcement about?"
                         />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-400">Content</label>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 ml-1">Message Body</label>
                         <textarea
                             required
                             rows={5}
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500/50 resize-none text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500"
-                            placeholder="Type your message here..."
+                            className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-orange-500/50 resize-none text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 font-medium italic shadow-inner"
+                            placeholder="Type your detailed message here..."
                         />
                     </div>
 
-                    <div className="space-y-3">
-                        <label className="text-sm font-bold text-gray-400 flex items-center gap-2">
-                            <Users className="w-4 h-4" />
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 flex items-center gap-2 ml-1">
+                            <Users className="w-4 h-4 text-blue-500" />
                             Target Segments (Optional)
                         </label>
-                        <p className="text-xs text-gray-500">Select specific cohorts to receive this announcement. Leave empty to send to all students.</p>
-                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
+                        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1 custom-scrollbar">
                             {cohorts.map(c => (
                                 <button
                                     key={c.id}
                                     type="button"
                                     onClick={() => toggleCohort(c.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedCohorts.includes(c.id) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-white/10'}`}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm active:scale-95 ${selectedCohorts.includes(c.id) ? 'bg-blue-600 border-blue-500 text-white shadow-blue-500/20' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 dark:text-gray-500 hover:border-blue-500/30'}`}
                                 >
                                     {c.name}
                                 </button>
@@ -266,29 +270,30 @@ function NewAnnouncementModal({ courseId, cohorts, onClose, onSuccess }: { cours
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
-                        <input
-                            type="checkbox"
-                            id="pin"
-                            checked={isPinned}
-                            onChange={(e) => setIsPinned(e.target.checked)}
-                            className="w-5 h-5 rounded border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-orange-600 focus:ring-orange-500/50"
-                        />
-                        <label htmlFor="pin" className="text-sm font-medium text-slate-600 dark:text-gray-300 cursor-pointer">
-                            Pin this announcement to the top
+                    <div className="flex items-center gap-4 p-5 bg-orange-50 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/10 rounded-[2rem] shadow-sm">
+                        <div className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                id="pin"
+                                checked={isPinned}
+                                onChange={(e) => setIsPinned(e.target.checked)}
+                                className="w-6 h-6 rounded-lg border-slate-300 dark:border-white/10 bg-white dark:bg-black/40 text-orange-600 focus:ring-orange-500/50 shadow-inner"
+                            />
+                        </div>
+                        <label htmlFor="pin" className="text-xs font-black uppercase tracking-widest text-orange-800/80 dark:text-orange-400/80 cursor-pointer">
+                            Pin this announcement to the top of the course feed
                         </label>
                     </div>
-
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={onClose} className="px-6 py-2.5 font-bold text-gray-500 hover:bg-white/5 rounded-xl transition-colors">
-                            Cancel
+                    <div className="flex justify-end gap-4 pt-6">
+                        <button type="button" onClick={onClose} className="px-8 py-3 font-black text-[10px] uppercase tracking-widest text-slate-400 dark:text-gray-500 hover:text-slate-900 dark:hover:text-white transition-all active:scale-95">
+                            Discard
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
-                            className="px-8 py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-orange-500/20"
+                            disabled={loading || !title || !content}
+                            className="px-10 py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-slate-200 dark:disabled:bg-white/5 text-white disabled:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-orange-500/20 transition-all active:scale-95 disabled:shadow-none group flex items-center gap-3"
                         >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-5 h-5 group-hover:scale-110 transition-transform" />}
                             Publish Announcement
                         </button>
                     </div>

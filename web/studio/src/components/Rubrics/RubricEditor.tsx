@@ -199,68 +199,71 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
     );
 
     return (
-        <div className="bg-[#1a1d23] rounded-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="bg-white dark:bg-[#1a1d23] rounded-[2.5rem] border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+            <div className="p-8 border-b border-slate-100 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02]">
                 <div className="flex-1">
                     <input
                         type="text"
                         value={rubric.name}
                         onChange={(e) => handleUpdateRubric(e.target.value, rubric.description || "")}
                         placeholder="Rubric Name"
-                        className="bg-transparent text-2xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50 rounded px-2 w-full"
+                        className="bg-transparent text-3xl font-black text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-2 w-full uppercase tracking-tighter"
                     />
                     <input
                         type="text"
                         value={rubric.description || ""}
                         onChange={(e) => handleUpdateRubric(rubric.name, e.target.value)}
                         placeholder="Add a description..."
-                        className="bg-transparent text-sm text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500/50 rounded px-2 mt-1 w-full"
+                        className="bg-transparent text-sm font-bold text-slate-400 dark:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-2 mt-2 w-full italic"
                     />
                 </div>
-                <div className="flex items-center gap-4 ml-4">
-                    <div className="text-right mr-4">
-                        <span className="text-xs text-gray-500 uppercase tracking-widest block font-semibold">Total Points</span>
-                        <span className="text-2xl font-bold text-blue-400">{rubric.total_points}</span>
+                <div className="flex items-center gap-6 ml-4">
+                    <div className="text-right">
+                        <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] block font-black mb-1">Total Points</span>
+                        <span className="text-3xl font-black text-blue-600 dark:text-blue-400 tracking-tighter">{rubric.total_points}</span>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+                        className="w-12 h-12 flex items-center justify-center hover:bg-red-50 dark:hover:bg-white/10 rounded-full text-slate-400 hover:text-red-500 transition-all active:scale-95 border border-transparent hover:border-red-100"
                     >
-                        <X className="w-6 h-6" />
+                        <X className="w-8 h-8" />
                     </button>
                 </div>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-8 space-y-12">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-200">
-                        Criteria
-                        <span className="text-xs font-normal text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+                <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-black flex items-center gap-3 text-slate-900 dark:text-gray-200 uppercase tracking-tight">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm">
+                            <Plus size={20} />
+                        </div>
+                        Evaluation Criteria
+                        <span className="text-[10px] font-black text-slate-400 dark:text-gray-500 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-3 py-1 rounded-full uppercase tracking-widest ml-2">
                             {rubric.criteria.length} items
                         </span>
                     </h3>
                     <button
                         onClick={handleAddCriterion}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-600 hover:text-white transition-all transform active:scale-95"
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-blue-500/20 active:scale-95"
                     >
                         <Plus className="w-4 h-4" />
-                        Add Criterion
+                        ADD NEW CRITERION
                     </button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-8 pb-10">
                     {rubric.criteria.length === 0 ? (
-                        <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
-                            <p className="text-gray-500 italic">No criteria added yet. Add your first evaluation criterion.</p>
+                        <div className="text-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3rem] bg-slate-50/50 dark:bg-white/[0.01]">
+                            <p className="text-slate-400 dark:text-gray-500 italic font-medium">Define your first grading criterion to start building the rubric.</p>
                         </div>
                     ) : (
                         rubric.criteria.map((item, idx) => (
-                            <div key={item.id} className="group bg-white/[0.03] border border-white/10 rounded-3xl p-6 hover:border-blue-500/30 transition-all">
-                                <div className="flex items-start gap-4">
-                                    <div className="mt-2 text-gray-600 group-hover:text-blue-500/50 transition-colors">
-                                        <GripVertical className="w-5 h-5 cursor-grab active:cursor-grabbing" />
+                            <div key={item.id} className="group bg-slate-50/30 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 hover:border-blue-500/30 transition-all shadow-sm hover:shadow-md">
+                                <div className="flex items-start gap-6">
+                                    <div className="mt-2 text-slate-300 dark:text-gray-600 group-hover:text-blue-500 transition-colors">
+                                        <GripVertical className="w-6 h-6 cursor-grab active:cursor-grabbing" />
                                     </div>
                                     <div className="flex-1 space-y-4">
                                         <div className="flex items-center justify-between gap-4">
@@ -269,29 +272,29 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                                     type="text"
                                                     value={item.name}
                                                     onChange={(e) => handleUpdateCriterion(item.id, { name: e.target.value })}
-                                                    className="bg-transparent text-lg font-bold text-gray-100 focus:outline-none focus:border-b border-blue-500/50 w-full"
+                                                    className="bg-transparent text-xl font-black text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 rounded-lg px-2 w-full uppercase tracking-tight"
                                                 />
                                                 <input
                                                     type="text"
                                                     value={item.description || ""}
                                                     onChange={(e) => handleUpdateCriterion(item.id, { description: e.target.value })}
-                                                    placeholder="Description of what to evaluate..."
-                                                    className="bg-transparent text-sm text-gray-500 focus:outline-none w-full mt-1"
+                                                    placeholder="Focus area (e.g. Critical Thinking, Technical Accuracy...)"
+                                                    className="bg-transparent text-sm font-medium text-slate-500 dark:text-gray-500 focus:outline-none w-full mt-2 italic px-2"
                                                 />
                                             </div>
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-6">
                                                 <div className="flex flex-col items-end">
-                                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Max Points</label>
+                                                    <label className="text-[9px] text-slate-400 dark:text-gray-500 uppercase tracking-widest font-black mb-1 mr-1">Points</label>
                                                     <input
                                                         type="number"
                                                         value={item.max_points}
                                                         onChange={(e) => handleUpdateCriterion(item.id, { max_points: parseInt(e.target.value) || 0 })}
-                                                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 w-16 text-center text-blue-400 font-bold focus:outline-none focus:border-blue-500"
+                                                        className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 w-20 text-center text-blue-600 dark:text-blue-400 font-black text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all shadow-sm"
                                                     />
                                                 </div>
                                                 <button
                                                     onClick={() => handleDeleteCriterion(item.id)}
-                                                    className="p-2 text-red-500/50 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                    className="p-3 bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
                                                 >
                                                     <Trash2 className="w-5 h-5" />
                                                 </button>
@@ -299,45 +302,45 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                         </div>
 
                                         {/* Levels */}
-                                        <div className="pl-4 border-l-2 border-white/5 space-y-4 pt-2">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Performance Levels</h4>
+                                        <div className="pl-8 border-l-4 border-slate-100 dark:border-white/5 space-y-6 pt-4 mt-4">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h4 className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Achievement Levels</h4>
                                                 <button
                                                     onClick={() => handleAddLevel(item.id)}
-                                                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold"
+                                                    className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-500 flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-500/10 rounded-lg border border-blue-100 dark:border-blue-500/20 transition-all"
                                                 >
-                                                    <Plus className="w-3 h-3" /> Add Level
+                                                    <Plus size={12} /> ADD LEVEL
                                                 </button>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                                                 {item.levels.map(level => (
-                                                    <div key={level.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-2 relative group/level hover:bg-white/[0.08] transition-all">
+                                                    <div key={level.id} className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.5rem] p-6 flex flex-col gap-4 relative group/level hover:border-blue-500/30 transition-all shadow-sm">
                                                         <button
                                                             onClick={() => handleDeleteLevel(level.id, item.id)}
-                                                            className="absolute top-2 right-2 p-1 text-gray-600 hover:text-red-500 opacity-0 group-level-hover:opacity-100 transition-all"
+                                                            className="absolute top-4 right-4 p-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-lg opacity-0 group-hover/level:opacity-100 transition-all active:scale-90"
                                                         >
-                                                            <Trash2 className="w-3 h-3" />
+                                                            <Trash2 className="w-4 h-4" />
                                                         </button>
                                                         <input
                                                             type="text"
                                                             value={level.name}
                                                             onChange={(e) => handleUpdateLevel(level.id, item.id, { name: e.target.value })}
-                                                            placeholder="Level Name (e.g. Excellent)"
-                                                            className="bg-transparent text-sm font-semibold text-gray-200 focus:outline-none"
+                                                            placeholder="Level (e.g. Master)"
+                                                            className="bg-transparent text-sm font-black text-slate-900 dark:text-gray-200 focus:outline-none uppercase tracking-tight"
                                                         />
                                                         <textarea
                                                             value={level.description || ""}
                                                             onChange={(e) => handleUpdateLevel(level.id, item.id, { description: e.target.value })}
-                                                            placeholder="Criteria description..."
-                                                            className="bg-transparent text-xs text-gray-500 focus:outline-none resize-none h-12"
+                                                            placeholder="Grade description..."
+                                                            className="bg-transparent text-xs font-medium text-slate-500 dark:text-gray-500 focus:outline-none resize-none h-20 leading-relaxed italic"
                                                         />
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] text-gray-600 uppercase font-bold">Points:</span>
+                                                        <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-50 dark:border-white/5">
+                                                            <span className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black tracking-widest">Points Value</span>
                                                             <input
                                                                 type="number"
                                                                 value={level.points}
                                                                 onChange={(e) => handleUpdateLevel(level.id, item.id, { points: parseInt(e.target.value) || 0 })}
-                                                                className="bg-white/5 border border-white/10 rounded px-1.5 w-12 text-xs text-center text-blue-400 focus:outline-none"
+                                                                className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 w-14 text-xs font-black text-center text-blue-600 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-inner"
                                                             />
                                                         </div>
                                                     </div>
@@ -353,22 +356,22 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-white/10 bg-white/[0.02] flex justify-end gap-4">
+            <div className="p-8 border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] flex justify-end gap-5">
                 <button
                     onClick={onClose}
-                    className="px-6 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all font-medium"
+                    className="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
                 >
-                    Close
+                    Cancel
                 </button>
                 <button
                     onClick={() => {
                         if (onSaved) onSaved();
                         onClose();
                     }}
-                    className="px-8 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-2"
+                    className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-3"
                 >
                     <Check className="w-5 h-5" />
-                    Done
+                    Save & Finish
                 </button>
             </div>
         </div>

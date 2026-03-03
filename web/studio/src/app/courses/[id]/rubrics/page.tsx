@@ -17,9 +17,9 @@ export default function RubricsPage() {
             pageTitle="Gestión de Rúbricas"
             pageDescription="Crea y gestiona rúbricas de evaluación para tu curso."
             pageActions={
-                <div className="hidden md:flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-2xl text-blue-400 text-sm">
+                <div className="hidden md:flex items-center gap-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-5 py-2.5 rounded-2xl text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest shadow-sm">
                     <Info className="w-4 h-4" />
-                    <span>Las rúbricas pueden asignarse a múltiples lecciones.</span>
+                    <span>Reusable rubrics can be assigned to multiple lessons across the course.</span>
                 </div>
             }
         >

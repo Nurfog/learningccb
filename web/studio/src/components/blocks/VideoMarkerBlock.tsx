@@ -75,26 +75,27 @@ export default function VideoMarkerBlock({
 
     if (!editMode) {
         return (
-            <div className="space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">
-                    {title || "Video con Marcadores"}
+            <div className="space-y-6">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 pl-1">
+                    {title || "Interactive Temporal Nodes"}
                 </h3>
-                <div className="glass-card p-6 border-indigo-500/20 bg-indigo-500/5">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
-                            <Clock size={20} />
+                <div className="bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 p-8 rounded-[2.5rem] shadow-sm relative overflow-hidden group/vm">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover/vm:bg-indigo-500/10 transition-colors"></div>
+                    <div className="flex items-center gap-4 mb-8 relative z-10">
+                        <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-inner">
+                            <Clock size={24} />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-white">Video Interactivo</p>
-                            <p className="text-xs text-gray-500">{markers.length} marcadores configurados</p>
+                            <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight italic">Interactive Stream</p>
+                            <p className="text-[10px] text-slate-400 dark:text-gray-500 uppercase font-black tracking-widest">{markers.length} SYNC MARKERS DETECTED</p>
                         </div>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3 relative z-10">
                         {markers.map((marker, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs text-gray-400">
-                                <span className="font-mono text-indigo-400">{formatTime(marker.timestamp)}</span>
-                                <span>→</span>
-                                <span className="truncate">{marker.question}</span>
+                            <div key={idx} className="flex items-center gap-4 text-[10px] text-slate-500 dark:text-gray-400 font-black uppercase tracking-wider bg-slate-50/50 dark:bg-white/5 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400 bg-white dark:bg-black/40 px-2 py-1 rounded-lg border border-slate-100 dark:border-white/10 shadow-sm">{formatTime(marker.timestamp)}</span>
+                                <span className="opacity-20">/</span>
+                                <span className="truncate italic">{marker.question}</span>
                             </div>
                         ))}
                     </div>
@@ -106,137 +107,147 @@ export default function VideoMarkerBlock({
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             {/* Title Editor */}
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Título del Bloque</label>
+            <div className="space-y-4 p-8 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] mb-6 shadow-inner relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500/40"></div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Activity Title (Optional)</label>
                 <input
                     type="text"
                     value={title}
                     onChange={(e) => onChange({ title: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Ej: Video Tutorial - Introducción"
+                    className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-tight focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none shadow-sm"
+                    placeholder="e.g. Masterclass Stream, Acoustic Analysis..."
                 />
             </div>
 
             {/* Video Preview with Timeline */}
-            <div className="glass-card p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Play size={16} className="text-indigo-400" />
-                        Vista Previa del Video
+            <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 p-6 rounded-[3rem] space-y-6 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
+                <div className="flex items-center justify-between relative z-10 px-2">
+                    <h4 className="text-[10px] font-black text-slate-900 dark:text-white flex items-center gap-3 uppercase tracking-widest italic">
+                        <Play size={16} className="text-indigo-600 dark:text-indigo-400" />
+                        Temporal Scrutiny
                     </h4>
-                    <span className="text-xs font-mono text-gray-500">{formatTime(currentTime)}</span>
+                    <span className="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-black/40 px-3 py-1 rounded-full border border-indigo-100 dark:border-white/10">{formatTime(currentTime)}</span>
                 </div>
 
-                <div className="rounded-lg overflow-hidden">
+                <div className="rounded-[2rem] overflow-hidden border border-slate-100 dark:border-white/10 shadow-2xl relative z-10">
                     <MediaPlayer
                         src={videoUrl}
                         type="video"
                         isGraded={isGraded}
-                        showInteractive={false} // Interactive markers are separate here
+                        showInteractive={false}
                         onTimeUpdate={setCurrentTime}
                     />
                 </div>
 
                 <button
                     onClick={addMarker}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                    className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-4 transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 group relative z-10"
                 >
-                    <Plus size={16} />
-                    Agregar Marcador en {formatTime(currentTime)}
+                    <Plus size={18} className="group-hover:rotate-90 transition-transform" />
+                    Inject Marker at {formatTime(currentTime)}
                 </button>
             </div>
 
             {/* Markers List */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Clock size={16} className="text-amber-400" />
-                        Marcadores ({markers.length})
+            <div className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                    <h4 className="text-[10px] font-black text-slate-400 dark:text-gray-500 flex items-center gap-3 uppercase tracking-[0.2em]">
+                        <Clock size={16} className="text-amber-500" />
+                        Interactive Sequence ({markers.length})
                     </h4>
                 </div>
 
                 {markers.length === 0 && (
-                    <div className="glass-card p-8 text-center border-dashed">
-                        <AlertCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-500">No hay marcadores configurados.</p>
-                        <p className="text-xs text-gray-600 mt-1">Reproduce el video y haz clic en &quot;Agregar Marcador&quot;</p>
+                    <div className="bg-slate-50 dark:bg-black/20 border-2 border-dashed border-slate-200 dark:border-white/10 p-16 rounded-[3rem] text-center space-y-4">
+                        <AlertCircle className="w-12 h-12 text-slate-300 dark:text-gray-700 mx-auto opacity-40" />
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest">No interactive nodes detected</p>
+                            <p className="text-[9px] text-slate-300 dark:text-gray-600 uppercase font-black italic">Initiate playback and execute &quot;Inject Marker&quot;</p>
+                        </div>
                     </div>
                 )}
 
                 {markers.map((marker, idx) => (
-                    <div key={idx} className="glass-card p-4 space-y-3 border-l-4 border-indigo-500">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded">
-                                    {formatTime(marker.timestamp)}
-                                </span>
+                    <div key={idx} className="bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] shadow-sm overflow-hidden group/mkr transition-all duration-500 hover:shadow-xl hover:border-indigo-500/20">
+                        <div className="p-6 border-l-[6px] border-indigo-600 flex flex-col gap-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-100 dark:border-indigo-500/20 shadow-inner italic">
+                                        SYNC {formatTime(marker.timestamp)}
+                                    </span>
+                                    <button
+                                        onClick={() => setEditingIndex(editingIndex === idx ? null : idx)}
+                                        className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-indigo-600 transition-colors"
+                                    >
+                                        {editingIndex === idx ? "COLLAPSE" : "SCRUTINIZE"}
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => setEditingIndex(editingIndex === idx ? null : idx)}
-                                    className="text-xs text-gray-500 hover:text-white transition-colors"
+                                    onClick={() => deleteMarker(idx)}
+                                    className="p-3 bg-red-50 dark:bg-red-500/5 hover:bg-red-500 hover:text-white rounded-xl text-red-500 transition-all active:scale-90"
                                 >
-                                    {editingIndex === idx ? "Colapsar" : "Editar"}
+                                    <Trash2 size={16} />
                                 </button>
                             </div>
-                            <button
-                                onClick={() => deleteMarker(idx)}
-                                className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 transition-all"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
 
-                        {editingIndex === idx ? (
-                            <div className="space-y-3 pt-2 border-t border-white/5">
-                                {/* Timestamp Editor */}
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Timestamp (MM:SS)</label>
-                                    <input
-                                        type="text"
-                                        value={formatTime(marker.timestamp)}
-                                        onChange={(e) => updateMarker(idx, { timestamp: parseTime(e.target.value) })}
-                                        className="w-full bg-black/20 border border-white/10 rounded px-3 py-1.5 text-sm font-mono text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                </div>
-
-                                {/* Question Editor */}
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Pregunta</label>
-                                    <input
-                                        type="text"
-                                        value={marker.question}
-                                        onChange={(e) => updateMarker(idx, { question: e.target.value })}
-                                        className="w-full bg-black/20 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="¿Qué concepto se explicó?"
-                                    />
-                                </div>
-
-                                {/* Options Editor */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Opciones de Respuesta</label>
-                                    {marker.options.map((option, optIdx) => (
-                                        <div key={optIdx} className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name={`correct-${idx}`}
-                                                checked={marker.correctIndex === optIdx}
-                                                onChange={() => updateMarker(idx, { correctIndex: optIdx })}
-                                                className="w-4 h-4 text-green-500"
-                                            />
+                            {editingIndex === idx ? (
+                                <div className="space-y-6 pt-6 border-t border-slate-50 dark:border-white/5 animate-in slide-in-from-top-2 duration-500">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Timestamp Editor */}
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Temporal Alignment (MM:SS)</label>
                                             <input
                                                 type="text"
-                                                value={option}
-                                                onChange={(e) => updateOption(idx, optIdx, e.target.value)}
-                                                className="flex-1 bg-black/20 border border-white/10 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                                                placeholder={`Opción ${optIdx + 1}`}
+                                                value={formatTime(marker.timestamp)}
+                                                onChange={(e) => updateMarker(idx, { timestamp: parseTime(e.target.value) })}
+                                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black font-mono text-slate-800 dark:text-white focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none"
                                             />
                                         </div>
-                                    ))}
-                                    <p className="text-[10px] text-gray-600 italic">Selecciona el radio button de la respuesta correcta</p>
+
+                                        {/* Question Editor */}
+                                        <div className="space-y-3">
+                                            <label className="text-[9px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Inquiry Scoped Prompt</label>
+                                            <input
+                                                type="text"
+                                                value={marker.question}
+                                                onChange={(e) => updateMarker(idx, { question: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl px-5 py-3 text-sm font-black text-slate-800 dark:text-white focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none"
+                                                placeholder="¿Critical concept?"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Options Editor */}
+                                    <div className="space-y-4">
+                                        <label className="text-[9px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Probability Vectors (Options)</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {marker.options.map((option, optIdx) => (
+                                                <div key={optIdx} className="flex items-center gap-3 bg-slate-50 dark:bg-black/20 p-3 rounded-[1.5rem] border border-slate-100 dark:border-white/10 group/opt">
+                                                    <input
+                                                        type="radio"
+                                                        name={`correct-${idx}`}
+                                                        checked={marker.correctIndex === optIdx}
+                                                        onChange={() => updateMarker(idx, { correctIndex: optIdx })}
+                                                        className="w-5 h-5 text-green-600 dark:text-green-500 bg-white dark:bg-black/40 border-slate-300 dark:border-white/10 focus:ring-green-500"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={option}
+                                                        onChange={(e) => updateOption(idx, optIdx, e.target.value)}
+                                                        className="flex-1 bg-transparent border-none p-0 text-sm font-bold text-slate-700 dark:text-white focus:ring-0 outline-none"
+                                                        placeholder={`Vector ${optIdx + 1}`}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black italic pl-1 italic">Identify the absolute truth vector via the terminal radio toggle.</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-400 truncate">{marker.question}</p>
-                        )}
+                            ) : (
+                                <p className="text-xl font-black text-slate-800 dark:text-gray-200 tracking-tight uppercase italic">{marker.question}</p>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>

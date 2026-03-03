@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Users, Send, CheckCircle2, ClipboardList, Info } from "lucide-react";
 
 interface PeerReviewBlockProps {
     id: string;
@@ -16,72 +17,84 @@ export default function PeerReviewBlock({ id, title, prompt, reviewCriteria, edi
         <div className="space-y-8" id={id}>
             <div className="space-y-2">
                 {editMode ? (
-                    <div className="space-y-2 p-6 glass border-white/5 bg-white/5 mb-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Activity Title (Optional)</label>
+                    <div className="space-y-4 p-8 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] mb-6 shadow-inner relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/40"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Activity Title (Optional)</label>
                         <input
                             type="text"
                             value={title || ""}
                             onChange={(e) => onChange({ title: e.target.value })}
                             placeholder="e.g. Final Project Submission..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:border-blue-500/50 focus:outline-none"
+                            className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-tight focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none shadow-sm"
                         />
                     </div>
                 ) : (
-                    <h3 className="text-xl font-bold border-l-4 border-purple-500 pl-4 py-1 tracking-tight text-white flex items-center gap-2">
-                        <span>👥</span> {title || "Peer Assessment"}
+                    <h3 className="text-2xl font-black italic tracking-tight text-slate-900 dark:text-white uppercase border-l-4 border-purple-600 pl-6 py-1 flex items-center gap-3">
+                        <Users className="w-6 h-6 text-purple-600" /> {title || "Peer Assessment"}
                     </h3>
                 )}
             </div>
 
             {editMode ? (
-                <div className="space-y-6">
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Assignment Instructions</label>
+                <div className="space-y-8">
+                    <div className="p-8 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm relative overflow-hidden group/instr">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] pl-1">Assignment Directive (Instructions)</label>
                         <textarea
                             value={prompt}
                             onChange={(e) => onChange({ prompt: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all"
-                            placeholder="Describe what the student needs to submit (e.g. 'Write a 500-word essay about...')"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl p-6 min-h-[120px] text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner placeholder:opacity-20"
+                            placeholder="DESCRIBE THE CORE SUBMISSION PARAMETERS..."
                         />
                     </div>
 
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Review Criteria (Rubric)</label>
+                    <div className="p-8 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm relative overflow-hidden group/rubric">
+                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] pl-1">Evaluative Matrix (Rubric)</label>
                         <textarea
                             value={reviewCriteria || ""}
                             onChange={(e) => onChange({ reviewCriteria: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-sm font-medium focus:outline-none focus:border-blue-500/50 transition-all"
-                            placeholder="Guide the reviewer on how to evaluate the submission..."
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl p-6 min-h-[120px] text-sm font-bold text-slate-700 dark:text-gray-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner"
+                            placeholder="Guide the peer reviewers on evaluative heuristics..."
                         />
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">Instructions for the student who will review this work.</p>
+                        <p className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black italic pl-1 italic">Structural guidance for cross-student validation.</p>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 glass border-white/5 rounded-3xl space-y-8">
-                    <div className="space-y-4">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">Instructions</h4>
-                        <p className="text-lg text-gray-200 leading-relaxed whitespace-pre-wrap">{prompt || "Submit your work below."}</p>
+                <div className="p-10 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[3rem] space-y-12 shadow-sm relative overflow-hidden group/peerplay">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 group-hover/peerplay:bg-purple-500/10 transition-colors"></div>
+
+                    <div className="space-y-6 relative z-10">
+                        <div className="flex items-center gap-2">
+                            <Info className="w-4 h-4 text-slate-300 dark:text-gray-600" />
+                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:text-gray-600 italic">Instructional Directive</label>
+                        </div>
+                        <p className="text-2xl font-black text-slate-800 dark:text-gray-100 leading-tight uppercase italic tracking-tight">{prompt || "Awaiting submission parameters..."}</p>
                     </div>
 
-                    <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
-                                📤
+                    <div className="p-10 bg-slate-50 dark:bg-white/5 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-[2.5rem] relative z-10 hover:border-blue-500 transition-colors duration-500">
+                        <div className="flex items-start gap-8 mb-8">
+                            <div className="p-5 rounded-2xl bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 shadow-xl ring-4 ring-blue-500/10 animate-bounce">
+                                <Send className="w-8 h-8" />
                             </div>
-                            <div>
-                                <h5 className="font-bold text-sm">Student Submission Area</h5>
-                                <p className="text-xs text-gray-500">Students will see a text area here to submit their work.</p>
+                            <div className="space-y-1">
+                                <h5 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Submission Terminal Interface</h5>
+                                <p className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-black tracking-widest italic pt-1">Active node for student document upload and textual stream.</p>
                             </div>
                         </div>
-                        <div className="h-32 bg-black/20 rounded-xl border border-white/5 flex items-center justify-center text-gray-600 text-sm italic">
-                            [Submission Interface Preview]
+                        <div className="h-40 bg-white dark:bg-black/40 rounded-[2rem] border border-slate-100 dark:border-white/10 flex flex-col items-center justify-center text-slate-400 dark:text-gray-600 text-[10px] font-black uppercase tracking-[0.4em] italic shadow-inner">
+                            <div className="w-12 h-1 bg-slate-100 dark:bg-white/5 rounded-full mb-6"></div>
+                            [ Simulation: Subjunctive Flux ]
                         </div>
                     </div>
 
                     {reviewCriteria && (
-                        <div className="space-y-2 border-t border-white/5 pt-6">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">Review Criteria</h4>
-                            <p className="text-sm text-gray-400 whitespace-pre-wrap">{reviewCriteria}</p>
+                        <div className="space-y-6 border-t border-slate-50 dark:border-white/5 pt-10 relative z-10">
+                            <div className="flex items-center gap-2">
+                                <ClipboardList className="w-4 h-4 text-slate-300 dark:text-gray-600" />
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:text-gray-600 italic">Heuristic Evaluative Metrics (Rubric)</label>
+                            </div>
+                            <p className="text-sm font-bold text-slate-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">{reviewCriteria}</p>
                         </div>
                     )}
                 </div>

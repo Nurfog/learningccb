@@ -26,67 +26,70 @@ export default function ShortAnswerBlock({ id, title, prompt, correctAnswers, ed
         <div className="space-y-8" id={id}>
             <div className="space-y-2">
                 {editMode ? (
-                    <div className="space-y-2 p-6 glass border-white/5 bg-white/5 mb-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Activity Title (Optional)</label>
+                    <div className="space-y-4 p-8 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] mb-6 shadow-inner relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/40"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Activity Title (Optional)</label>
                         <input
                             type="text"
                             value={title || ""}
                             onChange={(e) => onChange({ title: e.target.value })}
                             placeholder="e.g. Critical Thinking, Quick Response..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:border-blue-500/50 focus:outline-none"
+                            className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-tight focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none shadow-sm"
                         />
                     </div>
                 ) : (
-                    <h3 className="text-xl font-bold border-l-4 border-blue-500 pl-4 py-1 tracking-tight text-white">
+                    <h3 className="text-2xl font-black italic tracking-tight text-slate-900 dark:text-white uppercase border-l-4 border-blue-600 pl-6 py-1">
                         {title || "Short Answer"}
                     </h3>
                 )}
             </div>
 
             {editMode ? (
-                <div className="space-y-6">
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Question Prompt</label>
+                <div className="space-y-8">
+                    <div className="p-10 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm">
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Inquiry Vector (Question Prompt)</label>
                         <textarea
                             value={prompt}
                             onChange={(e) => onChange({ prompt: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-lg font-medium focus:outline-none focus:border-blue-500/50 transition-all"
-                            placeholder="Type the question for the student..."
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-6 min-h-[120px] text-lg font-black tracking-tight text-slate-800 dark:text-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-slate-300 resize-none shadow-inner"
+                            placeholder="Type the synaptic trigger for the student..."
                         />
                     </div>
 
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Correct Answers (One per line)</label>
+                    <div className="p-10 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Target Response Matrix (One per line)</label>
                         <textarea
                             value={correctAnswers ? correctAnswers.join("\n") : ""}
                             onChange={(e) => onChange({ correctAnswers: e.target.value.split("\n").filter(a => a.trim() !== "") })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-sm font-medium focus:outline-none focus:border-blue-500/50 transition-all"
-                            placeholder="Answer 1&#10;Answer 2 (Alternative)"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-6 min-h-[120px] text-sm font-bold text-green-700 dark:text-green-400 focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all outline-none shadow-inner"
+                            placeholder="Primary Solution&#10;Secondary Vector (Alternative)"
                         />
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">Validation is case-insensitive. Provide multiple alternatives if necessary.</p>
+                        <p className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-black italic pl-1 leading-relaxed">Validation employs case-insensitive string matching across all vectors.</p>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 glass border-white/5 rounded-3xl space-y-8">
-                    <p className="text-xl font-bold text-gray-100">{prompt || "Please enter your answer below:"}</p>
+                <div className="p-10 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[3rem] space-y-10 shadow-sm hover:shadow-xl transition-all duration-700 relative overflow-hidden group/saitem">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover/saitem:bg-blue-500/10 transition-colors"></div>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight relative z-10">{prompt || "Please formulate your response vector:"}</p>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6 relative z-10">
                         <input
                             type="text"
                             value={userAnswer}
                             onChange={(e) => setUserAnswer(e.target.value)}
                             disabled={submitted}
-                            className={`w-full bg-white/5 border-2 rounded-2xl px-6 py-4 text-lg transition-all focus:outline-none ${submitted
-                                ? (isCorrect ? "border-green-500 bg-green-500/10 text-green-400" : "border-red-500 bg-red-500/10 text-red-100")
-                                : "border-white/10 focus:border-blue-500 text-white"
+                            className={`w-full bg-slate-50 dark:bg-black/40 border-2 rounded-[2rem] px-8 py-6 text-xl font-black tracking-tight transition-all focus:outline-none shadow-inner ${submitted
+                                ? (isCorrect ? "border-green-500 text-green-700 dark:text-green-400 ring-4 ring-green-500/5" : "border-red-500 text-red-700 dark:text-red-100 ring-4 ring-red-500/5")
+                                : "border-slate-100 dark:border-white/10 focus:border-blue-600 text-slate-800 dark:text-white focus:ring-8 focus:ring-blue-500/5"
                                 }`}
-                            placeholder="Type your answer..."
+                            placeholder="Ingest solution..."
                         />
 
                         {submitted && !isCorrect && (
-                            <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                                <p className="text-[10px] text-orange-400 uppercase font-black tracking-widest">Suggested Answer(s):</p>
-                                <p className="text-sm text-gray-400 mt-1">{correctAnswers && correctAnswers[0]}</p>
+                            <div className="p-6 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-2xl animate-in slide-in-from-top-2 duration-500">
+                                <p className="text-[10px] text-orange-600 dark:text-orange-400 uppercase font-black tracking-[0.2em]">Validated Synaptic Marker:</p>
+                                <p className="text-lg font-black text-slate-700 dark:text-gray-300 mt-2 italic">"{correctAnswers && correctAnswers[0]}"</p>
                             </div>
                         )}
                     </div>
@@ -95,18 +98,18 @@ export default function ShortAnswerBlock({ id, title, prompt, correctAnswers, ed
                         <button
                             onClick={() => setSubmitted(true)}
                             disabled={!userAnswer.trim()}
-                            className="btn-premium w-full py-4 font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 disabled:opacity-50 disabled:grayscale"
+                            className="w-full py-6 bg-blue-600 text-white font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-[2rem] flex items-center justify-center gap-4 disabled:opacity-20 disabled:hover:scale-100"
                         >
-                            Submit Answer
+                            Execute Validation
                         </button>
                     )}
 
                     {submitted && (
                         <button
                             onClick={handleReset}
-                            className="w-full py-4 glass text-blue-400 font-black text-xs uppercase tracking-[0.2em] hover:bg-white/5 transition-all rounded-xl border-white/5"
+                            className="w-full py-6 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-[0.3em] hover:bg-slate-50 transition-all rounded-[2rem] active:scale-[0.98] shadow-sm"
                         >
-                            Try Again
+                            Reset Response Vector
                         </button>
                     )}
                 </div>

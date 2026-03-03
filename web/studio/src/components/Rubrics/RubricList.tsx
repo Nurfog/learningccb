@@ -98,7 +98,7 @@ export default function RubricList({ courseId, onEdit }: RubricListProps) {
                         placeholder="Search rubrics..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-4 py-3 focus:outline-none focus:border-blue-500/50 transition-all text-gray-100"
+                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all text-slate-900 dark:text-gray-100 placeholder:text-slate-300 shadow-inner font-medium"
                     />
                 </div>
 
@@ -109,14 +109,14 @@ export default function RubricList({ courseId, onEdit }: RubricListProps) {
                         value={newRubricName}
                         onChange={(e) => setNewRubricName(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                        className="flex-1 md:w-64 bg-white/5 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500/50 transition-all"
+                        className="flex-1 md:w-64 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all text-slate-900 dark:text-white placeholder:text-slate-300 shadow-inner font-medium"
                     />
                     <button
                         onClick={handleCreate}
                         disabled={creating || !newRubricName}
-                        className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold px-6 py-2 rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
+                        className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-100 disabled:text-slate-300 text-white font-black text-xs uppercase tracking-[0.2em] px-8 py-3 rounded-2xl transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center gap-2"
                     >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-5 h-5" />
                         Create
                     </button>
                 </div>
@@ -124,26 +124,26 @@ export default function RubricList({ courseId, onEdit }: RubricListProps) {
 
             {/* Rubrics Grid */}
             {filteredRubrics.length === 0 ? (
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-16 text-center">
-                    <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <FileText className="w-8 h-8 text-blue-400" />
+                <div className="bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/10 rounded-[3rem] p-24 text-center">
+                    <div className="w-20 h-20 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm">
+                        <FileText className="w-10 h-10 text-slate-300 dark:text-blue-400" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-200 mb-2">No rubrics found</h3>
-                    <p className="text-gray-500 max-w-md mx-auto">
-                        Create a rubric to start using advanced grading criteria in your course lessons.
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-tight">No rubrics created</h3>
+                    <p className="text-slate-500 dark:text-gray-500 max-w-sm mx-auto font-medium">
+                        Standardize your evaluation process by creating detailed rubrics for your course assignments.
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {filteredRubrics.map((rubric) => (
                         <div
                             key={rubric.id}
-                            className="group bg-white/5 border border-white/10 rounded-3xl p-6 hover:border-blue-500/50 hover:bg-white/[0.08] transition-all duration-300 flex flex-col justify-between"
+                            className="group bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 hover:border-blue-500/30 hover:shadow-xl transition-all duration-300 flex flex-col justify-between shadow-sm"
                         >
                             <div>
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                                        <FileText className="w-6 h-6" />
+                                <div className="flex items-start justify-between mb-6">
+                                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm transition-transform group-hover:scale-110">
+                                        <FileText className="w-8 h-8" />
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <button
@@ -155,32 +155,32 @@ export default function RubricList({ courseId, onEdit }: RubricListProps) {
                                         </button>
                                         <button
                                             onClick={() => handleDelete(rubric.id)}
-                                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                                            className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all shadow-sm active:scale-90"
                                             title="Delete Rubric"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            <Trash2 className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                <h3 className="text-xl font-bold text-gray-100 group-hover:text-blue-400 transition-colors mb-2">
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-2 uppercase tracking-tight">
                                     {rubric.name}
                                 </h3>
-                                <p className="text-gray-500 text-sm line-clamp-2 min-h-[2.5rem]">
-                                    {rubric.description || "No description provided."}
+                                <p className="text-slate-500 dark:text-gray-500 text-sm line-clamp-2 min-h-[3rem] font-medium leading-relaxed">
+                                    {rubric.description || "Establish consistent grading standards with custom criteria."}
                                 </p>
                             </div>
 
-                            <div className="mt-8 flex items-center justify-between">
+                            <div className="mt-12 flex items-center justify-between">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Total Points</span>
-                                    <span className="text-xl font-black text-white">{rubric.total_points}</span>
+                                    <span className="text-[10px] text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] font-black mb-1">Total Points</span>
+                                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">{rubric.total_points}</span>
                                 </div>
                                 <button
                                     onClick={() => onEdit(rubric.id)}
-                                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95"
+                                    className="px-6 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-white hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 shadow-sm"
                                 >
-                                    Manage Criteria
+                                    EDIT CRITERIA
                                 </button>
                             </div>
                         </div>

@@ -16,7 +16,8 @@ import {
     Mail,
     Plus,
     UserCircle,
-    MoreHorizontal
+    MoreHorizontal,
+    ChevronRight
 } from "lucide-react";
 import CourseEditorLayout from "@/components/CourseEditorLayout";
 
@@ -137,21 +138,21 @@ export default function CourseStudentsPage() {
                         Listado de Estudiantes
                     </h2>
                     {/* Search and Filters */}
-                    <div className="glass p-4 rounded-2xl flex flex-col md:flex-row items-center gap-4">
+                    <div className="bg-slate-50/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-3xl flex flex-col md:flex-row items-center gap-4 shadow-sm">
                         <div className="relative flex-1 w-full">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 w-4 h-4" />
                             <input
                                 type="text"
                                 placeholder="Search by name or email..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 transition-all font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-600"
+                                className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-600 shadow-inner"
                             />
                         </div>
-                        <div className="flex items-center gap-2 w-full md:w-auto">
-                            <Filter size={16} className="text-gray-400" />
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            <Filter size={16} className="text-slate-400 dark:text-gray-400" />
                             <select
-                                className="bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500/50 text-slate-900 dark:text-white min-w-[150px]"
+                                className="bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-2.5 text-xs font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-900 dark:text-white min-w-[180px] shadow-sm cursor-pointer"
                                 value={selectedCohortId}
                                 onChange={(e) => setSelectedCohortId(e.target.value)}
                             >
@@ -162,16 +163,16 @@ export default function CourseStudentsPage() {
                     </div>
 
                     {/* Student List */}
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                    <div className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] overflow-hidden shadow-sm">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-white/5 border-b border-white/5 font-bold text-xs uppercase tracking-widest text-gray-500 uppercase">
+                                <tr className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-white/5 font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500">
                                     <th className="p-6">Student</th>
-                                    <th className="p-6">Enrollment Date</th>
+                                    <th className="p-6 text-center">Enrollment Status</th>
                                     <th className="p-6 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                 {filteredStudents.length === 0 ? (
                                     <tr>
                                         <td colSpan={3} className="p-12 text-center text-slate-500 dark:text-gray-500 italic">No students found.</td>
@@ -180,41 +181,45 @@ export default function CourseStudentsPage() {
                                     <tr key={student.user_id} className="hover:bg-white/[0.02] transition-colors group">
                                         <td className="p-6">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-sm">
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-blue-500/20">
                                                     {student.full_name.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-gray-900 dark:text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight">{student.full_name}</div>
-                                                    <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Mail size={12} /> {student.email}</div>
+                                                    <div className="font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight text-sm">{student.full_name}</div>
+                                                    <div className="text-xs text-slate-400 dark:text-gray-500 flex items-center gap-1.5 mt-1 font-medium italic"><Mail size={12} className="text-blue-400" /> {student.email}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-6 text-gray-400 text-sm font-medium">
-                                            {/* In a real app we'd have the enrollment date here */}
-                                            Available upon request
+                                        <td className="p-6 text-center">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full border border-green-500/20 text-[10px] font-black uppercase tracking-widest">
+                                                <CheckCircle2 size={12} /> Active
+                                            </div>
                                         </td>
                                         <td className="p-6 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <div className="relative group/actions">
-                                                    <button className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-500">
+                                                    <button className="p-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-all text-slate-400 dark:text-gray-500 active:scale-90">
                                                         <MoreHorizontal size={20} />
                                                     </button>
-                                                    <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1c1e] border border-white/10 rounded-xl shadow-2xl invisible group-hover/actions:visible z-10 p-2">
-                                                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-600 px-3 py-2 border-b border-white/5 mb-1">Move to Cohort</div>
+                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#1a1c1e] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl invisible group-hover/actions:visible z-10 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-gray-600 px-3 py-2.5 border-b border-slate-100 dark:border-white/5 mb-1.5 flex items-center gap-2">
+                                                            <Filter size={10} /> Move to Cohort
+                                                        </div>
                                                         {cohorts.map(c => (
                                                             <button
                                                                 key={c.id}
                                                                 onClick={() => handleCohortAssignment(student.user_id, c.id)}
-                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg transition-colors"
+                                                                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-blue-600 dark:hover:text-white rounded-xl transition-all flex items-center justify-between group/item"
                                                             >
                                                                 {c.name}
+                                                                <ChevronRight size={14} className="opacity-0 group-hover/item:opacity-100 -translate-x-2 group-hover/item:translate-x-0 transition-all" />
                                                             </button>
                                                         ))}
                                                         <button
-                                                            className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors mt-2 border-t border-white/5"
+                                                            className="w-full text-left px-4 py-2.5 text-xs font-black uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all mt-2 border-t border-slate-100 dark:border-white/5 pt-3"
                                                             onClick={() => { if (confirm("Unenroll student?")) handleCohortAssignment(student.user_id, "", true) }}
                                                         >
-                                                            Unenroll
+                                                            Unenroll Student
                                                         </button>
                                                     </div>
                                                 </div>
@@ -231,58 +236,68 @@ export default function CourseStudentsPage() {
             {/* Enroll Modal */}
             {
                 isEnrollModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-[#16181b] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl scale-in-center">
-                            <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                                <h2 className="text-xl font-bold flex items-center gap-2">
-                                    <UserPlus className="text-blue-500" />
-                                    Enroll Organization Students
-                                </h2>
-                                <button onClick={() => setIsEnrollModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                                    <X size={20} />
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="bg-white dark:bg-[#16181b] border border-slate-200 dark:border-white/10 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl scale-in-center">
+                            <div className="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-transparent">
+                                <div>
+                                    <h2 className="text-2xl font-black flex items-center gap-3 text-slate-900 dark:text-white">
+                                        <UserPlus className="text-blue-600 dark:text-blue-500" />
+                                        Enroll Students
+                                    </h2>
+                                    <p className="text-xs text-slate-400 dark:text-gray-500 font-bold uppercase tracking-widest mt-1">Select from organization directory</p>
+                                </div>
+                                <button onClick={() => setIsEnrollModalOpen(false)} className="p-3 hover:bg-slate-200 dark:hover:bg-white/10 rounded-2xl transition-all group active:scale-90">
+                                    <X size={20} className="text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white" />
                                 </button>
                             </div>
-                            <div className="p-8 space-y-6">
+                            <div className="p-8 space-y-8">
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 w-5 h-5" />
                                     <input
                                         type="text"
-                                        placeholder="Search and select students from organization..."
+                                        placeholder="Search by name or email..."
                                         value={enrollSearch}
                                         onChange={(e) => setEnrollSearch(e.target.value)}
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:outline-none"
+                                        className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-[1.5rem] py-4 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-bold text-slate-900 dark:text-white shadow-inner"
                                     />
                                 </div>
 
-                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                                     {orgUsersLoading ? (
-                                        <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+                                        <div className="flex justify-center p-12 text-blue-500 items-center flex-col gap-4">
+                                            <Loader2 className="w-10 h-10 animate-spin" />
+                                            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Fetching Directory...</span>
+                                        </div>
                                     ) : allOrgUsers.filter(u => u.full_name.toLowerCase().includes(enrollSearch.toLowerCase())).length === 0 ? (
-                                        <div className="text-center p-8 text-gray-500 italic">No remaining students to enroll.</div>
+                                        <div className="text-center p-12 text-slate-400 dark:text-gray-500 italic font-medium">No remaining students found in organization directory.</div>
                                     ) : (
                                         allOrgUsers.filter(u => u.full_name.toLowerCase().includes(enrollSearch.toLowerCase())).map(user => (
-                                            <div key={user.id} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl">
-                                                <div className="flex items-center gap-3">
-                                                    <UserCircle className="text-gray-500" />
+                                            <div key={user.id} className="flex items-center justify-between p-5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl group/user hover:bg-white dark:hover:bg-white/[0.08] transition-all shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-2xl bg-white dark:bg-black/20 border border-slate-100 dark:border-white/10 flex items-center justify-center shadow-sm">
+                                                        <UserCircle className="text-slate-400 dark:text-gray-500" size={24} />
+                                                    </div>
                                                     <div>
-                                                        <div className="font-bold text-sm tracking-tight">{user.full_name}</div>
-                                                        <div className="text-xs text-gray-500">{user.email}</div>
+                                                        <div className="font-black text-slate-900 dark:text-white text-sm tracking-tight group-hover/user:text-blue-600 dark:group-hover/user:text-blue-400 transition-colors uppercase">{user.full_name}</div>
+                                                        <div className="text-xs text-slate-400 dark:text-gray-500 font-medium flex items-center gap-1.5 mt-0.5 italic"><Mail size={10} className="text-blue-400" /> {user.email}</div>
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleEnroll([user.email])}
-                                                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-gray-900 dark:text-white text-xs font-bold rounded-lg transition-all"
+                                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
                                                 >
-                                                    Enroll Now
+                                                    Enroll
                                                 </button>
                                             </div>
                                         ))
                                     )}
                                 </div>
 
-                                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex gap-3">
-                                    <Plus size={20} className="text-blue-400 shrink-0" />
-                                    <div className="text-xs text-blue-300 leading-relaxed font-medium">
+                                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 p-5 rounded-3xl flex gap-4 shadow-sm">
+                                    <div className="w-10 h-10 rounded-2xl bg-white dark:bg-black/20 flex items-center justify-center shrink-0 shadow-sm">
+                                        <Plus size={20} className="text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-xs text-blue-800/80 dark:text-blue-300 leading-relaxed font-bold uppercase tracking-wide">
                                         You can also enroll external students by going to the <strong>Gradebook</strong> and using the Bulk Enroll feature.
                                     </div>
                                 </div>

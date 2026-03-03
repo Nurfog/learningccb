@@ -25,18 +25,19 @@ export default function AudioResponseBlock({
         <div className="space-y-8" id={id}>
             <div className="space-y-2">
                 {editMode ? (
-                    <div className="space-y-2 p-6 glass border-white/5 bg-white/5 mb-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Activity Title (Optional)</label>
+                    <div className="space-y-4 p-8 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-[2rem] mb-6 shadow-inner relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/40"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em]">Activity Title (Optional)</label>
                         <input
                             type="text"
                             value={title || ""}
                             onChange={(e) => onChange({ title: e.target.value })}
                             placeholder="e.g. Speaking Practice, Pronunciation Test..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:border-blue-500/50 focus:outline-none"
+                            className="w-full bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-tight focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none shadow-sm"
                         />
                     </div>
                 ) : (
-                    <h3 className="text-xl font-bold border-l-4 border-purple-500 pl-4 py-1 tracking-tight text-white">
+                    <h3 className="text-2xl font-black italic tracking-tight text-slate-900 dark:text-white uppercase border-l-4 border-purple-600 pl-6 py-1">
                         {title || "Audio Response"}
                     </h3>
                 )}
@@ -44,39 +45,40 @@ export default function AudioResponseBlock({
 
             {editMode ? (
                 <div className="space-y-6">
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                            <Mic className="w-4 h-4" />
-                            Question Prompt
+                    <div className="p-8 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm relative overflow-hidden group/prompt">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                            <Mic className="w-4 h-4 text-purple-600" />
+                            Phonetic Inquiry (Prompt)
                         </label>
                         <textarea
                             value={prompt}
                             onChange={(e) => onChange({ prompt: e.target.value })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-lg font-medium focus:outline-none focus:border-purple-500/50 transition-all"
-                            placeholder="What question should the student answer? (e.g. 'Describe your daily routine in English')"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl p-6 min-h-[120px] text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner placeholder:opacity-20"
+                            placeholder="WHAT IS THE ENIGMA TO BE SPOKEN?..."
                         />
                     </div>
 
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                            <Tag className="w-4 h-4" />
-                            Expected Keywords (Optional)
+                    <div className="p-8 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm">
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                            <Tag className="w-4 h-4 text-purple-600" />
+                            Lexical Anchors (Expected Keywords)
                         </label>
                         <textarea
                             value={keywords.join("\n")}
                             onChange={(e) => onChange({ keywords: e.target.value.split("\n").filter(k => k.trim() !== "") })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 min-h-[100px] text-sm font-medium focus:outline-none focus:border-purple-500/50 transition-all"
-                            placeholder="breakfast&#10;morning&#10;routine&#10;work"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl p-6 min-h-[100px] text-sm font-bold text-slate-700 dark:text-gray-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all shadow-inner"
+                            placeholder="Keyword Alpha&#10;Keyword Beta..."
                         />
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                            One keyword per line. Used for automatic evaluation of speech content.
+                        <p className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black italic pl-1 italic">
+                            Singular entry per line. Syntactic scan for automatic validation.
                         </p>
                     </div>
 
-                    <div className="p-6 glass border-white/5 space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            Time Limit (Optional)
+                    <div className="p-8 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[2.5rem] space-y-4 shadow-sm">
+                        <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                            <Clock className="w-4 h-4 text-purple-600" />
+                            Temporal Ceiling (Seconds)
                         </label>
                         <input
                             type="number"
@@ -85,46 +87,51 @@ export default function AudioResponseBlock({
                             placeholder="60"
                             min="10"
                             max="300"
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-medium focus:border-purple-500/50 focus:outline-none"
+                            className="w-full bg-slate-50 dark:bg-black/40 border border-slate-100 dark:border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 dark:text-white focus:ring-4 focus:ring-purple-500/10 transition-all outline-none"
                         />
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                            Maximum recording time in seconds (10-300). Leave empty for no limit.
+                        <p className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black italic pl-1 italic">
+                            Maximum temporal window (10-300). Null for unconstrained stream.
                         </p>
                     </div>
                 </div>
             ) : (
-                <div className="p-8 glass border-white/5 rounded-3xl space-y-8">
-                    <div className="flex items-start gap-4">
-                        <div className="p-3 bg-purple-500/20 rounded-xl">
-                            <Mic className="w-6 h-6 text-purple-400" />
+                <div className="p-10 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-[3rem] space-y-10 shadow-sm relative overflow-hidden group/audioplay">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover/audioplay:bg-purple-500/10 transition-colors"></div>
+
+                    <div className="flex items-start gap-8 relative z-10">
+                        <div className="p-5 bg-purple-100 dark:bg-purple-500/10 rounded-2xl shadow-inner border border-purple-200 dark:border-purple-500/20">
+                            <Mic className="w-8 h-8 text-purple-700 dark:text-purple-400" />
                         </div>
-                        <div className="flex-1">
-                            <p className="text-xl font-bold text-gray-100 mb-2">{prompt || "Record your audio response:"}</p>
-                            {keywords.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                    <span className="text-xs text-gray-500 uppercase tracking-wider">Expected topics:</span>
-                                    {keywords.slice(0, 5).map((kw, i) => (
-                                        <span key={i} className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 rounded text-xs text-purple-300">
-                                            {kw}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                            {timeLimit && (
-                                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    Maximum {timeLimit} seconds
-                                </p>
-                            )}
+                        <div className="flex-1 space-y-4">
+                            <p className="text-2xl font-black text-slate-800 dark:text-gray-100 tracking-tight uppercase italic leading-tight">{prompt || "Awaiting phonetic capture..."}</p>
+
+                            <div className="flex flex-wrap items-center gap-6">
+                                {keywords.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {keywords.slice(0, 5).map((kw, i) => (
+                                            <span key={i} className="px-3 py-1 bg-slate-50 dark:bg-purple-500/5 border border-slate-100 dark:border-purple-500/20 rounded-lg text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-widest shadow-sm">
+                                                {kw}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                                {timeLimit && (
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 flex items-center gap-2">
+                                        <Clock className="w-3 h-3 text-purple-500" />
+                                        Temporal Window: {timeLimit}s
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="p-6 bg-purple-500/5 border-2 border-dashed border-purple-500/20 rounded-2xl text-center">
-                        <p className="text-sm text-gray-400">
-                            🎤 Audio recording will be available in the Experience player
+                    <div className="p-10 bg-purple-50/50 dark:bg-purple-500/5 border-2 border-dashed border-purple-200 dark:border-purple-500/20 rounded-[2.5rem] text-center space-y-3 relative z-10 group-hover/audioplay:border-purple-400 transition-colors duration-500">
+                        <div className="w-16 h-1 w-1 bg-purple-200 dark:bg-purple-500/20 mx-auto rounded-full mb-4"></div>
+                        <p className="text-[10px] font-black text-purple-900 dark:text-purple-400 uppercase tracking-[0.3em]">
+                            Phonetic Engine Interface
                         </p>
-                        <p className="text-xs text-gray-600 mt-2">
-                            Students will use their microphone to record their response
+                        <p className="text-[9px] text-slate-400 dark:text-gray-600 uppercase font-black italic">
+                            Capture node will manifest within the Experience stream
                         </p>
                     </div>
                 </div>
