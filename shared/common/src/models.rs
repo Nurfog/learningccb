@@ -17,6 +17,11 @@ pub struct Course {
     pub certificate_template: Option<String>,
     pub price: f64,
     pub currency: String,
+    pub marketing_metadata: Option<serde_json::Value>,
+    pub course_image_url: Option<String>,
+    pub generation_status: Option<String>,
+    pub generation_progress: Option<i32>,
+    pub generation_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -12,7 +12,7 @@ RUN cargo build --release -p cms-service
 FROM node:18-alpine AS node-builder
 WORKDIR /app
 COPY web/studio/package*.json ./
-RUN npm install
+RUN npm ci
 COPY web/studio/ .
 ARG NEXT_PUBLIC_CMS_API_URL
 ENV NEXT_PUBLIC_CMS_API_URL=$NEXT_PUBLIC_CMS_API_URL

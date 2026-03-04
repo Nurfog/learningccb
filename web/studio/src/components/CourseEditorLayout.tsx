@@ -12,6 +12,7 @@ import { cmsApi, Course } from "@/lib/api";
 
 type TabKey =
     | "outline"
+    | "marketing"
     | "grading"
     | "rubrics"
     | "calendar"
@@ -73,6 +74,7 @@ export default function CourseEditorLayout({
             icon: BookOpen,
             tabs: [
                 { key: "outline", label: "Outline", icon: Layout, href: `/courses/${id}` },
+                { key: "marketing", label: "Marketing", icon: Megaphone, href: `/courses/${id}/marketing` },
                 { key: "files", label: "Archivos", icon: Folder, href: `/courses/${id}/files` },
                 { key: "sessions", label: "Sesiones en Vivo", icon: Video, href: `/courses/${id}/sessions` },
             ],

@@ -14,9 +14,12 @@ export const LMS_API_BASE_URL = getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LM
 export const getImageUrl = (path?: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    // Map /uploads to /assets if backend stores relative paths
+    // Map uploads to assets if backend stores relative paths
     // The main.rs serves "uploads" dir at "/assets" route
-    const cleanPath = path.startsWith('/uploads') ? path.replace('/uploads', '/assets') : path;
+    let cleanPath = path;
+    if (cleanPath.startsWith('uploads/')) cleanPath = '/' + cleanPath.replace('uploads/', 'assets/');
+    if (cleanPath.startsWith('/uploads/')) cleanPath = cleanPath.replace('/uploads/', '/assets/');
+
     const finalPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${API_BASE_URL}${finalPath}`;
 };
@@ -34,6 +37,17 @@ export interface Course {
     certificate_template?: string;
     price: number;
     currency: string;
+    marketing_metadata?: {
+        objectives?: string;
+        requirements?: string;
+        duration?: string;
+        modules_summary?: string;
+        certification_info?: string;
+    };
+    course_image_url?: string;
+    generation_status?: 'idle' | 'queued' | 'processing' | 'completed' | 'error';
+    generation_progress?: number;
+    generation_error?: string;
     created_at: string;
     updated_at: string;
     modules?: Module[];
@@ -632,7 +646,8 @@ export const cmsApi = {
     updateLesson: (id: string, payload: Partial<Lesson>): Promise<Lesson> => apiFetch(`/lessons/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     summarizeLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}/summarize`, { method: 'POST' }),
     generateQuiz: (id: string, payload: { context?: string, quiz_type?: string }): Promise<Block[]> => apiFetch(`/lessons/${id}/generate-quiz`, { method: 'POST', body: JSON.stringify(payload) }),
-    generateImage: (id: string, payload: { prompt?: string } = {}): Promise<Lesson> => apiFetch(`/lessons/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
+    generateImage: (id: string, payload: { prompt?: string, width?: number, height?: number } = {}): Promise<Lesson> => apiFetch(`/lessons/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
+    generateCourseImage: (id: string, payload: { prompt?: string, width?: number, height?: number } = {}): Promise<Course> => apiFetch(`/courses/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
     reviewText: (text: string): Promise<{ suggestion: string, comments: string }> => apiFetch('/api/ai/review-text', { method: 'POST', body: JSON.stringify({ text }) }),
     deleteModule: (id: string): Promise<void> => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
     deleteLesson: (id: string): Promise<void> => apiFetch(`/lessons/${id}`, { method: 'DELETE' }),
@@ -961,5 +976,6 @@ export interface BackgroundTask {
     course_title?: string;
     transcription_status?: 'idle' | 'queued' | 'processing' | 'failed' | 'completed';
     video_generation_status?: 'idle' | 'queued' | 'processing' | 'failed' | 'completed';
+    generation_progress?: number;
     updated_at: string;
 }

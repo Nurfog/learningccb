@@ -58,6 +58,14 @@ export interface Course {
     end_date?: string;
     price: number;
     currency: string;
+    marketing_metadata?: {
+        objectives?: string;
+        requirements?: string;
+        duration?: string;
+        modules_summary?: string;
+        certification_info?: string;
+    };
+    course_image_url?: string;
     created_at: string;
 }
 

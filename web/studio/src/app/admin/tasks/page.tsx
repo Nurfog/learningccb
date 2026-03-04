@@ -53,16 +53,36 @@ export default function BackgroundTasksPage() {
         }
     };
 
-    const getStatusBadge = (status?: string) => {
+    const getStatusBadge = (task: BackgroundTask) => {
+        const status = task.video_generation_status || task.transcription_status;
+        const progress = task.generation_progress || 0;
+
         switch (status) {
             case 'processing':
-                return <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Processing</span>;
+                return (
+                    <div className="flex flex-col gap-2">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                        </span>
+                        {task.video_generation_status === 'processing' && (
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1 max-w-[150px]">
+                                <div
+                                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                                    style={{ width: `${progress}%` }}
+                                ></div>
+                                <div className="text-[10px] text-gray-400 mt-1 font-medium">{progress}% completo</div>
+                            </div>
+                        )}
+                    </div>
+                );
             case 'queued':
-                return <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-semibold">Queued</span>;
+                return <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-semibold w-fit">Queued</span>;
             case 'failed':
-                return <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold">Failed</span>;
+                return <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold w-fit">Failed</span>;
+            case 'completed':
+                return <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold w-fit">Completed</span>;
             default:
-                return <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-semibold">{status}</span>;
+                return <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-semibold w-fit">{status}</span>;
         }
     };
 
@@ -109,7 +129,7 @@ export default function BackgroundTasksPage() {
                                             <div className="text-xs text-gray-400 font-mono mt-1">{task.id}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {getStatusBadge(task.transcription_status)}
+                                            {getStatusBadge(task)}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-500">
                                             {format(new Date(task.updated_at), 'MMM d, h:mm a')}

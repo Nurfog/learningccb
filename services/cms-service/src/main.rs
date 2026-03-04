@@ -92,7 +92,7 @@ async fn main() {
             for lesson_id in queued_video_lessons {
                 tracing::info!("Processing video generation for lesson: {}", lesson_id);
                 if let Err(e) =
-                    handlers::run_image_generation_task(worker_pool.clone(), lesson_id, None).await
+                    handlers::run_image_generation_task(worker_pool.clone(), lesson_id, None, None, false, None, None).await
                 {
                     tracing::error!("Image generation task failed for lesson {}: {}", lesson_id, e);
                     let _ = sqlx::query(
@@ -176,6 +176,7 @@ async fn main() {
         .route("/lessons/{id}/summarize", post(handlers::summarize_lesson))
         .route("/lessons/{id}/generate-quiz", post(handlers::generate_quiz))
         .route("/lessons/{id}/generate-image", post(handlers::generate_image))
+        .route("/courses/{id}/generate-image", post(handlers::generate_course_image))
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))

@@ -408,6 +408,17 @@ pub async fn update_course(
         .map(|s| s.to_string())
         .unwrap_or(existing.currency);
 
+    let marketing_metadata = payload
+        .get("marketing_metadata")
+        .cloned()
+        .or(existing.marketing_metadata);
+
+    let course_image_url = payload
+        .get("course_image_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or(existing.course_image_url);
+
     // BEGIN TRANSACTION
     let mut tx = pool
         .begin()
@@ -425,7 +436,7 @@ pub async fn update_course(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let course = sqlx::query_as::<_, Course>(
-        "SELECT * FROM fn_update_course($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+        "SELECT * FROM fn_update_course($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
     )
     .bind(id)
     .bind(org_ctx.id)
@@ -438,6 +449,8 @@ pub async fn update_course(
     .bind(certificate_template)
     .bind(price)
     .bind(currency)
+    .bind(marketing_metadata)
+    .bind(course_image_url)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
@@ -806,13 +819,19 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     let filename = url.trim_start_matches("/assets/");
     let file_path = format!("uploads/{}", filename);
 
-    // 2. Set status to processing
+    // 2. Set status to processing ONLY if it's still queued (not cancelled/idle)
     tracing::info!("Starting transcription for lesson {} (file: {})", lesson_id, file_path);
-    sqlx::query("UPDATE lessons SET transcription_status = 'processing' WHERE id = $1")
+    let rows_affected = sqlx::query("UPDATE lessons SET transcription_status = 'processing' WHERE id = $1 AND transcription_status = 'queued'")
         .bind(lesson_id)
         .execute(&pool)
         .await
-        .map_err(|e| format!("Update to processing failed: {}", e))?;
+        .map_err(|e| format!("Update to processing failed: {}", e))?
+        .rows_affected();
+
+    if rows_affected == 0 {
+        tracing::info!("Transcription task {} was cancelled or is already processing. Aborting.", lesson_id);
+        return Ok(());
+    }
 
     // 3. Read file
     let file_data = tokio::fs::read(&file_path)
@@ -878,8 +897,8 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
         }
     }
 
-    // 6. Update lesson with bilinguial transcription
-    sqlx::query("UPDATE lessons SET transcription = $1, transcription_status = 'completed' WHERE id = $2")
+    // 6. Update lesson with bilinguial transcription - ONLY if not cancelled (idle)
+    sqlx::query("UPDATE lessons SET transcription = $1, transcription_status = 'completed' WHERE id = $2 AND transcription_status = 'processing'")
         .bind(&transcription_result)
         .bind(lesson_id)
         .execute(&pool)
@@ -1286,6 +1305,8 @@ pub async fn generate_quiz(
 #[derive(Deserialize)]
 pub struct VideoAIRequest {
     pub prompt: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 pub async fn generate_image(
@@ -1334,8 +1355,11 @@ pub async fn generate_image(
     // 3. Spawn background task
     let pool_clone = pool.clone();
     let prompt_to_task = payload.prompt.clone();
+    let user_id = claims.sub;
+    let width = payload.width;
+    let height = payload.height;
     tokio::spawn(async move {
-        if let Err(e) = run_image_generation_task(pool_clone, id, prompt_to_task).await {
+        if let Err(e) = run_image_generation_task(pool_clone, id, prompt_to_task, Some(user_id), false, width, height).await {
             tracing::error!("Image generation task failed for lesson {}: {}", id, e);
         }
     });
@@ -1343,36 +1367,123 @@ pub async fn generate_image(
     Ok(Json(updated_lesson))
 }
 
-pub async fn run_image_generation_task(pool: PgPool, lesson_id: Uuid, custom_prompt: Option<String>) -> Result<(), String> {
-    // 1. Set status to processing
-    sqlx::query("UPDATE lessons SET video_generation_status = 'processing' WHERE id = $1")
-        .bind(lesson_id)
+pub async fn generate_course_image(
+    Org(org_ctx): Org,
+    claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<VideoAIRequest>,
+) -> Result<Json<Course>, StatusCode> {
+    // 1. Fetch course
+    let _course =
+        sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = $1 AND organization_id = $2")
+            .bind(id)
+            .bind(org_ctx.id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // 2. Set status to queued
+    let updated_course = sqlx::query_as::<_, Course>(
+        "UPDATE courses SET generation_status = 'queued', generation_error = NULL WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database update failed (course image queued): {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    log_action(
+        &pool,
+        org_ctx.id,
+        claims.sub,
+        "COURSE_IMAGE_GENERATION_QUEUED",
+        "Course",
+        id,
+        json!({ "status": "queued" }),
+    )
+    .await;
+
+    // 3. Spawn background task
+    let pool_clone = pool.clone();
+    let prompt_to_task = payload.prompt.clone();
+    let user_id = claims.sub;
+    let width = payload.width;
+    let height = payload.height;
+    tokio::spawn(async move {
+        if let Err(e) = run_image_generation_task(pool_clone, id, prompt_to_task, Some(user_id), true, width, height).await {
+            tracing::error!("Image generation task failed for course {}: {}", id, e);
+        }
+    });
+
+    Ok(Json(updated_course))
+}
+
+pub async fn run_image_generation_task(
+    pool: PgPool, 
+    id: Uuid, 
+    custom_prompt: Option<String>, 
+    user_id: Option<Uuid>, 
+    is_course: bool,
+    width: Option<u32>,
+    height: Option<u32>
+) -> Result<(), String> {
+    let (status_col, progress_col, error_col, table_name) = if is_course {
+        ("generation_status", "generation_progress", "generation_error", "courses")
+    } else {
+        ("video_generation_status", "generation_progress", "video_generation_error", "lessons")
+    };
+
+    // 1. Set status to processing ONLY if it's still queued (not cancelled/idle)
+    let query = format!(
+        "UPDATE {} SET {} = 'processing' WHERE id = $1 AND {} = 'queued'",
+        table_name, status_col, status_col
+    );
+    let rows_affected = sqlx::query(&query)
+        .bind(id)
         .execute(&pool)
         .await
-        .map_err(|e| format!("Update to processing failed: {}", e))?;
+        .map_err(|e| format!("Update to processing failed: {}", e))?
+        .rows_affected();
+
+    if rows_affected == 0 {
+        tracing::info!("Task {} was cancelled or is already processing. Aborting background thread.", id);
+        return Ok(());
+    }
 
     // 2. Call Local Video Bridge (Python)
     let client = reqwest::Client::new();
     let bridge_base_url = std::env::var("LOCAL_VIDEO_BRIDGE_URL")
-        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+        .unwrap_or_else(|_| "http://t-800:8080".to_string());
     let bridge_url = format!("{}/generate", bridge_base_url);
     
     // Fallback logic for prompt: Custom Prompt > Title
     let final_prompt = match custom_prompt {
         Some(p) if !p.is_empty() => p,
         _ => {
-            sqlx::query_scalar("SELECT title FROM lessons WHERE id = $1")
-                .bind(lesson_id)
+            let title: String = sqlx::query_scalar(&format!("SELECT title FROM {} WHERE id = $1", table_name))
+                .bind(id)
                 .fetch_one(&pool)
                 .await
-                .map_err(|e| format!("Failed to fetch fallback prompt: {}", e))?
+                .map_err(|e| format!("Failed to fetch fallback prompt: {}", e))?;
+            title
         }
     };
+
+    let database_url = std::env::var("BRIDGE_DATABASE_URL")
+        .unwrap_or_else(|_| std::env::var("DATABASE_URL").unwrap_or_default());
 
     let response = client.post(bridge_url)
         .json(&serde_json::json!({
             "prompt": final_prompt,
-            "lesson_id": lesson_id.to_string()
+            "lesson_id": id.to_string(), // The bridge uses lesson_id as a generic id for progress reporting
+            "database_url": database_url,
+            "table_name": table_name, // Pass table name so bridge knows where to update progress
+            "progress_column": progress_col,
+            "width": width,
+            "height": height
         }))
         .send()
         .await
@@ -1380,24 +1491,108 @@ pub async fn run_image_generation_task(pool: PgPool, lesson_id: Uuid, custom_pro
 
     if !response.status().is_success() {
         let err_text = response.text().await.unwrap_or_default();
+        // Update error in DB
+        let _ = sqlx::query(&format!("UPDATE {} SET {} = $1, {} = 'error' WHERE id = $2", table_name, error_col, status_col))
+            .bind(&err_text)
+            .bind(id)
+            .execute(&pool)
+            .await;
         return Err(format!("Video bridge error: {}", err_text));
     }
 
     let result: serde_json::Value = response.json().await
         .map_err(|e| format!("Failed to parse video bridge response: {}", e))?;
 
-    let content_url = result["url"].as_str()
+    let bridge_content_url = result["url"].as_str()
         .ok_or_else(|| "Video bridge response missing URL".to_string())?;
 
-    // 3. Complete task
+    // --- Download image and store as Asset ---
+    
+    // 1. Download from bridge
+    let image_bytes = client.get(bridge_content_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download generated image: {}", e))?
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read image bytes: {}", e))?;
+
+    // 2. Fetch context
+    let (org_id, course_id, instructor_id): (Uuid, Uuid, Uuid) = if is_course {
+        let c = sqlx::query_as::<sqlx::Postgres, (Uuid, Uuid, Uuid)>(
+            "SELECT organization_id, id as course_id, instructor_id FROM courses WHERE id = $1"
+        )
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| format!("Failed to fetch course context: {}", e))?;
+        c
+    } else {
+        sqlx::query_as::<sqlx::Postgres, (Uuid, Uuid, Uuid)>(
+            "SELECT l.organization_id, m.course_id, c.instructor_id 
+             FROM lessons l 
+             JOIN modules m ON l.module_id = m.id 
+             JOIN courses c ON m.course_id = c.id
+             WHERE l.id = $1"
+        )
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| format!("Failed to fetch lesson context: {}", e))?
+    };
+
+    let final_user_id = user_id.unwrap_or(instructor_id);
+
+    // 3. Save file locally
+    let asset_id = Uuid::new_v4();
+    let storage_filename = format!("{}.png", asset_id);
+    let storage_path = format!("uploads/{}", storage_filename);
+    
+    let _ = tokio::fs::create_dir_all("uploads").await;
+    tokio::fs::write(&storage_path, &image_bytes).await.map_err(|e| e.to_string())?;
+    
+    let size_bytes = image_bytes.len() as i64;
+    let local_url = format!("/assets/{}", storage_filename);
+
+    // 4. Register in assets table
     sqlx::query(
-        "UPDATE lessons SET video_generation_status = 'completed', content_url = $1, content_type = 'image' WHERE id = $2"
+        r#"
+        INSERT INTO assets (id, organization_id, uploaded_by, course_id, filename, storage_path, mimetype, size_bytes)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        "#,
     )
-    .bind(content_url)
-    .bind(lesson_id)
+    .bind(asset_id)
+    .bind(org_id)
+    .bind(final_user_id)
+    .bind(course_id)
+    .bind(format!("AI: {}", final_prompt))
+    .bind(&storage_path)
+    .bind("image/png")
+    .bind(size_bytes)
     .execute(&pool)
     .await
-    .map_err(|e| format!("Update to completed failed: {}", e))?;
+    .map_err(|e| format!("Failed to register asset: {}", e))?;
+
+    // 3. Complete task updating entity with local URL - ONLY if not cancelled (idle)
+    if is_course {
+        sqlx::query(
+            "UPDATE courses SET generation_status = 'completed', course_image_url = $1 WHERE id = $2 AND generation_status = 'processing'"
+        )
+        .bind(local_url)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Failed to complete course task: {}", e))?;
+    } else {
+        sqlx::query(
+            "UPDATE lessons SET video_generation_status = 'completed', content_url = $1, content_type = 'image' WHERE id = $2 AND video_generation_status = 'processing'"
+        )
+        .bind(local_url)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Failed to complete lesson task: {}", e))?;
+    }
 
     Ok(())
 }

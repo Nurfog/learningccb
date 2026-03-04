@@ -16,7 +16,7 @@ interface MediaBlockProps {
     id: string;
     title?: string;
     url: string;
-    type: 'video' | 'audio';
+    type: 'video' | 'audio' | 'image';
     config: {
         maxPlays?: number;
         currentPlays?: number;
@@ -44,7 +44,9 @@ interface MediaBlockProps {
 
 export default function MediaBlock({ title, url, type, config, editMode, onChange, transcription, isGraded }: MediaBlockProps) {
     const [localPlays, setLocalPlays] = useState(config.currentPlays || 0);
-    const [sourceType, setSourceType] = useState<"url" | "upload">(url.startsWith("/assets/") ? "upload" : "url");
+    const [sourceType, setSourceType] = useState<"url" | "upload">(
+        (url.startsWith("/assets/") || url.includes("/assets/")) ? "upload" : "url"
+    );
     const maxPlays = config.maxPlays || 0;
     const isLocked = maxPlays > 0 && localPlays >= maxPlays;
 

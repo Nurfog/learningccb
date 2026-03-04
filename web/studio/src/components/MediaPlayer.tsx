@@ -151,6 +151,18 @@ export default function MediaPlayer({ src, type, transcription, locked, onEnded,
             );
         }
 
+        if (type === "image") {
+            return (
+                <div className={`relative glass overflow-hidden border border-white/10 ${locked ? 'blur-xl grayscale' : ''}`}>
+                    <img
+                        src={src}
+                        alt="Lesson Content"
+                        className="w-full aspect-video object-contain"
+                    />
+                </div>
+            );
+        }
+
         return (
             <div className={`relative glass overflow-hidden border border-white/10 ${locked ? 'blur-xl grayscale' : ''}`}>
                 {type === "video" ? (

@@ -218,11 +218,17 @@
   - [x] Perfiles profesionales públicos con control de privacidad.
   - [x] Visualización de progreso y nivel de XP.
 
+## Fase 19: Presentación Visual y Marketing de Cursos ✅
+- [x] **Generación de Imágenes de Alta Resolución**: Soporte para dimensiones personalizadas (HD/4K) para lecciones y cursos via AI Bridge. (Completado)
+- [x] **Metadatos de Marketing Estructurados**: Captura de objetivos, requisitos, público objetivo y certificación en Studio. (Completado)
+- [x] **Premium Course Summary**: Nueva interfaz de "Acerca del Curso" en Experience con diseño de alta fidelidad y navegación por pestañas. (Completado)
+- [x] **Gestión de Portadas de Curso**: Integración de imágenes generadas por IA como activos principales del curso con previsualización dinámica. (Completado)
+
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3 con soporte para Deep Linking**, **Analíticas Predictivas de Riesgo de Abandono**, **Integración de Videoconferencia (Jitsi)** y **Portafolios con Perfiles Públicos**.
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos**, **Generación de Imágenes HD/4K** y **Landing Pages de Cursos (Marketing) automatizadas**.
 
 **Próximas Prioridades**:
 1. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.
 2. **Integraciones Empresariales**: Conectividad con HRIS y ERPs externos.
-3. **IA Generativa Avanzada**: Generación automática de contenido de video a partir de guiones.
+3. **IA Generativa Avanzada**: Generación automática de contenido interactivo adicional.

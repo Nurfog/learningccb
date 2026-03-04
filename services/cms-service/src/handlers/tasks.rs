@@ -15,6 +15,7 @@ pub struct BackgroundTask {
     pub course_title: Option<String>,
     pub transcription_status: Option<String>,
     pub video_generation_status: Option<String>,
+    pub generation_progress: Option<i32>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -36,6 +37,7 @@ pub async fn get_background_tasks(
             c.title as course_title,
             l.transcription_status,
             l.video_generation_status,
+            l.generation_progress,
             l.updated_at
         FROM lessons l
         JOIN modules m ON l.module_id = m.id
@@ -105,16 +107,18 @@ pub async fn cancel_task(
     // We can't easily kill a running tokio task unless we had a handle map, which we don't.
     // So this is effectively "Dismiss".
 
-    sqlx::query("UPDATE lessons SET transcription_status = 'idle' WHERE id = $1")
-        .bind(id)
-        .execute(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to cancel task: {}", e),
-            )
-        })?;
+    sqlx::query(
+        "UPDATE lessons SET transcription_status = 'idle', video_generation_status = 'idle' WHERE id = $1"
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to cancel task: {}", e),
+        )
+    })?;
 
     Ok(StatusCode::NO_CONTENT)
 }

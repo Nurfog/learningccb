@@ -459,6 +459,20 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                             );
                                         })}
                                     </div>
+                                ) : (lesson.content_url) ? (
+                                    <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+                                        <MediaPlayer
+                                            id="main-media-fallback"
+                                            lessonId={params.lessonId}
+                                            title={lesson.title}
+                                            url={lesson.content_url}
+                                            media_type={(lesson.content_type as any) || 'video'}
+                                            onTimeUpdate={setCurrentTime}
+                                            initialPlayCount={0}
+                                            isGraded={lesson.is_graded}
+                                            hasTranscription={!!lesson.transcription}
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="py-20 text-center glass-card border-dashed border-black/10 dark:border-white/10">
                                         <p className="text-gray-600 dark:text-gray-500 font-bold uppercase tracking-widest">Actualmente, esta lección no tiene contenido.</p>

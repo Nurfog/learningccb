@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, Rubric, RubricLevel, RubricCriterion, LessonDependency } from '@/lib/api';
+import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, Rubric, RubricLevel, RubricCriterion, LessonDependency, getImageUrl } from '@/lib/api';
 import {
     Layout,
     CheckCircle2,
@@ -40,6 +40,7 @@ import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
 import SaveToLibraryModal from "@/components/modals/SaveToLibraryModal";
 import LibraryPanel from "@/components/LibraryPanel";
 import Modal from "@/components/Modal";
+import MediaPlayer from "@/components/MediaPlayer";
 
 export default function LessonEditor({ params }: { params: { id: string; lessonId: string } }) {
     const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -1151,6 +1152,21 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                         </div>
                     </div>
                 ))}
+
+                {!editMode && blocks.length === 0 && lesson.content_url && (
+                    <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100 mb-12">
+                        <MediaPlayer
+                            src={getImageUrl(lesson.content_url)}
+                            type={lesson.content_type || 'video'}
+                            transcription={lesson.transcription}
+                        />
+                        <div className="mt-6 p-6 glass-card bg-blue-500/5 border-blue-500/10 text-center rounded-[2rem]">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                                AI Generated Content Preview
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {editMode && (
                     <div className="pt-20 border-t border-slate-100 dark:border-white/5">

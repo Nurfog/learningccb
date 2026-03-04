@@ -12,7 +12,7 @@ RUN cargo build --release -p lms-service
 FROM node:18-alpine AS node-builder
 WORKDIR /app
 COPY web/experience/package*.json ./
-RUN npm install
+RUN npm ci
 COPY web/experience/ .
 ARG NEXT_PUBLIC_LMS_API_URL
 ENV NEXT_PUBLIC_LMS_API_URL=$NEXT_PUBLIC_LMS_API_URL

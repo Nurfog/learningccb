@@ -9,7 +9,7 @@ interface MediaPlayerProps {
     lessonId?: string;
     title?: string;
     url: string;
-    media_type: 'video' | 'audio';
+    media_type: 'video' | 'audio' | 'image';
     config?: {
         maxPlays?: number;
         show_transcript?: boolean;
@@ -112,6 +112,11 @@ export default function MediaPlayer({ id, lessonId, title, url, media_type, conf
     }
 
     // Helper to format URL (handles YouTube embeds)
+    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+    const isVimeo = url.includes("vimeo.com");
+    const isImageFile = url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i);
+    const imageType = media_type === 'image' || isImageFile;
+
     const getEmbedUrl = (rawUrl: string) => {
         if (rawUrl.includes("youtube.com/watch?v=")) {
             return rawUrl.replace("watch?v=", "embed/");
@@ -144,7 +149,13 @@ export default function MediaPlayer({ id, lessonId, title, url, media_type, conf
             </div>
 
             <div className="glass-card !p-2 overflow-hidden aspect-video relative group">
-                {isLocalFile ? (
+                {imageType ? (
+                    <img
+                        src={getFullUrl(url)}
+                        alt={title || "Lesson Image"}
+                        className="w-full h-full object-contain rounded-xl"
+                    />
+                ) : isLocalFile ? (
                     <video
                         src={getFullUrl(url)}
                         controls

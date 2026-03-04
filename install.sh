@@ -5,15 +5,25 @@
 # 1. Prerequisite checks (Rust, Node.js, Docker, sqlx-cli)
 # 2. Hardware detection (NVIDIA GPU vs CPU)
 # 3. Environment configuration (.env)
-# 4. Database creation and migrations
-# 5. System initialization (Admin account)
+# 4. Database creation and migrations (CMS, LMS, AI Bridge)
+# 5. System initialization (Admin account and Organization)
+# Version: 1.5 - AI Marketing & High-Res Support
 
 set -e
 
 echo "===================================================="
-echo "        🚀 Bienvenido al Instalador de OpenCCB"
+echo "      🚀 Bienvenido al Instalador de OpenCCB v1.5"
+echo "    (Edición Marketing & Imágenes de Alta Resolución)"
 echo "===================================================="
 echo ""
+
+# Parse arguments
+FAST_MODE="false"
+for arg in "$@"; do
+    if [ "$arg" == "--fast" ]; then
+        FAST_MODE="true"
+    fi
+done
 
 # 1. Detección y Clonación
 if [ -f "Cargo.toml" ] && [ -d "services" ] && [ -d "web" ]; then
@@ -31,46 +41,48 @@ else
     fi
 fi
 
-# 2. Prerequisite Installation
-install_pkg() {
-    if ! command -v "$1" &> /dev/null; then
-        echo "🔧 Instalando $1..."
-        apt-get update && apt-get install -y "$1"
-    else
-        echo "✅ $1 ya está instalado."
-    fi
-}
+if [ "$FAST_MODE" == "false" ]; then
+    # 2. Prerequisite Installation
+    install_pkg() {
+        if ! command -v "$1" &> /dev/null; then
+            echo "🔧 Instalando $1..."
+            apt-get update && apt-get install -y "$1"
+        else
+            echo "✅ $1 ya está instalado."
+        fi
+    }
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if [ -f /etc/debian_version ]; then
-        install_pkg "curl"
-        install_pkg "git"
-        install_pkg "jq"
-        install_pkg "build-essential"
-        install_pkg "docker.io"
-        if ! docker compose version &> /dev/null; then
-            install_pkg "docker-compose-v2"
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if [ -f /etc/debian_version ]; then
+            install_pkg "curl"
+            install_pkg "git"
+            install_pkg "jq"
+            install_pkg "build-essential"
+            install_pkg "docker.io"
+            if ! docker compose version &> /dev/null; then
+                install_pkg "docker-compose-v2"
+            fi
         fi
     fi
-fi
 
-if ! command -v cargo &> /dev/null; then
-    echo "🔧 Instalando Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source $HOME/.cargo/env
-fi
+    if ! command -v cargo &> /dev/null; then
+        echo "🔧 Instalando Rust..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source $HOME/.cargo/env
+    fi
 
-if ! command -v node &> /dev/null; then
-    echo "🔧 Instalando Node.js vía NVM..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    nvm install --lts
-fi
+    if ! command -v node &> /dev/null; then
+        echo "🔧 Instalando Node.js vía NVM..."
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm install --lts
+    fi
 
-if ! command -v sqlx &> /dev/null; then
-    echo "🔧 Instalando sqlx-cli..."
-    cargo install sqlx-cli --no-default-features --features postgres
+    if ! command -v sqlx &> /dev/null; then
+        echo "🔧 Instalando sqlx-cli..."
+        cargo install sqlx-cli --no-default-features --features postgres
+    fi
 fi
 
 # 4. Environment Configuration
@@ -117,14 +129,14 @@ read -p "Ingrese la URL de Ollama Remoto [$DEFAULT_OLLAMA]: " REMOTE_OLLAMA_URL
 REMOTE_OLLAMA_URL=${REMOTE_OLLAMA_URL:-$DEFAULT_OLLAMA}
 read -p "Ingrese la URL de Whisper Remoto [$DEFAULT_WHISPER]: " REMOTE_WHISPER_URL
 REMOTE_WHISPER_URL=${REMOTE_WHISPER_URL:-$DEFAULT_WHISPER}
-read -p "Ingrese la URL del Video Bridge Remoto [http://t-800:8080]: " REMOTE_VIDEO_URL
-REMOTE_VIDEO_URL=${REMOTE_VIDEO_URL:-"http://t-800:8080"}
+read -p "Ingrese la URL del Image Bridge Remoto [http://t-800:8080]: " REMOTE_IMAGE_URL
+REMOTE_IMAGE_URL=${REMOTE_IMAGE_URL:-"http://t-800:8080"}
 read -p "Ingrese el nombre del Modelo (en el servidor remoto) [llama3.2:3b]: " LLM_MODEL
 LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
 
 update_env "AI_PROVIDER" "local"
 update_env "LOCAL_LLM_MODEL" "$LLM_MODEL"
-update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_VIDEO_URL"
+update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_IMAGE_URL"
 
 if [ "$ENV_CHOICE" == "dev" ]; then
     update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
@@ -139,6 +151,16 @@ else
     update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
     update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
 fi
+
+# 6.5 Configuración de Base de Datos Externa (para bridges remotos)
+echo ""
+echo "🔌 Configuración de Base de Datos para Bridge Remoto"
+echo "Si el equipo t-800 necesita reportar progreso, debe conocer la IP de este servidor."
+SERVER_IP=$(ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -v '127.0.0.1' | head -n 1)
+DEFAULT_BRIDGE_DB="postgresql://user:${DB_PASS:-password}@${SERVER_IP}:5432/openccb_cms?sslmode=disable"
+read -p "Ingrese la URL de la DB que verá el Bridge Remoto [$DEFAULT_BRIDGE_DB]: " BRIDGE_DB_URL
+BRIDGE_DB_URL=${BRIDGE_DB_URL:-$DEFAULT_BRIDGE_DB}
+update_env "BRIDGE_DATABASE_URL" "$BRIDGE_DB_URL"
 
 # AI setup is now purely remote. Skipping local container configuration.
 
@@ -219,9 +241,21 @@ if [ "$ADMIN_EXISTS" != "t" ]; then
     ORG_NAME="Default Organization"
 fi
 
-echo ""
-echo "🚀 Iniciando todos los servicios..."
-docker compose up -d --build
+# Selective Build/Rebuild
+if [ "$FAST_MODE" == "true" ]; then
+    echo "⚡ Modo FAST activado. Saltando comprobaciones y reconstrucción de imágenes."
+    docker compose up -d
+else
+    echo ""
+    read -p "¿Desea RECONSTRUIR las imágenes de Docker? (Recomendado si hay cambios de código) [y/N]: " REBUILD_CHOICE
+    if [[ "$REBUILD_CHOICE" =~ ^[Yy]$ ]]; then
+        echo "🚀 Reconstruyendo e iniciando servicios..."
+        docker compose up -d --build
+    else
+        echo "🚀 Iniciando servicios (sin reconstruir)..."
+        docker compose up -d
+    fi
+fi
 
 if [ "$ADMIN_EXISTS" != "t" ]; then
     echo "⏳ Esperando a que el API CMS esté listo..."
