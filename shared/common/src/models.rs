@@ -64,6 +64,7 @@ pub struct Module {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+#[sqlx(default)]
 pub struct Lesson {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -86,6 +87,34 @@ pub struct Lesson {
     pub video_generation_error: Option<String>,
     pub is_previewable: bool,
     pub created_at: DateTime<Utc>,
+}
+
+impl Default for Lesson {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: Uuid::new_v4(),
+            module_id: Uuid::new_v4(),
+            title: String::new(),
+            content_type: String::new(),
+            content_url: None,
+            summary: None,
+            transcription: None,
+            metadata: None,
+            grading_category_id: None,
+            is_graded: false,
+            max_attempts: None,
+            allow_retry: false,
+            position: 0,
+            due_date: None,
+            important_date_type: None,
+            transcription_status: None,
+            video_generation_status: None,
+            video_generation_error: None,
+            is_previewable: false,
+            created_at: Utc::now(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]

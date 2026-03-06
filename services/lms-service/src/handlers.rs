@@ -1942,7 +1942,7 @@ pub async fn get_recommendations(
     // I will assume the original query was correct for the schema in this environment.
 
     let lessons = sqlx::query_as::<_, LessonContext>(
-        "SELECT id, title, metadata FROM lessons WHERE course_id = $1",
+        "SELECT l.id, l.title, l.metadata FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = $1",
     )
     .bind(course_id)
     .fetch_all(&pool)
