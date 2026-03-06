@@ -223,6 +223,7 @@
 - [x] **Metadatos de Marketing Estructurados**: Captura de objetivos, requisitos, público objetivo y certificación en Studio. (Completado)
 - [x] **Premium Course Summary**: Nueva interfaz de "Acerca del Curso" en Experience con diseño de alta fidelidad y navegación por pestañas. (Completado)
 - [x] **Gestión de Portadas de Curso**: Integración de imágenes generadas por IA como activos principales del curso con previsualización dinámica. (Completado)
+- [x] **Dashboard Global de Tareas AI**: Panel centralizado para monitorizar, reintentar y cancelar todas las generaciones en segundo plano (imágenes, videos, transcripciones). (Completado)
 
 ---
 

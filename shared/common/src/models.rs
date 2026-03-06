@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
+#[sqlx(default)]
 pub struct Course {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -24,6 +25,32 @@ pub struct Course {
     pub generation_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl Default for Course {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: Uuid::new_v4(),
+            title: String::new(),
+            description: None,
+            instructor_id: Uuid::new_v4(),
+            pacing_mode: "self_paced".to_string(),
+            start_date: None,
+            end_date: None,
+            passing_percentage: 0,
+            certificate_template: None,
+            price: 0.0,
+            currency: "USD".to_string(),
+            marketing_metadata: None,
+            course_image_url: None,
+            generation_status: None,
+            generation_progress: None,
+            generation_error: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -83,6 +110,7 @@ pub struct UserGrade {
     pub attempts_count: i32,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -313,6 +341,7 @@ pub struct Transaction {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[sqlx(default)]
 pub struct User {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -325,8 +354,34 @@ pub struct User {
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
     pub language: Option<String>,
+    pub is_public_profile: Option<bool>,
+    pub linkedin_url: Option<String>,
+    pub github_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl Default for User {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: Uuid::new_v4(),
+            email: String::new(),
+            password_hash: String::new(),
+            full_name: String::new(),
+            role: "student".to_string(),
+            xp: 0,
+            level: 1,
+            avatar_url: None,
+            bio: None,
+            language: None,
+            is_public_profile: Some(true),
+            linkedin_url: None,
+            github_url: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -344,6 +399,7 @@ pub struct UserResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+#[sqlx(default)]
 pub struct Organization {
     pub id: Uuid,
     pub name: String,
@@ -357,6 +413,25 @@ pub struct Organization {
     pub logo_variant: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl Default for Organization {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: String::new(),
+            domain: None,
+            logo_url: None,
+            primary_color: None,
+            secondary_color: None,
+            certificate_template: None,
+            platform_name: None,
+            favicon_url: None,
+            logo_variant: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

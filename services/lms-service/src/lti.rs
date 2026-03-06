@@ -196,6 +196,9 @@ pub async fn lti_launch(
             avatar_url: None,
             bio: None,
             language: None,
+            is_public_profile: Some(true),
+            linkedin_url: None,
+            github_url: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         });

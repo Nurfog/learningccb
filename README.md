@@ -29,6 +29,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
     - **Gamified Activities**: Nuevos tipos de bloques interactivos para niños y jóvenes, incluyendo Juegos de Memoria y Puntos Calientes (Hotspots).
     - **AI Image Generation**: Generación automática de contenido visual a partir de guiones de lecciones o prompts personalizados, con soporte para resoluciones personalizadas (HD/4K) y gestión de portadas de curso de alta calidad.
     - **Course Marketing & Summary**: Sistema de metadatos estructurados (objetivos, requisitos) y landing pages premium para una mejor presentación de cursos.
+    - **Global AI Task Dashboard**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar tareas de IA en segundo plano (transcripciones, imágenes, etc).
 - **Dynamic API Resolution**: Resolución inteligente de endpoints que permite el acceso desde cualquier dispositivo en la red local (WiFi) sin configuración manual.
 - **Responsive UI/UX**: Interfaces optimizadas para dispositivos móviles con menús adaptativos y escalado fluido de componentes.
 - **AI Teaching Assistant (RAG)**: Tutor inteligente dentro de cada lección que ayuda a los estudiantes utilizando el contexto de la lección actual y el historial del curso.
