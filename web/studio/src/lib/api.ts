@@ -45,9 +45,6 @@ export interface Course {
         certification_info?: string;
     };
     course_image_url?: string;
-    generation_status?: 'idle' | 'queued' | 'processing' | 'completed' | 'error';
-    generation_progress?: number;
-    generation_error?: string;
     created_at: string;
     updated_at: string;
     modules?: Module[];

@@ -20,9 +20,6 @@ pub struct Course {
     pub currency: String,
     pub marketing_metadata: Option<serde_json::Value>,
     pub course_image_url: Option<String>,
-    pub generation_status: Option<String>,
-    pub generation_progress: Option<i32>,
-    pub generation_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -44,9 +41,6 @@ impl Default for Course {
             currency: "USD".to_string(),
             marketing_metadata: None,
             course_image_url: None,
-            generation_status: None,
-            generation_progress: None,
-            generation_error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -107,8 +101,6 @@ impl Default for Lesson {
             due_date: None,
             important_date_type: None,
             transcription_status: None,
-            video_generation_status: None,
-            video_generation_error: None,
             is_previewable: false,
             created_at: Utc::now(),
         }

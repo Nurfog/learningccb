@@ -419,12 +419,6 @@ pub async fn update_course(
         .map(|s| s.to_string())
         .or(existing.course_image_url);
 
-    let generation_status = payload
-        .get("generation_status")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .or(existing.generation_status);
-
     // BEGIN TRANSACTION
     let mut tx = pool
         .begin()
@@ -442,7 +436,7 @@ pub async fn update_course(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let course = sqlx::query_as::<_, Course>(
-        "SELECT * FROM fn_update_course($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        "SELECT * FROM fn_update_course($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
     )
     .bind(id)
     .bind(org_ctx.id)
@@ -457,7 +451,6 @@ pub async fn update_course(
     .bind(currency)
     .bind(marketing_metadata)
     .bind(course_image_url)
-    .bind(generation_status)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {

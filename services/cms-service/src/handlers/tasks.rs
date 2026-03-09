@@ -13,7 +13,7 @@ pub struct BackgroundTask {
     pub id: Uuid,
     pub title: String,
     pub course_title: Option<String>,
-    pub task_type: String, // 'transcription', 'lesson_image', 'course_image'
+    pub task_type: String, // 'transcription'
     pub status: String,
     pub progress: i32,
     pub updated_at: chrono::DateTime<chrono::Utc>,
