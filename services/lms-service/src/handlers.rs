@@ -2356,14 +2356,36 @@ pub async fn chat_with_tutor(
     Path(lesson_id): Path<Uuid>,
     Json(payload): Json<ChatPayload>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
-    // 1. Fetch lesson context (summary and transcription)
-    let lesson =
-        sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
-            .bind(lesson_id)
-            .bind(org_ctx.id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|_| (StatusCode::NOT_FOUND, "Lección no encontrada".into()))?;
+    // 1. Fetch lesson context with access check (matches get_lesson_content)
+    let is_preview = claims.token_type.as_deref() == Some("preview");
+
+    let lesson = if is_preview {
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l 
+             JOIN modules m ON l.module_id = m.id 
+             WHERE l.id = $1 AND l.organization_id = $2",
+        )
+        .bind(lesson_id)
+        .bind(claims.org)
+        .fetch_optional(&pool)
+        .await
+    } else {
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l
+             JOIN modules m ON l.module_id = m.id
+             LEFT JOIN enrollments e ON m.course_id = e.course_id AND e.user_id = $2
+             WHERE l.id = $1 AND (e.id IS NOT NULL OR l.is_previewable = true OR $3 = 'admin')",
+        )
+        .bind(lesson_id)
+        .bind(claims.sub)
+        .bind(&claims.role)
+        .fetch_optional(&pool)
+        .await
+    }.map_err(|e| {
+        tracing::error!("chat_with_tutor: DB error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Error de base de datos".into())
+    })?
+    .ok_or((StatusCode::NOT_FOUND, "Lección no encontrada o acceso denegado".into()))?;
 
     // 1.5 Fetch previous lessons in the course for context
     let module = sqlx::query_as::<_, Module>("SELECT * FROM modules WHERE id = $1")
@@ -2538,8 +2560,8 @@ pub async fn chat_with_tutor(
         \
         REGLAS ESTRICTAS: \
         1. Solo puedes responder preguntas relacionadas con la lección ACTUAL, las lecciones PASADAS o el CONTEXTO de la BASE DE CONOCIMIENTOS proporcionado. \
-        2. Si un estudiante pregunta sobre temas NO cubiertos en los contextos proporcionados (ej. cultura general, temas futuros o conversaciones fuera de tema), \
-        DEBES rechazar cortésmente y recordarle que estás aquí solo para ayudar con el contenido del curso hasta este punto. \
+        2. Si un estudiante hace preguntas de cultura general, eventos futuros o fuera de tema, \
+        puedes responder brevemente de forma amigable usando tus conocimientos generales. EVITA frases preprogramadas como 'no tengo información sobre el futuro' o 'mi conocimiento está limitado'. Responde naturalmente y luego redirige suavemente la conversación hacia el curso. \
         3. CRÍTICO: NO proporciones respuestas directas para las actividades, cuestionarios o ejercicios de código de la lección ACTUAL. \
         Incluso si la respuesta está en la memoria o base de conocimientos, solo debes proporcionar pistas o explicar conceptos. \
         4. Usa el HISTORIAL DE LA CONVERSACIÓN para mantener la continuidad y brindar ayuda personalizada basada en preguntas anteriores. \

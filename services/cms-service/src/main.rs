@@ -149,6 +149,7 @@ async fn main() {
         .route("/lessons/{id}/generate-quiz", post(handlers::generate_quiz))
         .route("/lessons/{id}/generate-role-play", post(handlers::generate_role_play))
         .route("/lessons/{id}/generate-hotspots", post(handlers::generate_hotspots))
+        .route("/lessons/{id}/generate-mermaid", post(handlers::generate_mermaid_diagram))
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))

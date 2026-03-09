@@ -84,7 +84,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review' | 'role-playing';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review' | 'role-playing' | 'mermaid';
     title: string;
     content?: string;
     url?: string;
@@ -117,6 +117,8 @@ export interface Block {
     user_role?: string;
     objectives?: string;
     initial_message?: string;
+    // Mermaid fields
+    mermaid_code?: string;
     metadata?: any;
 }
 

@@ -1726,6 +1726,112 @@ pub async fn reorder_lessons(
 }
 
 #[derive(Deserialize)]
+pub struct GenerateMermaidPayload {
+    pub prompt_hint: Option<String>,
+}
+
+pub async fn generate_mermaid_diagram(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<GenerateMermaidPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    tracing::info!("Generating Mermaid Diagram for lesson_id={}", lesson_id);
+
+    // Fetch lesson for context
+    let lesson = sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
+        .bind(lesson_id)
+        .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "Lección no encontrada".into()))?;
+
+    let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "local".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+        (
+            format!("{}/v1/chat/completions", base_url),
+            "".to_string(),
+            model,
+        )
+    } else {
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()),
+            "gpt-4o".to_string(),
+        )
+    };
+
+    let transcription_str = lesson.transcription.as_ref().and_then(|v| v.as_str());
+    let summary_str = lesson.summary.as_deref();
+    let lesson_context = transcription_str.or(summary_str).unwrap_or("Conceptos generales de la lección.");
+    let user_hint = payload.prompt_hint.unwrap_or_else(|| "Extrae los conceptos y flujos principales de la lección.".to_string());
+
+    let system_prompt = format!(
+        "Eres un experto arquitecto de información y especialista en diagramación usando Mermaid.js.\n\
+         Tu tarea es generar el código de un diagrama Mermaid que resuma o conceptualice el siguiente contenido de la lección.\n\
+         INSTRUCCIONES CRÍTICAS:\n\
+         1. Genera SOLO código Mermaid válido.\n\
+         2. NO uses bloques de código con markdown o backticks (```mermaid ... ```). Genera el texto en crudo directamente.\n\
+         3. NO agregues introducciones, explicaciones, ni conclusiones.\n\
+         4. NO saludes.\n\
+         5. Si es aplicable, usa 'flowchart TD', 'mindmap', 'sequenceDiagram' o similares.\n\n\
+         Contexto de la lección:\n{}\n\n\
+         Instrucciones adicionales del usuario:\n{}",
+         lesson_context, user_hint
+    );
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", auth_header)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": "Genera el código Mermaid directamente." }
+            ],
+            "temperature": 0.3
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("LLM Request failed: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Error contacting AI provider".into())
+        })?;
+
+    if !response.status().is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        tracing::error!("LLM Error response: {}", err_body);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI provider returned an error".into()));
+    }
+
+    let ai_data: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse LLM JSON: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Error parsing AI response".into())
+    })?;
+
+    let ai_response = ai_data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .trim();
+
+    // Clean any accidental markdown backticks the LLM might have still inserted
+    let cleaned_response = ai_response
+        .strip_prefix("```mermaid\n").unwrap_or(ai_response)
+        .strip_prefix("```\n").unwrap_or(ai_response)
+        .strip_suffix("```").unwrap_or(ai_response).trim();
+
+    Ok(Json(serde_json::json!({
+        "mermaid_code": cleaned_response,
+    })))
+}
+
+#[derive(Deserialize)]
 pub struct GenerateHotspotsPayload {
     pub image_url: String,
     pub prompt_hint: Option<String>,

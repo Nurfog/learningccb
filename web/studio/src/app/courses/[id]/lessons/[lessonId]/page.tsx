@@ -37,6 +37,7 @@ import HotspotBlock from "@/components/blocks/HotspotBlock";
 import MemoryBlock from "@/components/blocks/MemoryBlock";
 import RolePlayingBlock from "@/components/blocks/RolePlayingBlock";
 import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
+import MermaidBlock from "@/components/blocks/MermaidBlock";
 import SaveToLibraryModal from "@/components/modals/SaveToLibraryModal";
 import LibraryPanel from "@/components/LibraryPanel";
 import Modal from "@/components/Modal";
@@ -1086,6 +1087,18 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     onChange={(updates) => updateBlock(block.id, updates)}
                                 />
                             )}
+                            {block.type === 'mermaid' && (
+                                <MermaidBlock
+                                    id={block.id}
+                                    title={block.title}
+                                    description={block.description}
+                                    mermaid_code={block.mermaid_code}
+                                    editMode={editMode}
+                                    lessonId={lesson.id}
+                                    courseId={params.id}
+                                    onChange={(updates) => updateBlock(block.id, updates)}
+                                />
+                            )}
                             {block.type === 'role-playing' && (
                                 <RolePlayingBlock
                                     block={block}
@@ -1131,11 +1144,12 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     { type: 'matching', icon: '🔗', label: 'Relations', color: 'violet' },
                                     { type: 'ordering', icon: '🔢', label: 'Sequence', color: 'blue' },
                                     { type: 'short-answer', icon: '💬', label: 'Open-Ended', color: 'indigo' },
-                                    { type: 'hotspot', icon: '🔍', label: 'Hotspot', color: 'amber' },
+                                    { type: 'hotspot', icon: '🎯', label: 'Hotspot', color: 'amber' },
                                     { type: 'audio-response', icon: '🎤', label: 'Oral Practice', color: 'blue' },
                                     { type: 'memory-match', icon: '🧩', label: 'Logic Game', color: 'indigo' },
-                                    { type: 'role-playing', icon: '🎭', label: 'Persona Play', color: 'violet' },
                                     { type: 'peer-review', icon: '👥', label: 'Peer Review', color: 'slate' },
+                                    { type: 'mermaid', icon: '📊', label: 'Mermaid Diagram', color: 'indigo' },
+                                    { type: 'role-playing', icon: '🎭', label: 'Role-Playing AI', color: 'purple' },
                                 ].map((item) => (
                                     <button
                                         key={item.type}

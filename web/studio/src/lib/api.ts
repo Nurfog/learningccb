@@ -68,7 +68,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review' | 'role-playing';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review' | 'role-playing' | 'mermaid';
     title?: string;
     content?: string;
     url?: string;
@@ -105,6 +105,8 @@ export interface Block {
     user_role?: string;
     objectives?: string;
     initial_message?: string;
+    // Mermaid fields
+    mermaid_code?: string;
 }
 
 export interface Lesson {
@@ -663,6 +665,12 @@ export const cmsApi = {
         initial_message: string;
     }> {
         return apiFetch(`/lessons/${lessonId}/generate-role-play`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+    async generateMermaidDiagram(lessonId: string, payload: { prompt_hint?: string }): Promise<{ mermaid_code: string }> {
+        return apiFetch(`/lessons/${lessonId}/generate-mermaid`, {
             method: 'POST',
             body: JSON.stringify(payload)
         });

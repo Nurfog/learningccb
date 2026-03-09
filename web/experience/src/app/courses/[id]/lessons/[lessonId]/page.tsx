@@ -20,6 +20,7 @@ import DocumentPlayer from "@/components/blocks/DocumentPlayer";
 import AudioResponsePlayer from "@/components/blocks/AudioResponsePlayer";
 import RolePlayingPlayer from "@/components/blocks/RolePlayingPlayer";
 import PeerReviewPlayer from "@/components/blocks/PeerReviewPlayer";
+import MermaidViewer from "@/components/blocks/MermaidViewer";
 import InteractiveTranscript from "@/components/InteractiveTranscript";
 import AITutor from "@/components/AITutor";
 import LessonLockedView from "@/components/LessonLockedView";
@@ -471,6 +472,8 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                 block={block}
                                                             />
                                                         );
+                                                    case 'mermaid':
+                                                        return <MermaidViewer block={block} />;
                                                     default:
                                                         return <div className="p-4 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-500 uppercase tracking-widest">Tipo de Bloque Desconocido: {block.type}</div>;
                                                 }
