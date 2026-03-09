@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "@/context/I18nContext";
 import { Plus, BookOpen, Download, Upload, Sparkles, Wand2, Trash2 } from "lucide-react";
-import OrganizationSelector from "@/components/OrganizationSelector";
 import Modal from "@/components/Modal";
 import PageLayout from "@/components/PageLayout";
 
@@ -34,27 +33,13 @@ export default function StudioDashboard() {
     loadCourses();
   }, [user]);
 
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
   const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    const loadOrgs = async () => {
-      if (user?.role === 'admin' && user?.organization_id === '00000000-0000-0000-0000-000000000001') {
-        try {
-          const orgs = await cmsApi.getOrganizations();
-          setOrganizations(orgs);
-        } catch (err) {
-          console.error("Failed to load organizations", err);
-        }
-      }
-    };
-    loadOrgs();
-  }, [user]);
+
 
   const handleCreateCourse = async () => {
     setIsTitleModalOpen(true);
@@ -64,18 +49,12 @@ export default function StudioDashboard() {
     e.preventDefault();
     if (!newCourseTitle) return;
     setIsTitleModalOpen(false);
-
-    const isSuperAdmin = user?.role === 'admin' && user?.organization_id === '00000000-0000-0000-0000-000000000001';
-    if (isSuperAdmin && organizations.length > 0) {
-      setIsOrgModalOpen(true);
-    } else {
-      createCourse();
-    }
+    createCourse();
   };
 
-  const createCourse = async (targetOrgId?: string) => {
+  const createCourse = async () => {
     try {
-      const newCourse = await cmsApi.createCourse(newCourseTitle, targetOrgId);
+      const newCourse = await cmsApi.createCourse(newCourseTitle);
       setCourses((prev: Course[]) => [...prev, newCourse]);
       setNewCourseTitle("");
     } catch (err) {
@@ -331,15 +310,7 @@ export default function StudioDashboard() {
         </form>
       </Modal>
 
-      {/* Organization Selector Modal */}
-      <OrganizationSelector
-        isOpen={isOrgModalOpen}
-        onClose={() => setIsOrgModalOpen(false)}
-        organizations={organizations}
-        title="Target Organization"
-        actionLabel="Create Course"
-        onConfirm={(orgId) => createCourse(orgId)}
-      />
+
     </PageLayout>
   );
 }

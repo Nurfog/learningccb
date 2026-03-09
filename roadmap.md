@@ -69,23 +69,22 @@
   - [x] Visualización de feedback basada en niveles
   - [x] Actualización de notas en tiempo real
 
-## Fase 6: Funcionalidades Avanzadas ✅
-- [x] **Multi-tenancy**: Soporte para múltiples organizaciones (Completado)
-  - [x] Migración del esquema DB (añadir `organization_id`)
-  - [x] Actualización de modelos Rust y Claims de JWT
-  - [x] Middleware en Axum para contexto de organización
-  - [x] Registro en frontend con soporte para organizaciones
-  - [x] **Super Admin y Org por Defecto**: Gestión global de todos los inquilinos
-  - [x] **Visibilidad Global de Cursos**: Cursos de sistema disponibles para todas las organizaciones
-- [x] **Personalización de Marca (Branding)**: Identidad propia por organización (Completado)
+## Fase 6: Refactorización a Single-Tenant ✅
+- [x] **Single-tenancy**: Reposicionamiento como módulo premium (Completado)
+  - [x] Hardcoding del `organization_id` por defecto en middleware común
+  - [x] Remoción de selectores de organización en Studio y Experience
+  - [x] Simplificación de registros y logins para un solo inquilino
+  - [x] Eliminación de rutas y controladores de gestión multi-empresa
+  - [x] Limpieza de componentes frontend redundantes (Selector, Gestión de Orgs)
+- [x] **Personalización de Marca (Branding Premium)**: Identidad unificada (Completado)
+  - [x] Endpoints singulares para gestión de marca sin parámetros de ID
   - [x] Carga y optimización de logotipos y favicons customizados
   - [x] Nombre de plataforma personalizado (White-label)
-  - [x] Esquemas de colores personalizados (Primario/Secundario)
-  - [x] Adaptación dinámica del portal de Experience
-  - [x] Previsualización en vivo del branding en Studio
-- [x] **Interfaz de Usuario Avanzada**:
-  - [x] **Selector de Organizaciones Premium**: Gestión multi-tenant con búsqueda predictiva
-  - [x] **Combobox de Búsqueda**: Componente elegante con filtrado y estilo glassmorphism
+  - [x] Esquemas de colores personalizados aplicado globalmente
+  - [x] Previsualización en vivo del branding en Studio renovada
+- [x] **Interfaz de Usuario Simplificada**:
+  - [x] **Login Unificado**: Eliminación de flujo dividido Personas/Empresas
+  - [x] **Navegación Limpia**: Remoción de enlaces de administración de organizaciones
 
 ## Fase 7: Compromiso y Social (En Progreso)
 - [x] **Analíticas de Vanguardia**:
@@ -231,14 +230,14 @@
 - [x] **Generación de Juegos de Memoria Conceptuales**: Creación automática de parejas (concepto/definición) a partir de transcripciones. (Completado)
 - [x] **Simulaciones de Rol y Diálogos Ramificados**: Motor de escenarios interactivos con respuestas dinámicas de la IA. (Completado)
 - [x] **Auto-Hotspots Pedagógicos**: Identificación automática de puntos de interés en imágenes con descripciones técnicas. (Completado)
-- [ ] **Diagramas de Mermaid Dinámicos**: Visualización automática de procesos y mapas mentales a partir del contenido de la lección.
-- [ ] **Laboratorios de Código con Hints de IA**: Generación de desafíos de programación con pistas contextuales basadas en errores.
+- [x] **Diagramas de Mermaid Dinámicos**: Visualización automática de procesos y mapas mentales a partir del contenido de la lección. (Completado)
+- [x] **Laboratorios de Código con Hints de IA**: Generación de desafíos de programación con pistas contextuales basadas en errores. (Completado)
 
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos** y **Landing Pages de Cursos (Marketing) automatizadas**.
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos**, **Landing Pages de Cursos (Marketing) automatizadas**, **Diagramas de Mermaid Dinámicos** y **Laboratorios de Código con Hints de IA**.
 
 **Próximas Prioridades**:
-1. **Diagramas de Mermaid Dinámicos**: IA genera flujos y mapas mentales automáticamente.
-2. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.
-3. **Integraciones Empresariales**: Conectividad con HRIS y ERPs externos.
+1. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.
+2. **Integraciones Empresariales**: Conectividad con HRIS y ERPs externos.
+3. **Optimización de Performance**: Refactorización de componentes críticos y carga diferida (lazy loading).

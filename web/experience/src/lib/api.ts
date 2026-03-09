@@ -84,7 +84,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review' | 'role-playing' | 'mermaid';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review' | 'role-playing' | 'mermaid' | 'code-lab';
     title: string;
     content?: string;
     url?: string;
@@ -119,6 +119,11 @@ export interface Block {
     initial_message?: string;
     // Mermaid fields
     mermaid_code?: string;
+    // Code Lab fields
+    language?: string;
+    initial_code?: string;
+    solution?: string;
+    test_cases?: { description: string; expected: string }[];
     metadata?: any;
 }
 
@@ -292,7 +297,6 @@ export interface AuthPayload {
     email: string;
     password?: string;
     full_name?: string;
-    organization_name?: string;
 }
 
 export interface Enrollment {
@@ -464,10 +468,6 @@ const apiFetch = async (url: string, options: RequestInit = {}, isCMS: boolean =
 };
 
 export const lmsApi = {
-    async searchOrganizations(query: string): Promise<{ id: string, name: string, domain?: string }[]> {
-        return apiFetch(`/organizations/search?q=${encodeURIComponent(query)}`, {}, true);
-    },
-
     async getCatalog(orgId?: string, userId?: string): Promise<Course[]> {
         const params = new URLSearchParams();
         if (orgId) params.append('organization_id', orgId);
@@ -550,8 +550,8 @@ export const lmsApi = {
         return apiFetch('/analytics/leaderboard');
     },
 
-    async getBranding(orgId: string): Promise<Organization> {
-        return apiFetch(`/organizations/${orgId}/branding`, {}, true);
+    async getBranding(): Promise<Organization> {
+        return apiFetch('/branding', {}, true);
     },
 
     async updateUser(userId: string, payload: { full_name?: string, avatar_url?: string, bio?: string, language?: string }): Promise<void> {
@@ -634,6 +634,13 @@ export const lmsApi = {
         return apiFetch(`/lessons/${lessonId}/chat-role-play`, {
             method: 'POST',
             body: JSON.stringify({ message, block_id: blockId, session_id: sessionId })
+        });
+    },
+
+    async getCodeHint(lessonId: string, payload: { current_code: string; error_message?: string; instructions?: string; language?: string }): Promise<{ hint: string }> {
+        return apiFetch(`/lessons/${lessonId}/code-hint`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
         });
     },
     async getLessonFeedback(lessonId: string): Promise<{ response: string, session_id: string }> {

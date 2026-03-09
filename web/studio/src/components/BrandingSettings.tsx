@@ -45,7 +45,7 @@ export default function BrandingSettings() {
         if (!org) return;
         setSaving(true);
         try {
-            await cmsApi.updateOrganizationBranding(org.id, formData);
+            await cmsApi.updateOrganizationBranding(formData);
             fetchOrg();
             alert("Branding updated successfully!");
             router.refresh();
@@ -117,7 +117,7 @@ export default function BrandingSettings() {
                             accept="image/png,image/jpeg,image/svg+xml"
                             currentUrl={org.logo_url}
                             customUploadFn={async (file) => {
-                                const res = await cmsApi.uploadOrganizationLogo(org.id, file);
+                                const res = await cmsApi.uploadOrganizationLogo(file);
                                 return { url: res.logo_url || "" };
                             }}
                             onUploadComplete={(url) => {
@@ -151,7 +151,7 @@ export default function BrandingSettings() {
                             accept="image/png,image/x-icon,image/svg+xml,image/jpeg"
                             currentUrl={org.favicon_url}
                             customUploadFn={async (file) => {
-                                const res = await cmsApi.uploadOrganizationFavicon(org.id, file);
+                                const res = await cmsApi.uploadOrganizationFavicon(file);
                                 return { url: res.favicon_url || "" };
                             }}
                             onUploadComplete={(url) => {

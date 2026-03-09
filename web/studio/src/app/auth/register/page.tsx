@@ -5,13 +5,12 @@ import { cmsApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, Mail, Lock, User, Building2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User } from "lucide-react";
 
 export default function RegisterPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [fullName, setFullName] = useState("");
-    const [organizationName, setOrganizationName] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -23,7 +22,7 @@ export default function RegisterPage() {
         setLoading(true);
         setError("");
         try {
-            const res = await cmsApi.register({ email, password, full_name: fullName, organization_name: organizationName });
+            const res = await cmsApi.register({ email, password, full_name: fullName });
             login(res.user, res.token);
             router.push("/");
         } catch (err) {
@@ -98,20 +97,7 @@ export default function RegisterPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 px-1">Organization Name (Optional)</label>
-                            <div className="relative">
-                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                <input
-                                    type="text"
-                                    value={organizationName}
-                                    onChange={(e) => setOrganizationName(e.target.value)}
-                                    placeholder="Your School or Company"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-blue-500 transition-all placeholder:text-gray-700"
-                                />
-                            </div>
-                            <p className="text-[10px] text-gray-600 px-1">If blank, we&apos;ll use your email domain.</p>
-                        </div>
+
 
                         <button
                             disabled={loading}

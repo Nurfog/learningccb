@@ -4,25 +4,19 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { lmsApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import AsyncCombobox from "@/components/AsyncCombobox";
-import { GraduationCap, Lock, Mail, User, Building2, ChevronLeft, ArrowRight } from "lucide-react";
-
-type ViewMode = 'selection' | 'personal' | 'enterprise';
+import { GraduationCap, Lock, Mail, User, ChevronLeft } from "lucide-react";
 
 export default function ExperienceLoginPage() {
     const router = useRouter();
     const { login } = useAuth();
 
     // State
-    const [viewMode, setViewMode] = useState<ViewMode>('selection');
-    const [isLogin, setIsLogin] = useState(true); // For Personal flow
+    const [isLogin, setIsLogin] = useState(true);
 
     // Form Inputs
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [organizationName, setOrganizationName] = useState("");
     const [fullName, setFullName] = useState("");
-    const [orgIdForSSO, setOrgIdForSSO] = useState("");
 
     // UI State
     const [loading, setLoading] = useState(false);
@@ -34,39 +28,26 @@ export default function ExperienceLoginPage() {
         setLoading(true);
 
         try {
-            if (viewMode === 'personal') {
-                if (isLogin) {
-                    const response = await lmsApi.login({ email, password });
-                    if (response.user.role !== "student") {
-                        throw new Error("Acceso denegado. Este portal es solo para estudiantes.");
-                    }
-                    login(response.user, response.token);
-                    router.push("/");
-                } else {
-                    const response = await lmsApi.register({
-                        email,
-                        password,
-                        full_name: fullName,
-                        organization_name: organizationName,
-                    });
-                    login(response.user, response.token);
-                    router.push("/");
+            if (isLogin) {
+                const response = await lmsApi.login({ email, password });
+                if (response.user.role !== "student") {
+                    throw new Error("Acceso denegado. Este portal es solo para estudiantes.");
                 }
-            } else if (viewMode === 'enterprise') {
-                if (!orgIdForSSO) {
-                    throw new Error("El ID de la organización es requerido");
-                }
-                lmsApi.initSSOLogin(orgIdForSSO);
+                login(response.user, response.token);
+                router.push("/");
+            } else {
+                const response = await lmsApi.register({
+                    email,
+                    password,
+                    full_name: fullName,
+                });
+                login(response.user, response.token);
+                router.push("/");
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : "Falló la autenticación");
             setLoading(false);
         }
-    };
-
-    const handleBack = () => {
-        setError("");
-        setViewMode('selection');
     };
 
     return (
@@ -83,143 +64,56 @@ export default function ExperienceLoginPage() {
 
                 {/* Main Content Card */}
                 <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-none rounded-3xl overflow-hidden relative transition-colors">
-
-                    {/* View: SELECTION */}
-                    {viewMode === 'selection' && (
-                        <div className="p-8 space-y-4">
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white text-center mb-6">¿Cómo deseas ingresar?</h2>
-
+                    <div className="p-8">
+                        <div className="flex gap-2 mb-6 bg-slate-100 dark:bg-white/5 rounded-xl p-1">
                             <button
-                                onClick={() => setViewMode('personal')}
-                                className="w-full group p-4 rounded-2xl bg-slate-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-indigo-600/20 border border-slate-200 hover:border-indigo-300 dark:border-white/10 dark:hover:border-indigo-500/50 transition-all text-left flex items-center gap-4"
+                                onClick={() => setIsLogin(true)}
+                                className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all ${isLogin ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"}`}
                             >
-                                <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-200 transition-colors">
-                                    <User size={24} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-bold text-slate-900 dark:text-white text-lg">Personas</div>
-                                    <div className="text-xs text-slate-500 dark:text-gray-400">Acceso con correo personal</div>
-                                </div>
-                                <ArrowRight className="text-indigo-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                                Iniciar Sesión
                             </button>
-
                             <button
-                                onClick={() => setViewMode('enterprise')}
-                                className="w-full group p-4 rounded-2xl bg-slate-50 dark:bg-white/5 hover:bg-emerald-50 dark:hover:bg-emerald-600/20 border border-slate-200 hover:border-emerald-300 dark:border-white/10 dark:hover:border-emerald-500/50 transition-all text-left flex items-center gap-4"
+                                onClick={() => setIsLogin(false)}
+                                className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all ${!isLogin ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"}`}
                             >
-                                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-200 transition-colors">
-                                    <Building2 size={24} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-bold text-slate-900 dark:text-white text-lg">Empresas</div>
-                                    <div className="text-xs text-slate-500 dark:text-gray-400">Acceso corporativo (SSO)</div>
-                                </div>
-                                <ArrowRight className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                                Registrarse
                             </button>
                         </div>
-                    )}
 
-                    {/* View: PERSONAL (Email/Pass) */}
-                    {viewMode === 'personal' && (
-                        <div className="p-8">
-                            <button onClick={handleBack} className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-gray-500 hover:text-slate-900 dark:hover:text-white mb-6 transition-colors">
-                                <ChevronLeft size={14} /> Volver
-                            </button>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {!isLogin && (
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Nombre Completo</label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
+                                        <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="Juan Pérez" />
+                                    </div>
+                                </div>
+                            )}
 
-                            <div className="flex gap-2 mb-6 bg-slate-100 dark:bg-white/5 rounded-xl p-1">
-                                <button
-                                    onClick={() => setIsLogin(true)}
-                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all ${isLogin ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"}`}
-                                >
-                                    Iniciar Sesión
-                                </button>
-                                <button
-                                    onClick={() => setIsLogin(false)}
-                                    className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all ${!isLogin ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"}`}
-                                >
-                                    Registrarse
-                                </button>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Correo Electrónico</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
+                                    <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="nombre@correo.com" />
+                                </div>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                {!isLogin && (
-                                    <>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Nombre Completo</label>
-                                            <div className="relative">
-                                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
-                                                <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="Juan Pérez" />
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Correo Electrónico</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
-                                        <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="nombre@correo.com" />
-                                    </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Contraseña</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
+                                    <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="••••••••" />
                                 </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Contraseña</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
-                                        <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 focus:outline-none transition-colors" placeholder="••••••••" />
-                                    </div>
-                                </div>
-
-                                {error && <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg font-medium">{error}</div>}
-
-                                <button disabled={loading} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 mt-2">
-                                    {loading ? "Procesando..." : isLogin ? "Ingresar" : "Crear Cuenta"}
-                                </button>
-                            </form>
-                        </div>
-                    )}
-
-                    {/* View: ENTERPRISE (Domain Login) */}
-                    {viewMode === 'enterprise' && (
-                        <div className="p-8">
-                            <button onClick={handleBack} className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-gray-500 hover:text-slate-900 dark:hover:text-white mb-6 transition-colors">
-                                <ChevronLeft size={14} /> Volver
-                            </button>
-
-                            <div className="text-center mb-6">
-                                <div className="mx-auto w-12 h-12 bg-emerald-100 dark:bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-3 transition-colors">
-                                    <Building2 size={24} />
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white transition-colors">Acceso Corporativo</h3>
-                                <p className="text-xs text-slate-500 dark:text-gray-400 transition-colors">Ingresa las credenciales de tu empresa</p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="space-y-1 z-50 relative">
-                                    <label className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wider transition-colors">Nombre de la Empresa</label>
-                                    <div className="text-slate-900 dark:text-white">
-                                        <AsyncCombobox
-                                            id="orgIdForSSO"
-                                            value={orgIdForSSO}
-                                            onChange={setOrgIdForSSO}
-                                            onSearch={async (q) => {
-                                                const res = await lmsApi.searchOrganizations(q);
-                                                return res.map(o => ({ id: o.id, name: o.name }));
-                                            }}
-                                            placeholder="Busca tu empresa..."
-                                            leftIcon={<Building2 size={18} />}
-                                        />
-                                    </div>
-                                </div>
+                            {error && <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg font-medium">{error}</div>}
 
-                                {error && <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg font-medium transition-colors">{error}</div>}
-
-                                <button disabled={loading || !orgIdForSSO} type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 mt-2">
-                                    {loading ? "Redirigiendo..." : "Continuar con SSO"}
-                                </button>
-                            </form>
-                        </div>
-                    )}
+                            <button disabled={loading} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 mt-2">
+                                {loading ? "Procesando..." : isLogin ? "Ingresar" : "Crear Cuenta"}
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
                 {/* Footer */}

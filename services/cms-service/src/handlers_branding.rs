@@ -2,7 +2,7 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::State,
     http::StatusCode,
 };
 use common::models::Organization;
@@ -11,7 +11,7 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::handlers::log_action;
+use super::handlers::{log_action, Org};
 
 #[derive(Deserialize, Serialize)]
 pub struct BrandingPayload {
@@ -35,8 +35,8 @@ pub struct BrandingResponse {
 // Upload organization logo
 pub async fn upload_organization_logo(
     claims: common::auth::Claims,
+    Org(org_ctx): Org,
     State(pool): State<PgPool>,
-    Path(org_id): Path<Uuid>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Only admins can upload logos
@@ -46,7 +46,7 @@ pub async fn upload_organization_logo(
 
     // Verify organization exists and user has access
     let _ = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
-        .bind(org_id)
+        .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Organization not found".into()))?;
@@ -98,7 +98,7 @@ pub async fn upload_organization_logo(
             })?;
 
             // Generate unique filename
-            let unique_filename = format!("{}_{}.{}", org_id, uuid::Uuid::new_v4(), ext);
+            let unique_filename = format!("{}_{}.{}", org_ctx.id, uuid::Uuid::new_v4(), ext);
             let filepath = format!("uploads/org-logos/{}", unique_filename);
 
             // Save file
@@ -113,7 +113,7 @@ pub async fn upload_organization_logo(
             let logo_url = format!("/{}", filepath);
             sqlx::query("UPDATE organizations SET logo_url = $1 WHERE id = $2")
                 .bind(&logo_url)
-                .bind(org_id)
+                .bind(org_ctx.id)
                 .execute(&pool)
                 .await
                 .map_err(|e| {
@@ -129,7 +129,7 @@ pub async fn upload_organization_logo(
                 claims.sub,
                 "UPDATE_LOGO",
                 "Organization",
-                org_id,
+                org_ctx.id,
                 json!({"logo_url": &logo_url}),
             )
             .await;
@@ -147,8 +147,8 @@ pub async fn upload_organization_logo(
 // Upload organization favicon
 pub async fn upload_organization_favicon(
     claims: common::auth::Claims,
+    Org(org_ctx): Org,
     State(pool): State<PgPool>,
-    Path(org_id): Path<Uuid>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Only admins can upload favicons
@@ -158,7 +158,7 @@ pub async fn upload_organization_favicon(
 
     // Verify organization exists and user has access
     let _ = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
-        .bind(org_id)
+        .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Organization not found".into()))?;
@@ -210,7 +210,7 @@ pub async fn upload_organization_favicon(
             })?;
 
             // Generate unique filename
-            let unique_filename = format!("{}_{}.{}", org_id, uuid::Uuid::new_v4(), ext);
+            let unique_filename = format!("{}_{}.{}", org_ctx.id, uuid::Uuid::new_v4(), ext);
             let filepath = format!("uploads/org-favicons/{}", unique_filename);
 
             // Save file
@@ -225,7 +225,7 @@ pub async fn upload_organization_favicon(
             let favicon_url = format!("/{}", filepath);
             sqlx::query("UPDATE organizations SET favicon_url = $1 WHERE id = $2")
                 .bind(&favicon_url)
-                .bind(org_id)
+                .bind(org_ctx.id)
                 .execute(&pool)
                 .await
                 .map_err(|e| {
@@ -241,7 +241,7 @@ pub async fn upload_organization_favicon(
                 claims.sub,
                 "UPDATE_FAVICON",
                 "Organization",
-                org_id,
+                org_ctx.id,
                 json!({"favicon_url": &favicon_url}),
             )
             .await;
@@ -259,8 +259,8 @@ pub async fn upload_organization_favicon(
 // Update organization branding colors
 pub async fn update_organization_branding(
     claims: common::auth::Claims,
+    Org(org_ctx): Org,
     State(pool): State<PgPool>,
-    Path(org_id): Path<Uuid>,
     Json(payload): Json<BrandingPayload>,
 ) -> Result<Json<Organization>, (StatusCode, String)> {
     // Only admins can update branding
@@ -310,7 +310,7 @@ pub async fn update_organization_branding(
     .bind(&payload.secondary_color)
     .bind(&payload.platform_name)
     .bind(&payload.logo_variant)
-    .bind(org_id)
+    .bind(org_ctx.id)
     .fetch_one(&pool)
     .await
     .map_err(|e| {
@@ -326,7 +326,7 @@ pub async fn update_organization_branding(
         claims.sub,
         "UPDATE_BRANDING",
         "Organization",
-        org_id,
+        org_ctx.id,
         json!(payload),
     )
     .await;
@@ -337,10 +337,9 @@ pub async fn update_organization_branding(
 // Get organization branding (public endpoint)
 pub async fn get_organization_branding(
     State(pool): State<PgPool>,
-    Path(org_id): Path<Uuid>,
 ) -> Result<Json<BrandingResponse>, StatusCode> {
     let org = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
-        .bind(org_id)
+        .bind(Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap())
         .fetch_one(&pool)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;

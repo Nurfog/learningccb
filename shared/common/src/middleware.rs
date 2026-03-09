@@ -45,7 +45,7 @@ pub async fn org_extractor_middleware(
     // NOTA: El secreto debe venir de una variable de entorno en producción.
     let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
 
-    let mut claims = decode::<Claims>(
+    let claims = decode::<Claims>(
         &token,
         &DecodingKey::from_secret(secret.as_ref()),
         &Validation::default(),
@@ -53,21 +53,8 @@ pub async fn org_extractor_middleware(
     .map_err(|_| StatusCode::UNAUTHORIZED)?
     .claims;
 
-    // Check for organization override header (only for admins)
-    let org_id = if claims.role == "admin" {
-        req.headers()
-            .get("x-organization-id")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| Uuid::parse_str(s).ok())
-            .unwrap_or(claims.org)
-    } else {
-        claims.org
-    };
-
-    // Update claims.org if overridden so downstream logic sees the new org
-    if org_id != claims.org {
-        claims.org = org_id;
-    }
+    // Forzar el uso de la organización por defecto para arquitectura single-tenant
+    let org_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
     // Insertamos el contexto y las claims en las extensiones de la petición.
     req.extensions_mut().insert(OrgContext { id: org_id });

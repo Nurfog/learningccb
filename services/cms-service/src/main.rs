@@ -150,6 +150,7 @@ async fn main() {
         .route("/lessons/{id}/generate-role-play", post(handlers::generate_role_play))
         .route("/lessons/{id}/generate-hotspots", post(handlers::generate_hotspots))
         .route("/lessons/{id}/generate-mermaid", post(handlers::generate_mermaid_diagram))
+        .route("/lessons/{id}/generate-code-lab", post(handlers::generate_code_lab))
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))
@@ -172,12 +173,14 @@ async fn main() {
         .route("/api/assets/upload", post(handlers_assets::upload_asset))
         .route("/api/assets/{id}", delete(handlers_assets::delete_asset))
         .layer(DefaultBodyLimit::disable())
+/*
         .route(
             "/organizations",
             get(handlers::get_organizations).post(handlers::create_organization),
         )
         .route("/organizations/{id}", put(handlers::update_organization))
         .route("/admin/provision", post(handlers::provision_organization))
+*/
         .route(
             "/webhooks",
             get(handlers::get_webhooks).post(handlers::create_webhook),
@@ -192,15 +195,15 @@ async fn main() {
             get(handlers::get_sso_config).put(handlers::update_sso_config),
         )
         .route(
-            "/organizations/{id}/logo",
+            "/organization/logo",
             post(handlers_branding::upload_organization_logo),
         )
         .route(
-            "/organizations/{id}/favicon",
+            "/organization/favicon",
             post(handlers_branding::upload_organization_favicon),
         )
         .route(
-            "/organizations/{id}/branding",
+            "/organization/branding",
             axum::routing::put(handlers_branding::update_organization_branding),
         )
         // Content Libraries routes
@@ -290,11 +293,7 @@ async fn main() {
         .route("/auth/sso/login/{org_id}", get(handlers::sso_login_init))
         .route("/auth/sso/callback", get(handlers::sso_callback))
         .route(
-            "/organizations/search",
-            get(handlers::search_organizations),
-        )
-        .route(
-            "/organizations/{id}/branding",
+            "/branding",
             get(handlers_branding::get_organization_branding),
         )
         .nest_service("/assets", tower_http::services::ServeDir::new("uploads"))

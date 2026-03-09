@@ -38,6 +38,7 @@ import MemoryBlock from "@/components/blocks/MemoryBlock";
 import RolePlayingBlock from "@/components/blocks/RolePlayingBlock";
 import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
 import MermaidBlock from "@/components/blocks/MermaidBlock";
+import CodeLabBlock from "@/components/blocks/CodeLabBlock";
 import SaveToLibraryModal from "@/components/modals/SaveToLibraryModal";
 import LibraryPanel from "@/components/LibraryPanel";
 import Modal from "@/components/Modal";
@@ -1106,6 +1107,20 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     onUpdate={(updates) => updateBlock(block.id, updates)}
                                 />
                             )}
+                            {block.type === 'code-lab' && (
+                                <CodeLabBlock
+                                    id={block.id}
+                                    title={block.title}
+                                    language={block.language}
+                                    instructions={block.instructions}
+                                    initial_code={block.initial_code}
+                                    solution={block.solution}
+                                    test_cases={block.test_cases}
+                                    editMode={editMode}
+                                    lessonId={params.lessonId}
+                                    onChange={(updates) => updateBlock(block.id, updates)}
+                                />
+                            )}
                         </div>
                     </div>
                 ))}
@@ -1148,6 +1163,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     { type: 'audio-response', icon: '🎤', label: 'Oral Practice', color: 'blue' },
                                     { type: 'memory-match', icon: '🧩', label: 'Logic Game', color: 'indigo' },
                                     { type: 'peer-review', icon: '👥', label: 'Peer Review', color: 'slate' },
+                                    { type: 'code-lab', icon: '🧑‍💻', label: 'Code Lab', color: 'indigo' },
                                     { type: 'mermaid', icon: '📊', label: 'Mermaid Diagram', color: 'indigo' },
                                     { type: 'role-playing', icon: '🎭', label: 'Role-Playing AI', color: 'purple' },
                                 ].map((item) => (

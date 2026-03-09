@@ -8,8 +8,9 @@ use axum::{
 };
 use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{DateTime, Utc};
-use common::auth::{Claims, create_jwt, create_preview_token};
-use common::middleware::Org;
+pub use common::auth::Claims;
+pub use common::middleware::Org;
+use common::auth::{create_jwt, create_preview_token};
 use common::models::{
     AuthResponse, Course, CourseAnalytics, Lesson, Module, Organization, PublishedCourse,
     PublishedModule, User, UserResponse, CourseInstructor,
@@ -1832,6 +1833,122 @@ pub async fn generate_mermaid_diagram(
 }
 
 #[derive(Deserialize)]
+pub struct GenerateCodeLabPayload {
+    pub language: Option<String>,
+    pub prompt_hint: Option<String>,
+}
+
+pub async fn generate_code_lab(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<GenerateCodeLabPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    tracing::info!("Generating Code Lab for lesson_id={}", lesson_id);
+
+    let lesson = sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
+        .bind(lesson_id)
+        .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "Lección no encontrada".into()))?;
+
+    let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "local".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+    } else {
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()),
+            "gpt-4o".to_string(),
+        )
+    };
+
+    let transcription_str = lesson.transcription.as_ref().and_then(|v| v.as_str());
+    let summary_str = lesson.summary.as_deref();
+    let lesson_context = transcription_str.or(summary_str).unwrap_or("Conceptos generales de la lección.");
+    let language = payload.language.unwrap_or_else(|| "python".to_string());
+    let user_hint = payload.prompt_hint.unwrap_or_else(|| "Diseña un ejercicio práctico que refuerce los conceptos de la lección.".to_string());
+
+    let system_prompt = format!(
+        "Eres un experto pedagogo y programador especializado en crear ejercicios de código educativos.\n\
+         Tu tarea es generar un ejercicio de programación en {} basado en el siguiente contenido de la lección.\n\
+         INSTRUCCIONES CRÍTICAS:\n\
+         1. Responde ÚNICAMENTE con un objeto JSON válido. Sin texto adicional, sin explicaciones, sin bloques markdown.\n\
+         2. El JSON debe tener exactamente esta estructura:\n\
+         {{\"title\": \"string\", \"instructions\": \"string\", \"initial_code\": \"string\", \"solution\": \"string\", \"test_cases\": [{{\"description\": \"string\", \"expected\": \"string\"}}]}}\n\
+         3. El campo 'initial_code' debe ser un esqueleto con comentarios TODO para que el estudiante lo complete.\n\
+         4. El campo 'solution' debe ser la solución completa.\n\
+         5. El campo 'test_cases' debe contener 2-3 casos de prueba descriptivos.\n\
+         6. Las instrucciones deben ser claras y pedagógicamente apropiadas.\n\n\
+         Contexto de la lección:\n{}\n\n\
+         Instrucciones adicionales:\n{}",
+        language, lesson_context, user_hint
+    );
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", auth_header)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": "Genera el ejercicio de código ahora." }
+            ],
+            "temperature": 0.4
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("LLM Request failed: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Error contacting AI provider".into())
+        })?;
+
+    if !response.status().is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        tracing::error!("LLM Error response: {}", err_body);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI provider returned an error".into()));
+    }
+
+    let ai_data: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse LLM JSON: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Error parsing AI response".into())
+    })?;
+
+    let ai_text = ai_data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("{}")
+        .trim();
+
+    // Strip potential markdown code fences
+    let cleaned = ai_text
+        .strip_prefix("```json\n").unwrap_or(ai_text)
+        .strip_prefix("```\n").unwrap_or(ai_text)
+        .strip_suffix("```").unwrap_or(ai_text)
+        .trim();
+
+    let exercise: serde_json::Value = serde_json::from_str(cleaned).map_err(|e| {
+        tracing::error!("Failed to parse exercise JSON from LLM: {} | raw: {}", e, cleaned);
+        (StatusCode::INTERNAL_SERVER_ERROR, "AI returned invalid exercise JSON".into())
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "language": language,
+        "title": exercise["title"],
+        "instructions": exercise["instructions"],
+        "initial_code": exercise["initial_code"],
+        "solution": exercise["solution"],
+        "test_cases": exercise["test_cases"],
+    })))
+}
+
+#[derive(Deserialize)]
 pub struct GenerateHotspotsPayload {
     pub image_url: String,
     pub prompt_hint: Option<String>,
@@ -2080,15 +2197,6 @@ pub struct AuthPayload {
     pub full_name: Option<String>,
     pub role: Option<String>,
     pub organization_name: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-pub struct ProvisionPayload {
-    pub org_name: String,
-    pub org_domain: Option<String>,
-    pub admin_email: String,
-    pub admin_password: String,
-    pub admin_full_name: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -3130,176 +3238,9 @@ pub async fn update_user(
     }))
 }
 
-// Organizations Management (Plural/Admin)
-pub async fn get_organizations(
-    claims: common::auth::Claims,
-    State(pool): State<PgPool>,
-) -> Result<Json<Vec<Organization>>, StatusCode> {
-    if claims.role != "admin" {
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    let orgs =
-        sqlx::query_as::<_, Organization>("SELECT * FROM organizations ORDER BY created_at DESC")
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to fetch organizations: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-    Ok(Json(orgs))
-}
-
-#[derive(Deserialize)]
-pub struct OrgSearchQuery {
-    pub q: String,
-}
-
-#[derive(Serialize, sqlx::FromRow)]
-pub struct OrgSearchResult {
-    pub id: Uuid,
-    pub name: String,
-    pub domain: Option<String>,
-}
-
-pub async fn search_organizations(
-    State(pool): State<PgPool>,
-    Query(query): Query<OrgSearchQuery>,
-) -> Result<Json<Vec<OrgSearchResult>>, StatusCode> {
-    if query.q.trim().is_empty() {
-        return Ok(Json(vec![]));
-    }
-
-    let search_term = format!("%{}%", query.q.trim());
-    
-    let orgs = sqlx::query_as::<_, OrgSearchResult>(
-        "SELECT id, name, domain FROM organizations WHERE name ILIKE $1 OR domain ILIKE $1 ORDER BY name ASC LIMIT 10"
-    )
-    .bind(search_term)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to search organizations: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    Ok(Json(orgs))
-}
-
-pub async fn create_organization(
-    claims: common::auth::Claims,
-    State(pool): State<PgPool>,
-    Json(payload): Json<serde_json::Value>,
-) -> Result<Json<Organization>, StatusCode> {
-    if claims.role != "admin" {
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    let name = payload
-        .get("name")
-        .and_then(|v| v.as_str())
-        .ok_or(StatusCode::BAD_REQUEST)?;
-    let domain = payload.get("domain").and_then(|v| v.as_str());
-
-    let org = sqlx::query_as::<_, Organization>(
-        "INSERT INTO organizations (name, domain) VALUES ($1, $2) RETURNING *",
-    )
-    .bind(name)
-    .bind(domain)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to create organization: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    Ok(Json(org))
-}
-
-pub async fn update_organization(
-    claims: common::auth::Claims,
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-    Json(payload): Json<serde_json::Value>,
-) -> Result<Json<Organization>, (StatusCode, String)> {
-    // Only super admins or admins of the same org? 
-    // Usually editing other orgs is a Super Admin only task.
-    let is_super_admin = claims.role == "admin"
-        && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-
-    if !is_super_admin {
-        return Err((StatusCode::FORBIDDEN, "Super Admin access required".into()));
-    }
-
-    let name = payload.get("name").and_then(|v| v.as_str());
-    let domain = payload.get("domain").and_then(|v| v.as_str());
-
-    let org = sqlx::query_as::<_, Organization>(
-        "UPDATE organizations SET 
-            name = COALESCE($1, name), 
-            domain = COALESCE($2, domain),
-            updated_at = NOW()
-         WHERE id = $3 RETURNING *"
-    )
-    .bind(name)
-    .bind(domain)
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update organization: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update organization".into())
-    })?;
-
-    Ok(Json(org))
-}
-
-pub async fn provision_organization(
-    claims: common::auth::Claims,
-    State(pool): State<PgPool>,
-    Json(payload): Json<ProvisionPayload>,
-) -> Result<Json<Organization>, (StatusCode, String)> {
-    if claims.role != "admin" || claims.org != Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap() {
-        return Err((StatusCode::FORBIDDEN, "Super Admin access required".into()));
-    }
-
-    let mut tx = pool.begin().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let org = sqlx::query_as::<_, Organization>(
-        "INSERT INTO organizations (name, domain) VALUES ($1, $2) RETURNING *"
-    )
-    .bind(&payload.org_name)
-    .bind(&payload.org_domain)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to create organization: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create organization".into())
-    })?;
-
-    let password_hash = hash(payload.admin_password, DEFAULT_COST)
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Hashing failed".into()))?;
-
-    sqlx::query(
-        "INSERT INTO users (email, password_hash, full_name, role, organization_id) VALUES ($1, $2, $3, $4, $5)"
-    )
-    .bind(&payload.admin_email)
-    .bind(password_hash)
-    .bind(&payload.admin_full_name)
-    .bind("admin")
-    .bind(org.id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to create admin user: {}", e);
-        (StatusCode::CONFLICT, "User already exists or DB error".into())
-    })?;
-
-    tx.commit().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(org))
-}
+// Organizations Management (Simplified for Single-Tenant)
+// Multi-tenant organization management has been removed.
+// The system now operates on a single default organization.
 
 #[derive(serde::Deserialize)]
 pub struct CreateWebhookPayload {

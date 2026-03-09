@@ -580,39 +580,18 @@ pub async fn get_course_catalog(
         query.organization_id,
         query.user_id
     );
-    let courses = match (query.organization_id, query.user_id) {
-        (Some(org_id), Some(user_id)) => {
-            sqlx::query_as::<_, Course>(
-                "SELECT DISTINCT c.* FROM courses c 
-                 LEFT JOIN enrollments e ON c.id = e.course_id AND e.user_id = $2
-                 WHERE c.organization_id = $1 OR c.organization_id = '00000000-0000-0000-0000-000000000001' OR e.id IS NOT NULL"
-            )
-            .bind(org_id)
-            .bind(user_id)
+    let courses = if let Some(user_id) = query.user_id {
+        sqlx::query_as::<_, Course>(
+            "SELECT DISTINCT c.* FROM courses c 
+             LEFT JOIN enrollments e ON c.id = e.course_id AND e.user_id = $1"
+        )
+        .bind(user_id)
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as::<_, Course>("SELECT * FROM courses")
             .fetch_all(&pool)
             .await
-        }
-        (Some(org_id), None) => {
-            sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE organization_id = $1 OR organization_id = '00000000-0000-0000-0000-000000000001'")
-                .bind(org_id)
-                .fetch_all(&pool)
-                .await
-        }
-        (None, Some(user_id)) => {
-            sqlx::query_as::<_, Course>(
-                "SELECT DISTINCT c.* FROM courses c 
-                 JOIN enrollments e ON c.id = e.course_id 
-                 WHERE e.user_id = $1 OR c.organization_id = '00000000-0000-0000-0000-000000000001'"
-            )
-            .bind(user_id)
-            .fetch_all(&pool)
-            .await
-        }
-        (None, None) => {
-            sqlx::query_as::<_, Course>("SELECT * FROM courses")
-                .fetch_all(&pool)
-                .await
-        }
     }
     .map_err(|e: sqlx::Error| {
         tracing::error!("Catalog fetch failed: {}", e);
@@ -2349,7 +2328,124 @@ pub struct ChatResponse {
     pub session_id: Uuid,
 }
 
+#[derive(Deserialize)]
+pub struct CodeHintPayload {
+    pub current_code: String,
+    pub error_message: Option<String>,
+    pub instructions: Option<String>,
+    pub language: Option<String>,
+}
+
+pub async fn get_code_hint(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<CodeHintPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    tracing::info!("Code hint request for lesson_id={}", lesson_id);
+
+    // Access check: enrolled or preview
+    let is_enrolled = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM enrollments WHERE user_id = $1 AND course_id = (SELECT course_id FROM modules WHERE id = (SELECT module_id FROM lessons WHERE id = $2)))"
+    )
+    .bind(claims.sub)
+    .bind(lesson_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(false);
+
+    let is_previewable = sqlx::query_scalar::<_, bool>(
+        "SELECT COALESCE(is_previewable, false) FROM lessons WHERE id = $1"
+    )
+    .bind(lesson_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(false);
+
+    if !is_enrolled && !is_previewable {
+        return Err((StatusCode::FORBIDDEN, "No tienes acceso a esta lección".into()));
+    }
+
+    let provider = std::env::var("AI_PROVIDER").unwrap_or_else(|_| "local".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
+        let model = std::env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+    } else {
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", std::env::var("OPENAI_API_KEY").unwrap_or_default()),
+            "gpt-4o".to_string(),
+        )
+    };
+
+    let language = payload.language.as_deref().unwrap_or("código");
+    let instructions = payload.instructions.as_deref().unwrap_or("Sin instrucciones específicas.");
+    let error_context = match &payload.error_message {
+        Some(err) if !err.trim().is_empty() => format!("\nError recibido del estudiante:\n```\n{}\n```", err),
+        _ => String::new(),
+    };
+
+    let system_prompt = format!(
+        "Eres un tutor de programación experto y pedagogo. \
+         Tu misión es ayudar a un estudiante que está trabajando en un ejercicio de {}.\n\
+         INSTRUCCIONES CRÍTICAS:\n\
+         1. NO proporciones la solución completa directamente.\n\
+         2. Da una PISTA PEDAGÓGICA: señala el concepto equivocado, sugiere qué investigar, o pregunta con qué parte tiene dificultad.\n\
+         3. Sé amable, encouraging y conciso (máximo 3-4 oraciones).\n\
+         4. Si hay un error, explica brevemente qué tipo de error es sin dar el fix directo.\n\n\
+         Ejercicio: {}\n{}",
+         language, instructions, error_context
+    );
+
+    let user_message = format!(
+        "Mi código actual es:\n```{}\n{}\n```\nNecesito una pista para seguir avanzando.",
+        language, payload.current_code
+    );
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", auth_header)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": user_message }
+            ],
+            "temperature": 0.5
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("LLM Request failed: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Error contacting AI provider".into())
+        })?;
+
+    if !response.status().is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        tracing::error!("LLM Error response: {}", err_body);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI provider returned an error".into()));
+    }
+
+    let ai_data: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse LLM JSON: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Error parsing AI response".into())
+    })?;
+
+    let hint = ai_data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("No pude generar una pista en este momento. Por favor intenta de nuevo.")
+        .trim()
+        .to_string();
+
+    Ok(Json(serde_json::json!({ "hint": hint })))
+}
+
 pub async fn chat_with_tutor(
+
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,

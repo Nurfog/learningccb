@@ -68,7 +68,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review' | 'role-playing' | 'mermaid';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review' | 'role-playing' | 'mermaid' | 'code-lab';
     title?: string;
     content?: string;
     url?: string;
@@ -107,6 +107,12 @@ export interface Block {
     initial_message?: string;
     // Mermaid fields
     mermaid_code?: string;
+    // Code Lab fields
+    language?: string;
+    instructions?: string;
+    initial_code?: string;
+    solution?: string;
+    test_cases?: { description: string; expected: string }[];
 }
 
 export interface Lesson {
@@ -614,19 +620,27 @@ const apiFetch = (url: string, options: RequestInit = {}, isLms: boolean = false
 export const cmsApi = {
     // Organization
     getOrganization: (): Promise<Organization> => apiFetch('/organization'),
-    getOrganizations: (): Promise<Organization[]> => apiFetch('/organizations'),
-    createOrganization: (name: string, domain?: string): Promise<Organization> => apiFetch('/organizations', { method: 'POST', body: JSON.stringify({ name, domain }) }),
-    updateOrganization: (id: string, payload: { name?: string, domain?: string }): Promise<Organization> => apiFetch(`/organizations/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-    provisionOrganization: (data: ProvisionPayload): Promise<Organization> => apiFetch('/admin/provision', { method: 'POST', body: JSON.stringify(data) }),
+    updateOrganizationBranding: (payload: BrandingPayload): Promise<Organization> => apiFetch('/organization/branding', { method: 'PUT', body: JSON.stringify(payload) }),
+    uploadOrganizationLogo: (file: File): Promise<{ logo_url: string }> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return apiFetch('/organization/logo', { method: 'POST', body: formData });
+    },
+    uploadOrganizationFavicon: (file: File): Promise<{ favicon_url: string }> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return apiFetch('/organization/favicon', { method: 'POST', body: formData });
+    },
+    getSSOConfig: (): Promise<OrganizationSSOConfig> => apiFetch('/organization/sso'),
+    updateSSOConfig: (payload: Partial<OrganizationSSOConfig>): Promise<void> => apiFetch('/organization/sso', { method: 'PUT', body: JSON.stringify(payload) }),
 
     // Auth
     register: (payload: AuthPayload): Promise<AuthResponse> => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
     login: (payload: AuthPayload): Promise<AuthResponse> => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
     getMe: (): Promise<User> => apiFetch('/auth/me'),
 
-    // Organizations Search
-    searchOrganizations: (query: string): Promise<{ id: string, name: string, domain?: string }[]> => apiFetch(`/organizations/search?q=${encodeURIComponent(query)}`),
-    getBranding: (id: string): Promise<BrandingResponse> => apiFetch(`/organizations/${id}/branding`),
+    // Branding (Public)
+    getBranding: (): Promise<BrandingResponse> => apiFetch('/branding'),
 
     // Courses
     getCourses: (): Promise<Course[]> => apiFetch('/courses'),
@@ -671,6 +685,15 @@ export const cmsApi = {
     },
     async generateMermaidDiagram(lessonId: string, payload: { prompt_hint?: string }): Promise<{ mermaid_code: string }> {
         return apiFetch(`/lessons/${lessonId}/generate-mermaid`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+    async generateCodeLab(lessonId: string, payload: { language?: string; prompt_hint?: string }): Promise<{
+        language: string; title: string; instructions: string; initial_code: string; solution: string;
+        test_cases: { description: string; expected: string }[];
+    }> {
+        return apiFetch(`/lessons/${lessonId}/generate-code-lab`, {
             method: 'POST',
             body: JSON.stringify(payload)
         });
@@ -785,49 +808,6 @@ export const cmsApi = {
             xhr.send(formData);
         });
     },
-    // Organizations Branding
-    getOrganizationBranding: (id: string): Promise<Organization> => apiFetch(`/organizations/${id}/branding`),
-    updateOrganizationBranding: (id: string, payload: BrandingPayload): Promise<void> => apiFetch(`/organizations/${id}/branding`, { method: 'PUT', body: JSON.stringify(payload) }),
-    uploadOrganizationLogo: (id: string, file: File): Promise<UploadResponse> => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const token = getToken();
-        const selectedOrgId = getSelectedOrgId();
-        const headers: Record<string, string> = {
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            ...(selectedOrgId ? { 'X-Organization-Id': selectedOrgId } : {})
-        };
-        return fetch(`${API_BASE_URL}/organizations/${id}/logo`, {
-            method: 'POST',
-            headers,
-            body: formData,
-        }).then(res => {
-            if (!res.ok) return res.json().then(err => Promise.reject(new Error(err.message || 'Logo upload failed')));
-            return res.json();
-        });
-    },
-    uploadOrganizationFavicon: (id: string, file: File): Promise<UploadResponse> => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const token = getToken();
-        const selectedOrgId = getSelectedOrgId();
-        const headers: Record<string, string> = {
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            ...(selectedOrgId ? { 'X-Organization-Id': selectedOrgId } : {})
-        };
-        return fetch(`${API_BASE_URL}/organizations/${id}/favicon`, {
-            method: 'POST',
-            headers,
-            body: formData,
-        }).then(res => {
-            if (!res.ok) return res.json().then(err => Promise.reject(new Error(err.message || 'Favicon upload failed')));
-            return res.json();
-        });
-    },
-
-    // SSO
-    getSSOConfig: (): Promise<OrganizationSSOConfig | null> => apiFetch('/organization/sso'),
-    updateSSOConfig: (payload: Partial<OrganizationSSOConfig>): Promise<OrganizationSSOConfig> => apiFetch('/organization/sso', { method: 'PUT', body: JSON.stringify(payload) }),
     initSSOLogin: (orgId: string): void => {
         window.location.href = `${API_BASE_URL}/auth/sso/login/${orgId}`;
     },

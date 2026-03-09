@@ -238,7 +238,8 @@ if [ "$ADMIN_EXISTS" != "t" ]; then
     read -s -p "Contraseña del Administrador [password123]: " ADMIN_PASS
     ADMIN_PASS=${ADMIN_PASS:-password123}
     echo ""
-    ORG_NAME="Default Organization"
+    read -p "Nombre de la Organización [OpenCCB]: " ORG_NAME
+    ORG_NAME=${ORG_NAME:-OpenCCB}
 fi
 
 # Selective Build/Rebuild

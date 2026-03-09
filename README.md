@@ -15,7 +15,6 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 3.  **Database**: PostgreSQL compartido.
 4.  **AI Services**: stack local con Faster-Whisper (Transcripción) y Ollama (Traducción y Resúmenes).
     - **AI Course Wizard**: Generación automática de cursos a partir de prompts estructurados.
-    - **Global Admin Console**: Panel estilo Django para gestión supervisada de tenants y auditoría.
     - **Course Portability**: Importación/Exportación de cursos completos mediante JSON.
     - **User Profiles**: Gestión completa de identidad (avatar, bio, preferencias).
     - **Engagement Heatmaps**: Visualización de retención segundo a segundo en videos.
@@ -36,8 +35,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Color-Coded Progress Navigation**: Sistema visual de seguimiento de progreso mediante colores (Verde: Completado, Amarillo: En Proceso, Rojo: Repetible) tanto a nivel de lección como de módulo.
 - **Adaptive Skill Analysis**: Motor de análisis de etiquetas que calcula la maestría de habilidades (Gramática, Vocabulario, etc.) para personalizar las recomendaciones de IA.
 - **Efficient Docker Builds**: Imágenes de contenedor optimizadas para desarrollo rápido y despliegue ligero.
-- **Discussion Forums**: Sistema completo de foros por curso con hilos de discusión, respuestas anidadas, votación, moderación por instructores y suscripciones.
-- **Split Authentication Flow**: Flujos de autenticación diferenciados para usuarios personales (email/password) y empresas (dominio corporativo).
+- **Unified Authentication Flow**: Flujo de inicio de sesión simplificado para estudiantes e instructores.
 - **Course Monetization**: Integración con Mercado Pago para venta de cursos, con inscripciones automáticas y paneles de precios para instructores.
 - **Student Notes**: Sistema de anotaciones personales por lección con auto-guardado inteligente (debounced).
 - **Interactive Gradebook**: Libro de calificaciones avanzado con filtrado por cohortes, exportación masiva a CSV con desgloses por categoría y pertenencia a cohortes.
@@ -54,6 +52,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
 - **Predictive Analytics (Dropout Risk)**: Motor de IA que analiza el desempeño, actividad y compromiso social del estudiante para detectar riesgos de abandono de forma proactiva, con alertas accionables para instructores.
 - **Live Learning (Videoconference)**: Integración nativa con Jitsi para clases virtuales síncronas, con programación desde Studio y acceso integrado en Experience.
 - **Student Portfolio & Badges**: Sistema de reconocimiento con Open Badges y perfiles públicos profesionales para mostrar logros y progreso verificado.
+- **Dynamic Mermaid Diagrams**: Generación automática de diagramas (flowcharts, mapas mentales, secuencias) a partir del contenido de cada lección usando IA, con editor visual integrado para instructores.
 
 ##  Requisitos del Sistema
 
@@ -147,16 +146,14 @@ Para resetear completamente el entorno de desarrollo y empezar desde cero:
 Gestión de registro, login y perfiles organizacionales.
 
 #### POST /auth/register
-Crea una nueva organización y el usuario administrador inicial.
+Crea un nuevo usuario vinculado a la organización por defecto.
 
-- **Lógica Inteligente**: Si `organization_name` está vacío, se utiliza el dominio del email. El primer usuario es marcado como `role: admin`.
 - **Cuerpo de la Petición ( AuthPayload ):**
   ```json
   {
     "email": "string",
     "password": "string",
     "full_name": "string",
-    "organization_name": "string",
     "role": "string (admin | instructor | student)"
   }
   ```
@@ -172,10 +169,10 @@ OpenCCB actúa como un Tool Provider LTI 1.3 moderno, utilizando OIDC y JWKS par
 - **Autoprovisionamiento**: Los usuarios lanzados vía LTI se crean automáticamente con los roles correspondientes.
 
 ```bash
-# Registrar un nuevo administrador y empresa
+# Registrar un nuevo administrador
 curl -X POST "http://localhost:3001/auth/register" \
      -H "Content-Type: application/json" \
-     -d '{"email": "admin@empresa.com", "password": "pass", "organization_name": "OpenCCB Corp"}'
+     -d '{"email": "admin@empresa.com", "password": "pass", "full_name": "Admin Name"}'
 ```
 
 ---
@@ -575,39 +572,15 @@ curl -X POST http://localhost:3002/courses/{course_id}/announcements \
 
 ---
 
-### 6. Multi-tenencia y Gestión Global (Super Admin)
-OpenCCB está diseñado para multi-tenencia. Las organizaciones están aisladas, pero un **Super Admin** puede gestionarlo todo.
+### 6. Estructura Single-Tenant
+OpenCCB está diseñado como un módulo premium single-tenant. Todas las operaciones se realizan bajo una única organización preconfigurada.
 
-#### Definición de Super Admin
-- **ID de Organización por Defecto**: `00000000-0000-0000-0000-000000000001`
-- Cualquier usuario con `role: admin` en esta organización es un **Super Admin**.
-#### Global Control Panel (`/admin`)
-- **Dashboard**: Resumen de organizaciones, usuarios y salud del sistema.
-- **Audit Logs**: Seguimiento detallado de todas las acciones administrativas.
-- **Service Monitor**: Estado en tiempo real del API Cluster, AI Services y Background Workers.
+#### Organización por Defecto
+- **ID de Organización**: `00000000-0000-0000-0000-000000000001`
+- El sistema utiliza este ID de forma transparente para todas las consultas y recursos.
 
-#### Cursos Globales
-Los cursos creados por los Super Admins en la **Organización por Defecto** son automáticamente marcados como **Globales**.
-- Aparecen en el catálogo de **todas las organizaciones**.
-- Los usuarios de cualquier organización pueden inscribirse en cursos globales.
- Riverside
-
-#### Publicación Entre Organizaciones
-Los Super Admins pueden publicar cursos en **cualquier organización**. Al publicar a través de Studio, un **Selector de Organizaciones** premium permite elegir el destino.
-
-#### X-Organization-Id Header
-Super Admins can simulate the context of any organization by sending this header in their requests:
-```bash
-curl -H "Authorization: Bearer $SUPER_ADMIN_TOKEN" \
-     -H "X-Organization-Id: $TARGET_ORG_ID" \
-     http://localhost:3001/courses
-```
-
-#### GET /organizations
-Obtiene una lista de todas las organizaciones registradas.
-
-- **Control Global**: Accesible únicamente para usuarios con rol `admin` dentro de la organización `Default`. Permite supervisar el crecimiento del ecosistema.
-- **Respuesta**: Array de `Organization`.
+#### Branding Unificado
+- La personalización de marca se aplica globalmente a través del panel de Ajustes en Studio, afectando tanto a la interfaz administrativa como al portal del estudiante.
 
 ---
 

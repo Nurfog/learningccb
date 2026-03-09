@@ -20,14 +20,14 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [branding, setBranding] = useState<Organization | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const orgId = process.env.NEXT_PUBLIC_ORG_ID || '00000000-0000-0000-0000-000000000001';
+
 
     const pathname = usePathname();
 
     useEffect(() => {
         const loadBranding = async () => {
             try {
-                const data = await lmsApi.getBranding(orgId);
+                const data = await lmsApi.getBranding();
                 setBranding(data);
                 console.log('Branding loaded in Experience:', data);
             } catch (error) {
@@ -38,7 +38,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
 
         loadBranding();
-    }, [orgId]);
+    }, []);
 
     useEffect(() => {
         if (!branding) return;

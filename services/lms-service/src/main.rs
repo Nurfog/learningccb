@@ -122,6 +122,7 @@ async fn main() {
         .route("/audio/evaluate-file", post(handlers::evaluate_audio_file))
         .route("/lessons/{id}/chat", post(handlers::chat_with_tutor))
         .route("/lessons/{id}/chat-role-play", post(handlers::chat_role_play))
+        .route("/lessons/{id}/code-hint", post(handlers::get_code_hint))
         .route("/lessons/{id}/feedback", get(handlers::get_lesson_feedback))
         .route("/notifications", get(handlers::get_notifications))
         .route(

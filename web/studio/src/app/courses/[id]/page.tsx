@@ -21,7 +21,6 @@ import {
     Send,
 } from "lucide-react";
 import CourseEditorLayout from "@/components/CourseEditorLayout";
-import OrganizationSelector from "@/components/OrganizationSelector";
 
 interface FullModule extends Module {
     lessons: Lesson[];
@@ -35,8 +34,6 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
     const [error, setError] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
-    const [organizations, setOrganizations] = useState<Organization[]>([]);
-    const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
     const [saving, setSaving] = useState(false); // Added saving state
     const { user } = useAuth();
 
@@ -63,19 +60,7 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
         loadData();
     }, [params.id]);
 
-    useEffect(() => {
-        const loadOrgs = async () => {
-            if (user?.role === 'admin' && user?.organization_id === '00000000-0000-0000-0000-000000000001') {
-                try {
-                    const orgs = await cmsApi.getOrganizations();
-                    setOrganizations(orgs);
-                } catch (err) {
-                    console.error("Failed to load organizations", err);
-                }
-            }
-        };
-        loadOrgs();
-    }, [user]);
+
 
     const handleAddModule = async () => {
         const title = "";
@@ -194,27 +179,19 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
 
     const handlePublish = async () => {
         if (!course) return;
-
-        const isSuperAdmin = user?.role === 'admin' && user?.organization_id === '00000000-0000-0000-0000-000000000001';
-
-        if (isSuperAdmin && organizations.length > 0) {
-            setIsOrgModalOpen(true);
-        } else {
-            publishCourse();
-        }
+        publishCourse();
     };
 
-    const publishCourse = async (targetOrgId?: string) => {
+    const publishCourse = async () => {
         try {
             setSaving(true);
-            await cmsApi.publishCourse(params.id as string, targetOrgId);
+            await cmsApi.publishCourse(params.id as string);
             alert("Course published successfully!");
         } catch (err) {
             console.error("Failed to publish course", err);
             alert("Failed to publish course.");
         } finally {
             setSaving(false);
-            setIsOrgModalOpen(false); // Close modal after publishing attempt
         }
     };
 
@@ -429,15 +406,7 @@ export default function CourseEditor({ params }: { params: { id: string } }) {
                     </button>
                 </div>
             </CourseEditorLayout>
-            {/* Organization Selector Modal */}
-            <OrganizationSelector
-                isOpen={isOrgModalOpen}
-                onClose={() => setIsOrgModalOpen(false)}
-                organizations={organizations}
-                title="Publish to Organization"
-                actionLabel="Publish Course"
-                onConfirm={(orgId) => publishCourse(orgId)}
-            />
+
         </>
     );
 }

@@ -424,9 +424,22 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                 onComplete={(score) => handleBlockComplete(block.id, score)}
                                                             />
                                                         );
+                                                    case 'code-lab':
+                                                        return (
+                                                            <CodeExercisePlayer
+                                                                lessonId={params.lessonId}
+                                                                title={block.title}
+                                                                instructions={block.instructions || ""}
+                                                                initialCode={block.initial_code || ""}
+                                                                language={block.language}
+                                                                testCases={block.test_cases}
+                                                                onComplete={(score) => handleBlockComplete(block.id, score)}
+                                                            />
+                                                        );
                                                     case 'code':
                                                         return (
                                                             <CodeExercisePlayer
+                                                                lessonId={params.lessonId}
                                                                 title={block.title}
                                                                 instructions={block.instructions || ""}
                                                                 initialCode={block.initialCode || ""}
