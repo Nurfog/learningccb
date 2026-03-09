@@ -135,7 +135,7 @@
 - [x] **Evaluaciones por Audio**: Preguntas con respuesta oral para idiomas con feedback de IA detallado (Completado)
 - [x] **Eliminación de Cursos**: Gestión completa del ciclo de vida del contenido (Completado)
 - [x] **Quices con Contexto IA**: Generación de evaluaciones con enfoque y tipo personalizable (Completado)
-- [x] **Actividades Gamificadas**: Nuevos bloques de Juego de Memoria e Identificación Visual (Hotspots) (Completado)
+- [x] **Actividades Gamificadas**: Nuevos tipos de bloques interactivos incluyendo Juegos de Memoria (con generación automática por IA) y Puntos Calientes (Hotspots). (Completado)
 - [x] **Marcadores de Video**: Preguntas que pausan el video en timestamps específicos (Completado)
 
 ## Fase 12: Generador de Cursos "Mágico" con IA ✅
@@ -221,15 +221,15 @@
 ## Fase 19: Presentación Visual y Marketing de Cursos ✅
 - [x] **Metadatos de Marketing Estructurados**: Captura de objetivos, requisitos, público objetivo y certificación en Studio. (Completado)
 - [x] **Premium Course Summary**: Nueva interfaz de "Acerca del Curso" en Experience con diseño de alta fidelidad y navegación por pestañas. (Completado)
-- [x] **Dashboard Global de Tareas AI**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar todas las generaciones en segundo plano (videos, transcripciones, quices, etc). (Completado)
+- [x] **Dashboard Global de Tareas AI**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar todas las generaciones en segundo plano (transcripciones, quices, juegos de memoria, etc). (Completado)
 
 ---
 
 **Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos** y **Landing Pages de Cursos (Marketing) automatizadas**.
 
-## Fase 20: IA Generativa Avanzada (En Diseño) 🧠
-- [ ] **Generación de Juegos de Memoria Conceptuales**: Creación automática de parejas (concepto/definición) a partir de transcripciones.
-- [ ] **Simulaciones de Rol y Diálogos Ramificados**: Motor de escenarios interactivos con respuestas dinámicas de la IA.
+## Fase 20: IA Generativa Avanzada (En Ejecución) 🧠
+- [x] **Generación de Juegos de Memoria Conceptuales**: Creación automática de parejas (concepto/definición) a partir de transcripciones. (Completado)
+- [x] **Simulaciones de Rol y Diálogos Ramificados**: Motor de escenarios interactivos con respuestas dinámicas de la IA. (Completado)
 - [ ] **Auto-Hotspots Pedagógicos**: Identificación automática de puntos de interés en imágenes con descripciones técnicas.
 - [ ] **Diagramas de Mermaid Dinámicos**: Visualización automática de procesos y mapas mentales a partir del contenido de la lección.
 - [ ] **Laboratorios de Código con Hints de IA**: Generación de desafíos de programación con pistas contextuales basadas en errores.
@@ -239,6 +239,6 @@
 **Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos** y **Landing Pages de Cursos (Marketing) automatizadas**.
 
 **Próximas Prioridades**:
-1. **Conceptual Memory Match (IA)**: Implementar el primer generador de actividades interactivas.
+1. **Auto-Hotspots Pedagógicos**: Identificación automática de puntos de interés en imágenes.
 2. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.
 3. **Integraciones Empresariales**: Conectividad con HRIS y ERPs externos.

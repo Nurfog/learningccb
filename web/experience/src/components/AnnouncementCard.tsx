@@ -37,7 +37,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
             aria-labelledby={`ann-title-${announcement.id}`}
             className={`relative p-6 rounded-2xl border transition-all duration-300 ${announcement.is_pinned
                 ? 'bg-primary-500/10 border-primary-500/30'
-                : 'bg-white/5 border-white/10 hover:border-white/20'
+                : 'bg-white dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-slate-200 dark:hover:border-white/20'
                 }`}>
             {announcement.is_pinned && (
                 <div className="absolute top-4 right-4 text-primary-400">
@@ -55,8 +55,8 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
                         )}
                     </div>
                     <div>
-                        <h4 className="font-semibold text-white">{announcement.author_name}</h4>
-                        <p className="text-sm text-gray-400">
+                        <h4 className="font-semibold text-slate-900 dark:text-white">{announcement.author_name}</h4>
+                        <p className="text-sm text-slate-500 dark:text-gray-400">
                             {formatDistanceToNow(new Date(announcement.created_at), { addSuffix: true, locale: es })}
                         </p>
                     </div>
@@ -77,8 +77,8 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
                 )}
             </div>
 
-            <h3 id={`ann-title-${announcement.id}`} className="text-xl font-bold text-white mb-2">{announcement.title}</h3>
-            <div className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+            <h3 id={`ann-title-${announcement.id}`} className="text-xl font-bold text-slate-900 dark:text-white mb-2">{announcement.title}</h3>
+            <div className="text-slate-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                 {announcement.content}
             </div>
         </article>

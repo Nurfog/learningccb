@@ -44,8 +44,8 @@ export const AnnouncementsList: React.FC<AnnouncementsListProps> = ({ courseId, 
                         <Megaphone className="w-6 h-6" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-white">Anuncios del Curso</h2>
-                        <p className="text-gray-400 italic">Mantente al día con las últimas noticias</p>
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Anuncios del Curso</h2>
+                        <p className="text-slate-500 dark:text-gray-400 italic">Mantente al día con las últimas noticias</p>
                     </div>
                 </div>
 
@@ -57,7 +57,7 @@ export const AnnouncementsList: React.FC<AnnouncementsListProps> = ({ courseId, 
                             placeholder="Buscar anuncios..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-primary-500/50 transition-colors w-full sm:w-64"
+                            className="pl-10 pr-4 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-primary-500/50 transition-colors w-full sm:w-64"
                         />
                     </div>
                     {isInstructor && (
@@ -89,12 +89,12 @@ export const AnnouncementsList: React.FC<AnnouncementsListProps> = ({ courseId, 
                     ))}
                 </div>
             ) : (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
-                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Megaphone className="w-8 h-8 text-gray-500" />
+                <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-12 text-center">
+                    <div className="w-16 h-16 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Megaphone className="w-8 h-8 text-slate-400 dark:text-gray-500" />
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">No hay anuncios</h3>
-                    <p className="text-gray-400 max-w-md mx-auto">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No hay anuncios</h3>
+                    <p className="text-slate-500 dark:text-gray-400 max-w-md mx-auto">
                         {searchTerm
                             ? `No se encontraron anuncios que coincidan con "${searchTerm}"`
                             : "Aún no se han publicado anuncios en este curso."}

@@ -78,6 +78,7 @@ pub struct Lesson {
     pub important_date_type: Option<String>, // "exam", "assignment", "milestone", etc.
     pub transcription_status: Option<String>,
     pub is_previewable: bool,
+    pub content_blocks: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -93,6 +94,7 @@ impl Default for Lesson {
             summary: None,
             transcription: None,
             metadata: None,
+            content_blocks: None,
             grading_category_id: None,
             is_graded: false,
             max_attempts: None,

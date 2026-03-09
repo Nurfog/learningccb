@@ -2336,6 +2336,13 @@ pub struct ChatPayload {
     pub session_id: Option<Uuid>,
 }
 
+#[derive(Deserialize)]
+pub struct ChatRolePlayPayload {
+    pub message: String,
+    pub session_id: Option<Uuid>,
+    pub block_id: String,
+}
+
 #[derive(Serialize)]
 pub struct ChatResponse {
     pub response: String,
@@ -2599,6 +2606,178 @@ pub async fn chat_with_tutor(
     }))
 }
 
+pub async fn chat_role_play(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<ChatRolePlayPayload>,
+) -> Result<Json<ChatResponse>, (StatusCode, String)> {
+    tracing::info!("Chat Role Play: lesson_id={}, org_id={}, user_id={}, role={}", lesson_id, org_ctx.id, claims.sub, claims.role);
+    // 1. Fetch lesson with access check (matches get_lesson_content logic)
+    let is_preview = claims.token_type.as_deref() == Some("preview");
+    
+    let lesson = if is_preview {
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l 
+             JOIN modules m ON l.module_id = m.id 
+             WHERE l.id = $1 AND l.organization_id = $2",
+        )
+        .bind(lesson_id)
+        .bind(claims.org)
+        .fetch_optional(&pool)
+        .await
+    } else {
+        sqlx::query_as::<_, Lesson>(
+            "SELECT l.* FROM lessons l
+             JOIN modules m ON l.module_id = m.id
+             LEFT JOIN enrollments e ON m.course_id = e.course_id AND e.user_id = $2
+             WHERE l.id = $1 AND (e.id IS NOT NULL OR l.is_previewable = true OR $3 = 'admin')",
+        )
+        .bind(lesson_id)
+        .bind(claims.sub)
+        .bind(&claims.role)
+        .fetch_optional(&pool)
+        .await
+    }.map_err(|e| {
+        tracing::error!("chat_role_play: DB error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Error de base de datos".into())
+    })?
+    .ok_or((StatusCode::NOT_FOUND, "Lección no encontrada o acceso denegado".into()))?;
+
+    // 2. Find the specific role-playing block in metadata or content_blocks
+    let blocks = lesson.content_blocks
+        .or_else(|| lesson.metadata.as_ref().and_then(|m| m.get("blocks").cloned()))
+        .and_then(|b| b.as_array().cloned())
+        .ok_or((StatusCode::BAD_REQUEST, "No se encontraron bloques en la lección".into()))?;
+
+    let block = blocks.iter().find(|b| {
+        b.get("id").and_then(|id| id.as_str()) == Some(&payload.block_id)
+    }).ok_or((StatusCode::NOT_FOUND, "Bloque de simulación no encontrado".into()))?;
+
+    let scenario = block.get("scenario").and_then(|s| s.as_str()).unwrap_or("");
+    let ai_persona = block.get("ai_persona").and_then(|s| s.as_str()).unwrap_or("");
+    let user_role = block.get("user_role").and_then(|s| s.as_str()).unwrap_or("");
+    let objectives = block.get("objectives").and_then(|s| s.as_str()).unwrap_or("");
+
+    // Try to parse block_id as Uuid for DB storage, if it's not a Uuid (legacy), we store None
+    let block_uuid = Uuid::parse_str(&payload.block_id).ok();
+
+    // 3. Handle Session
+    let session_id = if let Some(sid) = payload.session_id {
+        sid
+    } else {
+        let row = sqlx::query(
+            "INSERT INTO chat_sessions (organization_id, user_id, lesson_id, block_id, title) VALUES ($1, $2, $3, $4, $5) RETURNING id"
+        )
+        .bind(org_ctx.id)
+        .bind(claims.sub)
+        .bind(Some(lesson_id))
+        .bind(block_uuid)
+        .bind(format!("Simulación: {}", block.get("title").and_then(|t| t.as_str()).unwrap_or("Rol")))
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create role-play session: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Error al crear la sesión de simulación".into())
+        })?;
+
+        use sqlx::Row;
+        row.get::<Uuid, _>(0)
+    };
+
+    // 4. Save user message
+    sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
+        .bind(session_id)
+        .bind("user")
+        .bind(&payload.message)
+        .execute(&pool)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Error al guardar el mensaje del usuario".into()))?;
+
+    // 5. Fetch history (last 10 messages for context)
+    let history_rows = sqlx::query(
+        "SELECT role, content FROM chat_messages WHERE session_id = $1 ORDER BY created_at DESC LIMIT 10"
+    )
+    .bind(session_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let mut conversation_history = String::new();
+    for row in history_rows.into_iter().rev() {
+        use sqlx::Row;
+        let role: String = row.get("role");
+        let content: String = row.get("content");
+        conversation_history.push_str(&format!("{}: {}\n", role.to_uppercase(), content));
+    }
+
+    // 6. AI Request
+    let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+    } else {
+        ("https://api.openai.com/v1/chat/completions".to_string(), 
+         format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()), 
+         "gpt-4-turbo".to_string())
+    };
+
+    let system_prompt = format!(
+        "Eres un motor de simulación de rol educativo para OpenCCB.\n\n\
+        ESCENARIO: {0}\n\
+        TU PERSONAJE (IA): {1}\n\
+        ROL DEL ESTUDIANTE: {2}\n\
+        OBJETIVOS PEDAGÓGICOS: {3}\n\n\
+        INSTRUCCIONES:\n\
+        1. Mantente ESTRICTAMENTE en tu personaje.\n\
+        2. No rompas la simulación a menos que sea absolutamente necesario para guiar al estudiante.\n\
+        3. Si el estudiante se desvía de los objetivos, intenta redirigirlo sutilmente dentro del personaje.\n\
+        4. Tus respuestas deben ser naturales, dinámicas y fomentar la participación del estudiante.\n\
+        5. Al final, si el estudiante logra los objetivos, felicítalo dentro del personaje.\n\
+        6. Responde en el mismo idioma de los mensajes del estudiante.\n\n\
+        HISTORIAL DE LA SIMULACIÓN:\n{4}",
+        scenario, ai_persona, user_role, objectives, conversation_history
+    );
+
+    let response = client.post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", auth_header)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": payload.message }
+            ],
+            "temperature": 0.8
+        }))
+        .send().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error en la solicitud de IA: {}", e)))?;
+
+    if !response.status().is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Error de la API de IA: {}", err_body)));
+    }
+
+    let ai_data: serde_json::Value = response.json().await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Error al analizar la respuesta de la IA".into()))?;
+    let ai_response = ai_data["choices"][0]["message"]["content"].as_str().unwrap_or("Lo siento, tuve un problema procesando la simulación.").to_string();
+
+    // 7. Save assistant response
+    let _ = sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
+        .bind(session_id)
+        .bind("assistant")
+        .bind(&ai_response)
+        .execute(&pool).await;
+
+    Ok(Json(ChatResponse {
+        response: ai_response,
+        session_id,
+    }))
+}
+
 pub async fn get_lesson_feedback(
     Org(org_ctx): Org,
     claims: Claims,
@@ -2798,12 +2977,18 @@ fn extract_block_content(metadata: &Option<serde_json::Value>) -> String {
                         }
                     }
                     "ordering" => {
-                        if let Some(items) = block.get("items").and_then(|i| i.as_array()) {
+                        if let Some(items) = block.get("items").and_then(|it| it.as_array()) {
                             for (i, item) in items.iter().enumerate() {
-                                let text = item.as_str().unwrap_or("");
-                                block_content.push_str(&format!("Item {}: {}\n", i + 1, text));
+                                if let Some(text) = item.as_str() {
+                                    block_content.push_str(&format!("{}. {}\n", i + 1, text));
+                                }
                             }
                         }
+                    }
+                    "role-playing" => {
+                        let scenario = block.get("scenario").and_then(|s| s.as_str()).unwrap_or("");
+                        let ai_persona = block.get("ai_persona").and_then(|s| s.as_str()).unwrap_or("");
+                        block_content.push_str(&format!("Escenario: {}\nIA Persona: {}\n", scenario, ai_persona));
                     }
                     "short-answer" | "audio-response" => {
                         if let Some(prompt) = block.get("prompt").and_then(|p| p.as_str()) {

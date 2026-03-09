@@ -17,7 +17,9 @@ use common::models::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::PgPool;
+use base64::{engine::general_purpose, Engine as _};
 use std::env;
+use reqwest::header::HeaderMap;
 use uuid::Uuid;
 
 use openidconnect::core::{CoreClient, CoreProviderMetadata, CoreResponseType};
@@ -1720,8 +1722,249 @@ pub async fn reorder_lessons(
     tx.commit()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     Ok(StatusCode::OK)
+}
+
+#[derive(Deserialize)]
+pub struct GenerateHotspotsPayload {
+    pub image_url: String,
+    pub prompt_hint: Option<String>,
+}
+
+pub async fn generate_hotspots(
+    Org(org_ctx): Org,
+    _claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<GenerateHotspotsPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // 1. Resolve image path
+    // imageUrl in frontend is like "/assets/filename.ext"
+    // We need to map it to "uploads/filename.ext"
+    let filename = payload.image_url.split('/').last().unwrap_or_default();
+    if filename.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let storage_path = format!("uploads/{}", filename);
+
+    // 2. Read and encode image
+    let image_data = tokio::fs::read(&storage_path).await.map_err(|e| {
+        tracing::error!("Failed to read image at {}: {}", storage_path, e);
+        StatusCode::NOT_FOUND
+    })?;
+
+    let base64_image = general_purpose::STANDARD.encode(image_data);
+    let mime_type = mime_guess::from_path(&storage_path).first_or_octet_stream().to_string();
+    let image_url_data = format!("data:{};base64,{}", mime_type, base64_image);
+
+    // 3. Fetch lesson context (optional but helpful for AI)
+    let lesson = sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
+        .bind(lesson_id)
+        .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // 4. Setup AI Request
+    let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llava:latest".to_string()); // Default to llava for vision
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+    } else {
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()),
+            "gpt-4o".to_string(),
+        )
+    };
+
+    let system_prompt = "Eres un experto en análisis visual pedagógico. \
+        Tu tarea es identificar los puntos de interés más importantes en la imagen proporcionada \
+        que sean relevantes para una lección educativa. \
+        \
+        Para cada punto identificado, proporciona: \
+        - Un nombre o etiqueta corta (label). \
+        - Una descripción técnica o pedagógica de lo que es o su función. \
+        - Coordenadas X e Y en porcentaje (0-100) respecto a la imagen. (x: 0 es izquierda, 100 es derecha; y: 0 es arriba, 100 es abajo). \
+        \
+        RESPONDE ÚNICAMENTE CON UN ARRAY JSON DE OBJETOS CON EL SIGUIENTE FORMATO: \
+        [ \
+          { \"label\": \"Nombre\", \"description\": \"Descripción\", \"x\": 50.5, \"y\": 20.0 } \
+        ]";
+
+    let user_prompt = format!(
+        "Analiza esta imagen para la lección: {0}. {1}",
+        lesson.title,
+        payload.prompt_hint.as_deref().unwrap_or("Identifica los componentes técnicos o partes clave de la imagen.")
+    );
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "application/json".parse().unwrap());
+    if !auth_header.is_empty() {
+        headers.insert("Authorization", auth_header.parse().unwrap());
+    }
+
+    let response = client.post(&url)
+        .headers(headers)
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": format!("{}\n\n{}", system_prompt, user_prompt) },
+                        { "type": "image_url", "image_url": { "url": image_url_data } }
+                    ]
+                }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.2
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("AI request failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let ai_text = response.text().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let ai_json: serde_json::Value = serde_json::from_str(&ai_text).map_err(|e| {
+        tracing::error!("Failed to parse AI response: {}. Text: {}", e, ai_text);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // OpenAI and some local servers return { "choices": [ { "message": { "content": "..." } } ] }
+    let content = ai_json["choices"][0]["message"]["content"].as_str()
+        .ok_or_else(|| {
+            tracing::error!("Unexpected AI response format: {:?}", ai_json);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Attempt to parse the content as JSON (it should be an array)
+    let hotspots: serde_json::Value = if let Ok(parsed) = serde_json::from_str(content) {
+        parsed
+    } else {
+        // Fallback: try to find the array in the text if AI wrapped it in markdown or something
+        if let Some(start) = content.find('[') {
+            if let Some(end) = content.rfind(']') {
+                serde_json::from_str(&content[start..=end]).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            } else {
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        } else {
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    Ok(Json(hotspots))
+}
+
+#[derive(Deserialize)]
+pub struct GenerateRolePlayPayload {
+    pub prompt_hint: Option<String>,
+}
+
+pub async fn generate_role_play(
+    Org(org_ctx): Org,
+    _claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(lesson_id): Path<Uuid>,
+    Json(payload): Json<GenerateRolePlayPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // 1. Fetch lesson context
+    let lesson = sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
+        .bind(lesson_id)
+        .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let content_text = lesson.summary.as_ref()
+        .filter(|s| !s.is_empty())
+        .cloned()
+        .unwrap_or_else(|| format!("Lesson: {}", lesson.title));
+
+    // 2. Setup AI Request
+    let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+    let client = reqwest::Client::new();
+
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+    } else {
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()),
+            "gpt-4o".to_string(),
+        )
+    };
+
+    let system_prompt = "Eres un experto diseñador de instrucciones y pedagogía. \
+        Tu tarea es crear un escenario de juego de rol interactivo basado en el contenido de la lección proporcionada. \
+        El escenario debe permitir al estudiante practicar conceptos clave en un entorno realista. \
+        \
+        RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO CON EL SIGUIENTE FORMATTO: \
+        { \
+          \"title\": \"Título de la simulación\", \
+          \"scenario\": \"Descripción detallada del entorno y la situación\", \
+          \"ai_persona\": \"Quién es la IA y qué actitud debe tener\", \
+          \"user_role\": \"Quién es el estudiante en esta situación\", \
+          \"objectives\": \"Qué debe lograr el estudiante\", \
+          \"initial_message\": \"El primer mensaje que la IA enviará para iniciar la conversación\" \
+        } \
+        \
+        Asegúrate de que el escenario sea desafiante pero apropiado para el nivel del estudiante.";
+
+    let user_prompt = format!(
+        "Contenido de la lección: {0}\n\nSugerencia del usuario: {1}",
+        content_text,
+        payload.prompt_hint.as_deref().unwrap_or("Crea un escenario relevante para practicar los temas de la lección.")
+    );
+
+    let response = client.post(&url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", auth_header)
+        .json(&json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": user_prompt }
+            ],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.7
+        }))
+        .send().await
+        .map_err(|e| {
+            tracing::error!("AI Role-Play generation request failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !response.status().is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        tracing::error!("AI API error: {}", err_body);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let ai_data: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse AI response: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let content = ai_data["choices"][0]["message"]["content"].as_str().ok_or_else(|| {
+        tracing::error!("AI response missing content field");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let parsed_json: serde_json::Value = serde_json::from_str(content).map_err(|e| {
+        tracing::error!("Failed to parse content as JSON: {}. Content: {}", e, content);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(parsed_json))
 }
 
 #[derive(Deserialize)]

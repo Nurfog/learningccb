@@ -26,7 +26,7 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
     - **AI Audio Evaluation**: Evaluación inteligente de pronunciación y contenido con feedback en lenguaje natural.
     - **Custom AI Quizzes**: Generación de quices con contexto pedagógico y tipo de pregunta personalizable (opción múltiple, V/F, etc.).
     - **Course Deletion**: Funcionalidad de eliminación de cursos con verificación de permisos y limpieza en cascada.
-    - **Gamified Activities**: Nuevos tipos de bloques interactivos para niños y jóvenes, incluyendo Juegos de Memoria y Puntos Calientes (Hotspots).
+    - **Gamified Activities**: Nuevos tipos de bloques interactivos incluyendo Juegos de Memoria (con generación automática por IA) y Puntos Calientes (Hotspots).
     - **Course Marketing & Summary**: Sistema de metadatos estructurados (objetivos, requisitos) y landing pages premium para una mejor presentación de cursos.
     - **Global AI Task Dashboard**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar tareas de IA en segundo plano (transcripciones, quices, etc).
 - **Dynamic API Resolution**: Resolución inteligente de endpoints que permite el acceso desde cualquier dispositivo en la red local (WiFi) sin configuración manual.

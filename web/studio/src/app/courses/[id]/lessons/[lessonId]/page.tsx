@@ -35,6 +35,7 @@ import VideoMarkerBlock from "@/components/blocks/VideoMarkerBlock";
 import AudioResponseBlock from "@/components/blocks/AudioResponseBlock";
 import HotspotBlock from "@/components/blocks/HotspotBlock";
 import MemoryBlock from "@/components/blocks/MemoryBlock";
+import RolePlayingBlock from "@/components/blocks/RolePlayingBlock";
 import PeerReviewBlock from "@/components/blocks/PeerReviewBlock";
 import SaveToLibraryModal from "@/components/modals/SaveToLibraryModal";
 import LibraryPanel from "@/components/LibraryPanel";
@@ -215,7 +216,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
 
     const addBlock = (type: Block['type']) => {
         const newBlock: Block = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: crypto.randomUUID(),
             type,
             ...(type === 'description' && { content: "" }),
             ...(type === 'media' && { url: "", media_type: 'video' as const, config: { maxPlays: 0 } }),
@@ -230,6 +231,14 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             ...(type === 'hotspot' && { imageUrl: "", description: "Find the following items...", hotspots: [] }),
             ...(type === 'memory-match' && { pairs: [{ id: "1", left: "Term A", right: "Match A" }] }),
             ...(type === 'peer-review' && { prompt: "Submit your work below.", reviewCriteria: "Evaluate based on clarity and completeness." }),
+            ...(type === 'role-playing' && {
+                title: "Simulación de Rol",
+                scenario: "Contexto de la simulación...",
+                ai_persona: "Personalidad de la IA...",
+                user_role: "Rol del estudiante...",
+                objectives: "Objetivos...",
+                initial_message: "Hola, ¿cómo puedo ayudarte?"
+            }),
         };
         setBlocks([...blocks, newBlock]);
     };
@@ -323,14 +332,27 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
         setIsAIQuizModalOpen(false);
         setIsGeneratingQuiz(true);
         try {
-            const newBlocks = await cmsApi.generateQuiz(lesson.id, {
-                context: aiQuizContext,
-                quiz_type: aiQuizType
-            });
-            setBlocks([...blocks, ...newBlocks]);
+            if (aiQuizType === 'role-playing') {
+                const data = await cmsApi.generateRolePlay(lesson.id, {
+                    prompt_hint: aiQuizContext
+                });
+                const newBlock: Block = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'role-playing',
+                    ...data
+                };
+                setBlocks([...blocks, newBlock]);
+            } else {
+                const newBlocks = await cmsApi.generateQuiz(lesson.id, {
+                    prompt_hint: aiQuizContext,
+                    quiz_type: aiQuizType
+                });
+                setBlocks([...blocks, ...newBlocks]);
+            }
             setAiQuizContext("");
-        } catch {
-            alert("Failed to generate quiz.");
+        } catch (err) {
+            console.error("AI Generation failed:", err);
+            alert("Failed to generate content.");
         } finally {
             setIsGeneratingQuiz(false);
         }
@@ -1041,6 +1063,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     hotspots={block.hotspots || []}
                                     editMode={editMode}
                                     courseId={params.id}
+                                    lessonId={params.lessonId}
                                     onChange={(updates) => updateBlock(block.id, updates)}
                                 />
                             )}
@@ -1061,6 +1084,13 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     reviewCriteria={block.reviewCriteria}
                                     editMode={editMode}
                                     onChange={(updates) => updateBlock(block.id, updates)}
+                                />
+                            )}
+                            {block.type === 'role-playing' && (
+                                <RolePlayingBlock
+                                    block={block}
+                                    lessonId={params.lessonId}
+                                    onUpdate={(updates) => updateBlock(block.id, updates)}
                                 />
                             )}
                         </div>
@@ -1102,9 +1132,10 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     { type: 'ordering', icon: '🔢', label: 'Sequence', color: 'blue' },
                                     { type: 'short-answer', icon: '💬', label: 'Open-Ended', color: 'indigo' },
                                     { type: 'hotspot', icon: '🔍', label: 'Hotspot', color: 'amber' },
-                                    { type: 'audio-response', icon: '🎤', label: 'Phonetic', color: 'purple' },
-                                    { type: 'memory-match', icon: '🧠', label: 'Cognitive', color: 'fuchsia' },
-                                    { type: 'peer-review', icon: '👥', label: 'Peer Review', color: 'rose' },
+                                    { type: 'audio-response', icon: '🎤', label: 'Oral Practice', color: 'blue' },
+                                    { type: 'memory-match', icon: '🧩', label: 'Logic Game', color: 'indigo' },
+                                    { type: 'role-playing', icon: '🎭', label: 'Persona Play', color: 'violet' },
+                                    { type: 'peer-review', icon: '👥', label: 'Peer Review', color: 'slate' },
                                 ].map((item) => (
                                     <button
                                         key={item.type}
@@ -1197,6 +1228,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                 <option value="vocabulary">Lexical Focus / Vocab</option>
                                 <option value="grammar">Structural / Grammar Focus</option>
                                 <option value="memory-match">Conceptual Memory Match</option>
+                                <option value="role-playing">AI Role-Playing Simulation</option>
                             </select>
                             <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                 <ChevronDown size={18} />

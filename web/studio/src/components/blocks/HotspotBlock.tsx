@@ -2,9 +2,9 @@
 
 import { useState, useRef } from "react";
 import Image from "next/image";
-import { Search, MapPin, Plus, Trash2, Image as ImageIcon, Crosshair } from "lucide-react";
+import { Search, MapPin, Plus, Trash2, Image as ImageIcon, Crosshair, Wand2, Loader2 } from "lucide-react";
 import AssetPickerModal from "../AssetPickerModal";
-import { Asset, getImageUrl } from "@/lib/api";
+import { Asset, getImageUrl, cmsApi } from "@/lib/api";
 
 interface Hotspot {
     id: string;
@@ -22,6 +22,7 @@ interface HotspotBlockProps {
     hotspots?: Hotspot[];
     editMode: boolean;
     courseId: string;
+    lessonId: string;
     onChange: (updates: { title?: string; description?: string; imageUrl?: string; hotspots?: Hotspot[] }) => void;
 }
 
@@ -33,10 +34,33 @@ export default function HotspotBlock({
     hotspots = [],
     editMode,
     courseId,
+    lessonId,
     onChange
 }: HotspotBlockProps) {
     const [isAssetPickerOpen, setIsAssetPickerOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    const handleGenerateAI = async () => {
+        if (!imageUrl) return;
+        setIsGenerating(true);
+        try {
+            const data = await cmsApi.generateHotspots(lessonId, { image_url: imageUrl });
+            const newHotspots = data.map(h => ({
+                id: crypto.randomUUID(),
+                x: h.x,
+                y: h.y,
+                radius: 5,
+                label: h.label
+            }));
+            onChange({ hotspots: [...hotspots, ...newHotspots] });
+        } catch (error) {
+            console.error("AI Hotspot Generation failed:", error);
+            alert("No se pudieron generar los puntos de interés con IA. Por favor, intenta de nuevo.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     const handleImageSelect = (asset: Asset) => {
         const url = asset.storage_path.replace('uploads/', '/assets/');
@@ -52,7 +76,7 @@ export default function HotspotBlock({
         const y = ((e.clientY - rect.top) / rect.height) * 100;
 
         const newHotspot: Hotspot = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: crypto.randomUUID(),
             x,
             y,
             radius: 5,
@@ -123,7 +147,19 @@ export default function HotspotBlock({
                             />
                         </div>
                         <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 pl-1">Tactical Instructions</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 pl-1">Tactical Instructions</label>
+                                {imageUrl && (
+                                    <button
+                                        onClick={handleGenerateAI}
+                                        disabled={isGenerating}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-amber-700 transition-all disabled:opacity-50 shadow-lg shadow-amber-500/20 active:scale-95"
+                                    >
+                                        {isGenerating ? <Loader2 className="animate-spin" size={12} /> : <Wand2 size={12} />}
+                                        {isGenerating ? "Analyzing..." : "Auto-Detect with AI"}
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={description || ""}

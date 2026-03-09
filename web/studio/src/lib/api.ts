@@ -68,7 +68,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'document' | 'video_marker' | 'audio-response' | 'memory-match' | 'hotspot' | 'peer-review' | 'role-playing';
     title?: string;
     content?: string;
     url?: string;
@@ -99,6 +99,12 @@ export interface Block {
     }[];
     imageUrl?: string;
     reviewCriteria?: string;
+    // Role-playing fields
+    scenario?: string;
+    ai_persona?: string;
+    user_role?: string;
+    objectives?: string;
+    initial_message?: string;
 }
 
 export interface Lesson {
@@ -110,6 +116,7 @@ export interface Lesson {
     metadata?: {
         blocks: Block[];
     };
+    content_blocks?: Block[];
     is_graded: boolean;
     grading_category_id: string | null;
     max_attempts: number | null;
@@ -641,7 +648,36 @@ export const cmsApi = {
     getLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}`),
     updateLesson: (id: string, payload: Partial<Lesson>): Promise<Lesson> => apiFetch(`/lessons/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     summarizeLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}/summarize`, { method: 'POST' }),
-    generateQuiz: (id: string, payload: { context?: string, quiz_type?: string }): Promise<Block[]> => apiFetch(`/lessons/${id}/generate-quiz`, { method: 'POST', body: JSON.stringify(payload) }),
+    async generateQuiz(lessonId: string, payload: { prompt_hint?: string, quiz_type?: string }): Promise<any> {
+        return apiFetch(`/lessons/${lessonId}/generate-quiz`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+    async generateRolePlay(lessonId: string, payload: { prompt_hint?: string }): Promise<{
+        title: string;
+        scenario: string;
+        ai_persona: string;
+        user_role: string;
+        objectives: string;
+        initial_message: string;
+    }> {
+        return apiFetch(`/lessons/${lessonId}/generate-role-play`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
+    async generateHotspots(lessonId: string, payload: { image_url: string, prompt_hint?: string }): Promise<{
+        label: string;
+        description: string;
+        x: number;
+        y: number;
+    }[]> {
+        return apiFetch(`/lessons/${lessonId}/generate-hotspots`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    },
     reviewText: (text: string): Promise<{ suggestion: string, comments: string }> => apiFetch('/api/ai/review-text', { method: 'POST', body: JSON.stringify({ text }) }),
     deleteModule: (id: string): Promise<void> => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
     deleteLesson: (id: string): Promise<void> => apiFetch(`/lessons/${id}`, { method: 'DELETE' }),

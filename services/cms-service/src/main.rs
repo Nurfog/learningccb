@@ -147,6 +147,8 @@ async fn main() {
         .route("/lessons/{id}/vtt", get(handlers::get_lesson_vtt))
         .route("/lessons/{id}/summarize", post(handlers::summarize_lesson))
         .route("/lessons/{id}/generate-quiz", post(handlers::generate_quiz))
+        .route("/lessons/{id}/generate-role-play", post(handlers::generate_role_play))
+        .route("/lessons/{id}/generate-hotspots", post(handlers::generate_hotspots))
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))

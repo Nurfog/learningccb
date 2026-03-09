@@ -84,7 +84,7 @@ export interface QuizQuestion {
 
 export interface Block {
     id: string;
-    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review';
+    type: 'description' | 'media' | 'quiz' | 'fill-in-the-blanks' | 'matching' | 'ordering' | 'short-answer' | 'code' | 'hotspot' | 'memory-match' | 'document' | 'audio-response' | 'video_marker' | 'peer-review' | 'role-playing';
     title: string;
     content?: string;
     url?: string;
@@ -111,6 +111,12 @@ export interface Block {
         radius: number;
         label: string;
     }[];
+    // Role-playing fields
+    scenario?: string;
+    ai_persona?: string;
+    user_role?: string;
+    objectives?: string;
+    initial_message?: string;
     metadata?: any;
 }
 
@@ -139,6 +145,7 @@ export interface Lesson {
     metadata?: {
         blocks: Block[];
     };
+    content_blocks?: Block[];
     is_graded: boolean;
     grading_category_id: string | null;
     max_attempts: number | null;
@@ -619,6 +626,12 @@ export const lmsApi = {
         return apiFetch(`/lessons/${lessonId}/chat`, {
             method: 'POST',
             body: JSON.stringify({ message, session_id: sessionId })
+        });
+    },
+    async chatRolePlay(lessonId: string, blockId: string, message: string, sessionId?: string): Promise<{ response: string, session_id: string }> {
+        return apiFetch(`/lessons/${lessonId}/chat-role-play`, {
+            method: 'POST',
+            body: JSON.stringify({ message, block_id: blockId, session_id: sessionId })
         });
     },
     async getLessonFeedback(lessonId: string): Promise<{ response: string, session_id: string }> {

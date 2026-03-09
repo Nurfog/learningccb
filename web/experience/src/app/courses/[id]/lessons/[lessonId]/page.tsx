@@ -18,6 +18,7 @@ import HotspotPlayer from "@/components/blocks/HotspotPlayer";
 import MemoryPlayer from "@/components/blocks/MemoryPlayer";
 import DocumentPlayer from "@/components/blocks/DocumentPlayer";
 import AudioResponsePlayer from "@/components/blocks/AudioResponsePlayer";
+import RolePlayingPlayer from "@/components/blocks/RolePlayingPlayer";
 import PeerReviewPlayer from "@/components/blocks/PeerReviewPlayer";
 import InteractiveTranscript from "@/components/InteractiveTranscript";
 import AITutor from "@/components/AITutor";
@@ -447,6 +448,19 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                 title={block.title}
                                                                 pairs={block.pairs || []}
                                                                 onComplete={(score) => handleBlockComplete(block.id, score)}
+                                                            />
+                                                        );
+                                                    case 'role-playing':
+                                                        return (
+                                                            <RolePlayingPlayer
+                                                                id={block.id}
+                                                                lessonId={params.lessonId}
+                                                                title={block.title}
+                                                                scenario={block.scenario}
+                                                                ai_persona={block.ai_persona}
+                                                                user_role={block.user_role}
+                                                                objectives={block.objectives}
+                                                                initial_message={block.initial_message}
                                                             />
                                                         );
                                                     case 'peer-review':
