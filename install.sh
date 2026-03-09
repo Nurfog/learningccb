@@ -173,7 +173,13 @@ if ! grep -q "DATABASE_URL=" .env || [[ $(grep "DATABASE_URL=" .env | cut -d'=' 
     update_env "LMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5432/openccb_lms?sslmode=disable"
     update_env "JWT_SECRET" "supersecretsecret"
     update_env "NEXT_PUBLIC_CMS_API_URL" "http://localhost:3001"
-    update_env "NEXT_PUBLIC_LMS_API_URL" "http://localhost:3002"
+    update_env "NEXT_PUBLIC_LMS_API_URL" "http://localhost:3003"
+    update_env "DEFAULT_ORG_NAME" "OpenCCB"
+    update_env "DEFAULT_PLATFORM_NAME" "OpenCCB Learning"
+    update_env "DEFAULT_LOGO_URL" ""
+    update_env "DEFAULT_FAVICON_URL" ""
+    update_env "DEFAULT_PRIMARY_COLOR" "#3B82F6"
+    update_env "DEFAULT_SECONDARY_COLOR" "#8B5CF6"
 fi
 
 # 5. Configuración de Pila de IA (Omitido - usando remoto)

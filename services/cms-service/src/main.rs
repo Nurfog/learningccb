@@ -39,6 +39,9 @@ async fn main() {
         .await
         .expect("Failed to run migrations");
 
+    // Sync default organization branding from environment
+    sync_default_organization(&pool).await;
+
     // Start AI Background Worker
     let worker_pool = pool.clone();
     tokio::spawn(async move {
@@ -306,3 +309,41 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, public_routes).await.unwrap();
 }
+
+async fn sync_default_organization(pool: &sqlx::PgPool) {
+    let org_id = sqlx::types::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+    
+    let name = env::var("DEFAULT_ORG_NAME").unwrap_or_else(|_| "OpenCCB".to_string());
+    let platform_name = env::var("DEFAULT_PLATFORM_NAME").ok().filter(|s| !s.is_empty());
+    let logo_url = env::var("DEFAULT_LOGO_URL").ok().filter(|s| !s.is_empty());
+    let favicon_url = env::var("DEFAULT_FAVICON_URL").ok().filter(|s| !s.is_empty());
+    let primary_color = env::var("DEFAULT_PRIMARY_COLOR").ok().filter(|s| !s.is_empty());
+    let secondary_color = env::var("DEFAULT_SECONDARY_COLOR").ok().filter(|s| !s.is_empty());
+
+    let result = sqlx::query(
+        "UPDATE organizations 
+         SET name = $1, 
+             platform_name = COALESCE($2, platform_name),
+             logo_url = COALESCE($3, logo_url),
+             favicon_url = COALESCE($4, favicon_url),
+             primary_color = COALESCE($5, primary_color),
+             secondary_color = COALESCE($6, secondary_color),
+             updated_at = NOW()
+         WHERE id = $7"
+    )
+    .bind(name)
+    .bind(platform_name)
+    .bind(logo_url)
+    .bind(favicon_url)
+    .bind(primary_color)
+    .bind(secondary_color)
+    .bind(org_id)
+    .execute(pool)
+    .await;
+
+    match result {
+        Ok(_) => tracing::info!("Default organization branding synced from .env"),
+        Err(e) => tracing::error!("Failed to sync default organization branding: {}", e),
+    }
+}
+

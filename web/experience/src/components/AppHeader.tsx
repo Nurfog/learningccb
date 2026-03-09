@@ -20,7 +20,7 @@ export default function AppHeader() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Use platform_name if available, otherwise name, otherwise default
-    const platformName = branding?.platform_name || branding?.name || 'OpenCCB';
+    const platformName = branding?.platform_name || branding?.name || 'Academia';
 
     return (
         <header className="h-16 glass sticky top-0 z-[100] px-4 md:px-6 flex items-center justify-between backdrop-blur-xl bg-gray-50/70 dark:bg-black/40 border-b border-black/5 dark:border-white/5">

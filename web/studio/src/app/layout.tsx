@@ -12,12 +12,11 @@ import { ThemeProvider } from "@/context/ThemeContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OpenCCB | Studio",
-  description: "Create and manage high-fidelity educational content.",
+  title: "Studio",
+  description: "Crea y gestiona contenido educativo de alta fidelidad.",
 };
 
 import { Navbar } from "@/components/Navbar";
-import BrandingManager from "@/components/BrandingManager";
 
 export default function RootLayout({
   children,
@@ -25,14 +24,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`${inter.className} min-h-screen flex flex-col transition-colors duration-300`}>
         <ThemeProvider>
           <AuthProvider>
             <I18nProvider>
               <BrandingProvider>
                 <AuthGuard>
-                  <BrandingManager />
                   <Navbar />
                   <main className="flex-1 mt-16 md:mt-20">{children}</main>
                 </AuthGuard>

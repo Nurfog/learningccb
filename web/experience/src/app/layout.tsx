@@ -11,8 +11,8 @@ import { ThemeProvider } from "@/context/ThemeContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OpenCCB | Experiencia de Aprendizaje",
-  description: "Consume contenido educativo de alta fidelidad con OpenCCB",
+  title: "Experiencia de Aprendizaje",
+  description: "Consume contenido educativo de alta fidelidad.",
 };
 
 import AppHeader from "@/components/AppHeader";
@@ -36,7 +36,7 @@ export default function RootLayout({
                   </main>
                   <footer className="py-12 px-6 border-t border-black/5 dark:border-white/5 text-center bg-gray-50 dark:bg-black/20">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-600">
-                      Desarrollado Por el Departamento de Informática © 2026. OpenCCB.
+                      © 2026. Todos los derechos reservados.
                     </p>
                   </footer>
                 </AuthGuard>

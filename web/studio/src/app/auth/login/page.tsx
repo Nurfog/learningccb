@@ -4,12 +4,17 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cmsApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import AsyncCombobox from "@/components/AsyncCombobox";
-import { BookOpen, Lock, Mail, User, Building2 } from "lucide-react";
+import { useBranding } from "@/context/BrandingContext";
+import { BookOpen, Lock, Mail, User } from "lucide-react";
+
+const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
 
 export default function StudioLoginPage() {
     const router = useRouter();
     const { login } = useAuth();
+    const { branding } = useBranding();
+
+    const platformName = branding?.platform_name || branding?.name || 'Academia';
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -18,7 +23,6 @@ export default function StudioLoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [ssoMode, setSSOMode] = useState(false);
-    const [orgIdForSSO, setOrgIdForSSO] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -65,7 +69,7 @@ export default function StudioLoginPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/30">
                         <BookOpen className="w-8 h-8 text-white" />
                     </div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">OpenCCB Studio</h1>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">{platformName} Studio</h1>
                     <p className="text-gray-500 dark:text-gray-400 font-medium">Instructor & Administrator Portal</p>
                 </div>
 
@@ -115,13 +119,12 @@ export default function StudioLoginPage() {
                                                 Organization Name (Optional)
                                             </label>
                                             <div className="relative">
-                                                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                                                 <input
                                                     type="text"
                                                     value={organizationName}
                                                     onChange={(e) => setOrganizationName(e.target.value)}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                                                    placeholder="Your School or Company"
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl py-3 px-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                                    placeholder="Tu Escuela o Empresa"
                                                     autoComplete="organization"
                                                 />
                                             </div>
@@ -169,25 +172,9 @@ export default function StudioLoginPage() {
                                 </div>
                             </>
                         ) : (
-                            <div className="z-50 relative">
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Organization ID
-                                </label>
-                                <div className="text-gray-900 dark:text-white">
-                                    <AsyncCombobox
-                                        id="orgIdForSSO"
-                                        value={orgIdForSSO}
-                                        onChange={setOrgIdForSSO}
-                                        onSearch={async (q) => {
-                                            const res = await cmsApi.searchOrganizations(q);
-                                            return res.map(o => ({ id: o.id, name: o.name }));
-                                        }}
-                                        placeholder="Search for your organization..."
-                                        leftIcon={<Building2 size={20} />}
-                                    />
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 pl-1">
-                                    Please search and select your organization to continue.
+                            <div className="z-50 relative py-8 text-center">
+                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                    Continue to sign in via your enterprise Single Sign-On provider.
                                 </p>
                             </div>
                         )}
@@ -204,11 +191,7 @@ export default function StudioLoginPage() {
                             onClick={(e) => {
                                 if (ssoMode) {
                                     e.preventDefault();
-                                    if (!orgIdForSSO) {
-                                        setError("Organization ID is required");
-                                        return;
-                                    }
-                                    cmsApi.initSSOLogin(orgIdForSSO);
+                                    cmsApi.initSSOLogin(DEFAULT_ORG_ID);
                                 }
                             }}
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
@@ -248,7 +231,7 @@ export default function StudioLoginPage() {
                 </div>
 
                 <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-6">
-                    OpenCCB Studio - Instructor & Administrator Portal
+                    {platformName} Studio - Portal de Instructores y Administradores
                 </p>
             </div>
         </div>

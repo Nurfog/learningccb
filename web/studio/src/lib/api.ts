@@ -594,9 +594,10 @@ const apiFetch = (url: string, options: RequestInit = {}, isLms: boolean = false
     const token = getToken();
     const selectedOrgId = getSelectedOrgId();
     const baseUrl = isLms ? LMS_API_BASE_URL : API_BASE_URL;
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
+    const isFormData = options.body instanceof FormData;
+    const headers: Record<string, string> = {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...Object.fromEntries(Object.entries(options.headers || {}).map(([k, v]) => [k, String(v)])),
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...(selectedOrgId ? { 'X-Organization-Id': selectedOrgId } : {})
     };

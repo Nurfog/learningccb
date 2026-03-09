@@ -4,11 +4,15 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { lmsApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useBranding } from "@/context/BrandingContext";
 import { GraduationCap, Lock, Mail, User, ChevronLeft } from "lucide-react";
 
 export default function ExperienceLoginPage() {
     const router = useRouter();
     const { login } = useAuth();
+    const { branding } = useBranding();
+
+    const platformName = branding?.platform_name || branding?.name || 'Academia';
 
     // State
     const [isLogin, setIsLogin] = useState(true);
@@ -58,7 +62,7 @@ export default function ExperienceLoginPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-600/30">
                         <GraduationCap className="w-8 h-8 text-white" />
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">Experiencia OpenCCB</h1>
+                    <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">Experiencia {platformName}</h1>
                     <p className="text-indigo-600 dark:text-indigo-200/60 font-medium">Portal de Aprendizaje para Estudiantes</p>
                 </div>
 
