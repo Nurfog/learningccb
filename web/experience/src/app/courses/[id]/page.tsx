@@ -21,6 +21,7 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
     const [lessonDependencies, setLessonDependencies] = useState<any[]>([]);
     const [instructors, setInstructors] = useState<any[]>([]);
     const [meetings, setMeetings] = useState<Meeting[]>([]);
+    const [activeTab, setActiveTab] = useState<'outline' | 'about'>('outline');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -145,7 +146,6 @@ export default function CourseOutlinePage({ params }: { params: { id: string } }
         return <CheckCircle2 size={18} className="text-black/20 dark:text-white/40" />;
     };
 
-    const [activeTab, setActiveTab] = useState<'outline' | 'about'>('outline');
 
     return (
         <div className="max-w-4xl mx-auto px-6 py-20 pb-40">

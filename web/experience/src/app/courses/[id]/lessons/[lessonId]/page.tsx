@@ -24,7 +24,7 @@ import AITutor from "@/components/AITutor";
 import LessonLockedView from "@/components/LessonLockedView";
 import StudentNotes from "@/components/StudentNotes";
 import { ListMusic, StickyNote } from "lucide-react";
-
+import ReactMarkdown from "react-markdown";
 export default function LessonPlayerPage({ params }: { params: { id: string, lessonId: string } }) {
     const [lesson, setLesson] = useState<Lesson | null>(null);
     const [course, setCourse] = useState<(Course & { modules: Module[] }) | null>(null);
@@ -280,12 +280,22 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
 
                             {lesson.summary && (
                                 <div className="p-8 rounded-3xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 animate-in fade-in slide-in-from-top-4 duration-1000">
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 mb-4 flex items-center gap-2">
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400 mb-4 flex items-center gap-2">
                                         <span className="text-base">✨</span> Resumen
                                     </h3>
-                                    <p className="text-lg text-gray-300 leading-relaxed font-medium italic">
-                                        &quot;{lesson.summary}&quot;
-                                    </p>
+                                    <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                        <ReactMarkdown
+                                            components={{
+                                                p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+                                                strong: ({ node, ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+                                                em: ({ node, ...props }) => <em className="italic text-slate-800 dark:text-slate-200" {...props} />,
+                                                ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                                                li: ({ node, ...props }) => <li {...props} />
+                                            }}
+                                        >
+                                            {lesson.summary}
+                                        </ReactMarkdown>
+                                    </div>
                                 </div>
                             )}
 

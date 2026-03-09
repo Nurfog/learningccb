@@ -27,9 +27,8 @@ El proyecto ha sido optimizado para reducir la complejidad de la infraestructura
     - **Custom AI Quizzes**: Generación de quices con contexto pedagógico y tipo de pregunta personalizable (opción múltiple, V/F, etc.).
     - **Course Deletion**: Funcionalidad de eliminación de cursos con verificación de permisos y limpieza en cascada.
     - **Gamified Activities**: Nuevos tipos de bloques interactivos para niños y jóvenes, incluyendo Juegos de Memoria y Puntos Calientes (Hotspots).
-    - **AI Image Generation**: Generación automática de contenido visual a partir de guiones de lecciones o prompts personalizados, con soporte para resoluciones personalizadas (HD/4K) y gestión de portadas de curso de alta calidad.
     - **Course Marketing & Summary**: Sistema de metadatos estructurados (objetivos, requisitos) y landing pages premium para una mejor presentación de cursos.
-    - **Global AI Task Dashboard**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar tareas de IA en segundo plano (transcripciones, imágenes, etc).
+    - **Global AI Task Dashboard**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar tareas de IA en segundo plano (transcripciones, quices, etc).
 - **Dynamic API Resolution**: Resolución inteligente de endpoints que permite el acceso desde cualquier dispositivo en la red local (WiFi) sin configuración manual.
 - **Responsive UI/UX**: Interfaces optimizadas para dispositivos móviles con menús adaptativos y escalado fluido de componentes.
 - **AI Teaching Assistant (RAG)**: Tutor inteligente dentro de cada lección que ayuda a los estudiantes utilizando el contexto de la lección actual y el historial del curso.
@@ -80,7 +79,6 @@ OpenCCB es altamente escalable. A continuación se detallan los requisitos recom
 - **IA Local**:
   - **Faster-Whisper**: Transcripción de audio a texto.
   - **Ollama**: Traducción inteligente (EN -> ES), resúmenes y generación de cuestionarios.
-  - **Stable Diffusion**: Motor de generación de imágenes optimizado para CPU.
 - **i18n Infrastructure**: Sistema de traducción reactivo para soporte global.
 - **Document Management**: Motor de previsualización de documentos PDF nativo.
 
@@ -646,8 +644,7 @@ Obtiene una lista de todas las organizaciones registradas.
 - **Course Teams UI**: Panel de gestión para añadir y configurar roles de instructores secundarios y asistentes.
 - **Course Preview Badges**: Indicadores visuales y lógica de acceso para lecciones accesibles sin suscripción.
 - **Global Asset Manager**: Interfaz avanzada para la administración masiva de archivos con previsualización inteligente y filtros por curso o tipo.
-- **Premium Course Summaries**: Presentación de cursos con diseño de alta fidelidad, integración de imágenes generadas por IA y desgloses de objetivos de aprendizaje.
-- **AI Image Resolution Selector**: Control granular sobre las dimensiones de salida para activos visuales generados por IA (720p, 1080p, 4K).
+- **Premium Course Summaries**: Presentación de cursos con diseño de alta fidelidad y desgloses de objetivos de aprendizaje.
 
 ## �️ Próximos Pasos (Roadmap 2024-2025)
 

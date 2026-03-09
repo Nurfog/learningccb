@@ -646,8 +646,6 @@ export const cmsApi = {
     updateLesson: (id: string, payload: Partial<Lesson>): Promise<Lesson> => apiFetch(`/lessons/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     summarizeLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}/summarize`, { method: 'POST' }),
     generateQuiz: (id: string, payload: { context?: string, quiz_type?: string }): Promise<Block[]> => apiFetch(`/lessons/${id}/generate-quiz`, { method: 'POST', body: JSON.stringify(payload) }),
-    generateImage: (id: string, payload: { prompt?: string, width?: number, height?: number } = {}): Promise<Lesson> => apiFetch(`/lessons/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
-    generateCourseImage: (id: string, payload: { prompt?: string, width?: number, height?: number } = {}): Promise<Course> => apiFetch(`/courses/${id}/generate-image`, { method: 'POST', body: JSON.stringify(payload) }),
     reviewText: (text: string): Promise<{ suggestion: string, comments: string }> => apiFetch('/api/ai/review-text', { method: 'POST', body: JSON.stringify({ text }) }),
     deleteModule: (id: string): Promise<void> => apiFetch(`/modules/${id}`, { method: 'DELETE' }),
     deleteLesson: (id: string): Promise<void> => apiFetch(`/lessons/${id}`, { method: 'DELETE' }),

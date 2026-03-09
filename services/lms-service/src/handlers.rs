@@ -2043,13 +2043,36 @@ pub async fn get_recommendations(
             "response_format": { "type": "json_object" }
         }))
         .send()
-        .await
-        .map_err(|e: reqwest::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .await;
 
-    let ai_response: RecommendationResponse = response
-        .json()
-        .await
-        .map_err(|e: reqwest::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let ai_response: RecommendationResponse = match response {
+        Ok(res) if res.status().is_success() => {
+            res.json().await.unwrap_or_else(|_| RecommendationResponse {
+                recommendations: vec![
+                    common::models::Recommendation {
+                        title: "Continúa practicando".to_string(),
+                        description: "Sigue revisando las lecciones anteriores para consolidar tu conocimiento.".to_string(),
+                        lesson_id: None,
+                        priority: "medium".to_string(),
+                        reason: "El servidor de IA no pudo generar recomendaciones personalizadas en este momento.".to_string(),
+                    }
+                ]
+            })
+        },
+        _ => {
+            RecommendationResponse {
+                recommendations: vec![
+                    common::models::Recommendation {
+                        title: "Repaso General".to_string(),
+                        description: "Te recomendamos revisar los temas donde has tenido menor puntaje recientemente.".to_string(),
+                        lesson_id: None,
+                        priority: "high".to_string(),
+                        reason: "Servidor de IA temporalmente fuera de servicio. Mostrando recomendación genérica.".to_string(),
+                    }
+                ]
+            }
+        }
+    };
 
     Ok(Json(ai_response))
 }

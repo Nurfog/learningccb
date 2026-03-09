@@ -1,17 +1,45 @@
-target
-**/target
-node_modules
-**/node_modules
-.next
-**/.next
-.git
-**/.git
+# Build Artifacts
+target/
+**/target/
+node_modules/
+**/node_modules/
+.next/
+**/ .next/
+dist/
+**/dist/
+
+# Virtual Environments
+venv/
+**/venv/
+.venv/
+**/.venv/
+env/
+**/env/
+__pycache__/
+**/__pycache__/
+
+# Environments and Secrets
 .env
 **/.env
-**/.env.local
-**/.env.example
-*.log
-e2e
-docs
-artifacts
-.gemini
+.env.local
+.env.*.local
+
+# Git and OS
+.git/
+.gitignore
+.dockerignore
+**/.DS_Store
+Thumbs.db
+
+# Storage and Data
+uploads/
+**/uploads/
+storage/
+volumes/
+postgres_data/
+
+# Huge binary files/libraries
+*.so
+*.dll
+*.dylib
+*.exe

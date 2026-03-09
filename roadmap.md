@@ -219,15 +219,13 @@
   - [x] Visualización de progreso y nivel de XP.
 
 ## Fase 19: Presentación Visual y Marketing de Cursos ✅
-- [x] **Generación de Imágenes de Alta Resolución**: Soporte para dimensiones personalizadas (HD/4K) para lecciones y cursos via AI Bridge. (Completado)
 - [x] **Metadatos de Marketing Estructurados**: Captura de objetivos, requisitos, público objetivo y certificación en Studio. (Completado)
 - [x] **Premium Course Summary**: Nueva interfaz de "Acerca del Curso" en Experience con diseño de alta fidelidad y navegación por pestañas. (Completado)
-- [x] **Gestión de Portadas de Curso**: Integración de imágenes generadas por IA como activos principales del curso con previsualización dinámica. (Completado)
-- [x] **Dashboard Global de Tareas AI**: Panel centralizado para monitorizar, reintentar y cancelar todas las generaciones en segundo plano (imágenes, videos, transcripciones). (Completado)
+- [x] **Dashboard Global de Tareas AI**: Panel unificado de control en consola administrativa para monitorear, reintentar y cancelar todas las generaciones en segundo plano (videos, transcripciones, quices, etc). (Completado)
 
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos**, **Generación de Imágenes HD/4K** y **Landing Pages de Cursos (Marketing) automatizadas**.
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos** y **Landing Pages de Cursos (Marketing) automatizadas**.
 
 **Próximas Prioridades**:
 1. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.
