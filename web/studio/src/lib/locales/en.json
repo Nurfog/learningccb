@@ -16,6 +16,8 @@
         "courses": "Courses",
         "globalControl": "Global Control",
         "webhooks": "Webhooks",
+        "library": "Library",
+        "settings": "Settings",
         "profile": "Profile",
         "signOut": "Sign Out"
     },
