@@ -19,11 +19,17 @@ use axum::{
     routing::{delete, get, post, put},
     response::Html,
 };
+use common::health::{self, HealthState};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use utoipa::OpenApi;
 
 #[tokio::main]
@@ -33,10 +39,15 @@ async fn main() {
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
+        .min_connections(2)
+        .acquire_timeout(Duration::from_secs(30))
         .connect(&db_url)
         .await
         .expect("Failed to connect to database");
+
+    // Initialize health state
+    let health_state = HealthState::default();
 
     let mysql_pool = external_db::init_mysql_pool().await;
 
@@ -59,6 +70,15 @@ async fn main() {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+
+    // Rate limiting configuration
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)
+            .burst_size(50)
+            .finish()
+            .unwrap(),
+    );
 
     let protected_routes = Router::new()
         .route("/auth/me", get(handlers::get_me))
@@ -250,6 +270,8 @@ async fn main() {
 </html>
             "#)
         }))
+        // Health check routes
+        .merge(health::health_routes(pool.clone()).with_state(health_state))
         .route("/catalog", get(handlers::get_course_catalog))
         .route("/ingest", post(handlers::ingest_course))
         .route("/auth/register", post(handlers::register))
@@ -263,12 +285,36 @@ async fn main() {
         .route("/lti/jwks", get(jwks::lti_jwks_handler))
         .route("/lti/deep-linking/response", post(lti::lti_deep_linking_response))
         .merge(protected_routes)
+        // Security headers
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::STRICT_TRANSPORT_SECURITY,
+            http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_CONTENT_TYPE_OPTIONS,
+            http::HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_FRAME_OPTIONS,
+            http::HeaderValue::from_static("SAMEORIGIN"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_XSS_PROTECTION,
+            http::HeaderValue::from_static("1; mode=block"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::REFERRER_POLICY,
+            http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
         .layer(cors)
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
         .with_state(pool)
         .layer(axum::Extension(mysql_pool));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3002));
-    tracing::info!("LMS Service listening on {}", addr);
+    tracing::info!("LMS Service listening on {} with rate limiting and security headers", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, public_routes).await.unwrap();
 }

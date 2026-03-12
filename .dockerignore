@@ -1,45 +1,30 @@
-# Build Artifacts
+# Build artifacts
 target/
 **/target/
 node_modules/
 **/node_modules/
+
+# Frontend build outputs
 .next/
-**/ .next/
 dist/
-**/dist/
+build/
 
-# Virtual Environments
-venv/
-**/venv/
-.venv/
-**/.venv/
-env/
-**/env/
-__pycache__/
-**/__pycache__/
-
-# Environments and Secrets
+# Development files
 .env
-**/.env
 .env.local
-.env.*.local
+*.log
 
-# Git and OS
+# Git and IDE
 .git/
 .gitignore
-.dockerignore
-**/.DS_Store
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
 Thumbs.db
 
-# Storage and Data
-uploads/
-**/uploads/
-storage/
-volumes/
-postgres_data/
-
-# Huge binary files/libraries
-*.so
-*.dll
-*.dylib
-*.exe
+# Test results
+coverage/
+e2e/playwright-report/
+e2e/test-results/

@@ -15,12 +15,17 @@ use axum::{
     middleware,
     routing::{delete, get, post, put},
 };
+use common::health::{self, HealthState};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 #[tokio::main]
 async fn main() {
@@ -29,10 +34,15 @@ async fn main() {
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
+        .min_connections(2)
+        .acquire_timeout(Duration::from_secs(30))
         .connect(&db_url)
         .await
         .expect("Failed to connect to database");
+
+    // Initialize health state
+    let health_state = HealthState::default();
 
     sqlx::migrate!("./migrations")
         .run(&pool)
@@ -87,6 +97,15 @@ async fn main() {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+
+    // Rate limiting configuration
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)
+            .burst_size(50)
+            .finish()
+            .unwrap(),
+    );
 
     // Rutas protegidas que requieren autenticación y contexto de organización
     let protected_routes = Router::new()
@@ -299,13 +318,39 @@ async fn main() {
             "/branding",
             get(handlers_branding::get_organization_branding),
         )
+        // Health check routes
+        .merge(health::health_routes(pool.clone()).with_state(health_state))
         .nest_service("/assets", tower_http::services::ServeDir::new("uploads"))
         .merge(protected_routes)
+        // Security headers
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::STRICT_TRANSPORT_SECURITY,
+            http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_CONTENT_TYPE_OPTIONS,
+            http::HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_FRAME_OPTIONS,
+            http::HeaderValue::from_static("SAMEORIGIN"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::X_XSS_PROTECTION,
+            http::HeaderValue::from_static("1; mode=block"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            http::header::REFERRER_POLICY,
+            http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
         .layer(cors)
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
-    tracing::info!("CMS Service listening on {}", addr);
+    tracing::info!("CMS Service listening on {} with rate limiting and security headers", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, public_routes).await.unwrap();
 }

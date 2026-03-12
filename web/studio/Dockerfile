@@ -1,15 +1,20 @@
 # Build stage for Rust CMS
 FROM rustlang/rust:nightly AS rust-builder
 WORKDIR /usr/src/app
-# Copy only necessary files for Rust build to optimize cache
-COPY Cargo.toml Cargo.lock ./
-COPY services ./services
-COPY shared ./shared
+
+# Install system dependencies first
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy entire project for building (simpler and more reliable)
+COPY Cargo.toml Cargo.lock ./
+COPY shared/ ./shared/
+COPY services/ ./services/
+
+# Build the CMS service
 RUN cargo build --release -p cms-service
 
 # Build stage for Next.js Studio
-FROM node:18-alpine AS node-builder
+FROM node:20-alpine AS node-builder
 WORKDIR /app
 COPY web/studio/package*.json ./
 RUN npm ci
@@ -19,7 +24,7 @@ ENV NEXT_PUBLIC_CMS_API_URL=$NEXT_PUBLIC_CMS_API_URL
 RUN npm run build
 
 # Final stage
-FROM node:18-slim AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV production
 
