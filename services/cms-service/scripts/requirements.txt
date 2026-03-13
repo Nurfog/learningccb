@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-torch
-diffusers
-transformers
-accelerate
-pillow
-imageio-ffmpeg
-pydantic

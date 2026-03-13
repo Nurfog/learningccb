@@ -16,8 +16,16 @@ echo "🏗️ Recreando bases de datos..."
 docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_cms;"
 docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_lms;"
 
-echo "🚀 Reiniciando servicios y aplicando migraciones..."
+echo "🚀 Reiniciando servicios..."
 docker compose start studio experience
 
-echo "✅ Base de datos reseteada exitosamente."
-echo "Nota: Las migraciones se ejecutarán automáticamente al iniciar los servicios."
+echo "⏳ Esperando que los servicios estén listos..."
+sleep 5
+
+echo "🏗️ Ejecutando migraciones..."
+CMS_URL=$(grep "CMS_DATABASE_URL=" .env | cut -d'=' -f2-)
+LMS_URL=$(grep "LMS_DATABASE_URL=" .env | cut -d'=' -f2-)
+DATABASE_URL=$CMS_URL sqlx migrate run --source services/cms-service/migrations
+DATABASE_URL=$LMS_URL sqlx migrate run --source services/lms-service/migrations
+
+echo "✅ Base de datos reseteada y migraciones aplicadas exitosamente."

@@ -168,9 +168,9 @@ update_env "BRIDGE_DATABASE_URL" "$BRIDGE_DB_URL"
 if ! grep -q "DATABASE_URL=" .env || [[ $(grep "DATABASE_URL=" .env | cut -d'=' -f2) == "" ]]; then
     read -p "Ingrese la Contraseña de la Base de Datos [password]: " DB_PASS
     DB_PASS=${DB_PASS:-password}
-    update_env "DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5432/openccb?sslmode=disable"
-    update_env "CMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5432/openccb_cms?sslmode=disable"
-    update_env "LMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5432/openccb_lms?sslmode=disable"
+    update_env "DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb?sslmode=disable"
+    update_env "CMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb_cms?sslmode=disable"
+    update_env "LMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb_lms?sslmode=disable"
     update_env "JWT_SECRET" "supersecretsecret"
     update_env "NEXT_PUBLIC_CMS_API_URL" "http://localhost:3001"
     update_env "NEXT_PUBLIC_LMS_API_URL" "http://localhost:3003"
@@ -221,12 +221,14 @@ fi
 # Extra buffer for PostgreSQL initialization
 sleep 2
 
+echo "🏗️  Creando bases de datos CMS y LMS..."
+docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_cms;" || true
+docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_lms;" || true
+
 CMS_URL=$(grep "CMS_DATABASE_URL=" .env | cut -d'=' -f2-)
 LMS_URL=$(grep "LMS_DATABASE_URL=" .env | cut -d'=' -f2-)
 
-echo "🏗️  Creando bases de datos y ejecutando migraciones..."
-DATABASE_URL=$CMS_URL sqlx database create || true
-DATABASE_URL=$LMS_URL sqlx database create || true
+echo "🏗️  Ejecutando migraciones..."
 DATABASE_URL=$CMS_URL sqlx migrate run --source services/cms-service/migrations
 DATABASE_URL=$LMS_URL sqlx migrate run --source services/lms-service/migrations
 
