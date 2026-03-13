@@ -942,6 +942,8 @@ mod tests {
             due_date: None,
             important_date_type: None,
             transcription_status: None,
+            is_previewable: true,
+            content_blocks: None,
             created_at: Utc::now(),
         };
 
@@ -990,6 +992,7 @@ mod tests {
             grading_categories: vec![],
             modules: vec![pub_module],
             instructors: None,
+            dependencies: None,
         };
 
         let course_with_price = Course {
