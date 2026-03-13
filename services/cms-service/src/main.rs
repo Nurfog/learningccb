@@ -12,9 +12,7 @@ mod webhooks;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    http::{StatusCode, HeaderValue},
     middleware,
-    response::Response,
     routing::{delete, get, post, put},
 };
 use common::health::{self, HealthState};
@@ -28,25 +26,7 @@ use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
-
-/// Handler para requests OPTIONS (CORS preflight)
-async fn handle_options() -> Response {
-    let mut res = Response::new(String::new().into());
-    *res.status_mut() = StatusCode::NO_CONTENT;
-    res.headers_mut().insert(
-        "Access-Control-Allow-Origin",
-        HeaderValue::from_static("*"),
-    );
-    res.headers_mut().insert(
-        "Access-Control-Allow-Methods",
-        HeaderValue::from_static("GET, POST, PUT, DELETE, OPTIONS"),
-    );
-    res.headers_mut().insert(
-        "Access-Control-Allow-Headers",
-        HeaderValue::from_static("Content-Type, Authorization, Origin, Accept"),
-    );
-    res
-}
+use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() {
@@ -329,26 +309,23 @@ async fn main() {
         );
 
     // Rutas públicas que no requieren autenticación
-    let public_routes = Router::new()
-        .nest("/api/external", api_routes)
-        .route("/auth/register", post(handlers::register).options(handle_options))
-        .route("/auth/login", post(handlers::login).options(handle_options))
-        .route("/auth/sso/login/{org_id}", get(handlers::sso_login_init).options(handle_options))
-        .route("/auth/sso/callback", get(handlers::sso_callback).options(handle_options))
+    let auth_routes = Router::new()
+        .route("/auth/register", post(handlers::register))
+        .route("/auth/login", post(handlers::login))
+        .route("/auth/sso/login/{org_id}", get(handlers::sso_login_init))
+        .route("/auth/sso/callback", get(handlers::sso_callback))
         .route(
             "/branding",
-            get(handlers_branding::get_organization_branding).options(handle_options),
-        )
+            get(handlers_branding::get_organization_branding),
+        );
+
+    let public_routes = Router::new()
+        .nest("/api/external", api_routes)
         // Health check routes
         .merge(health::health_routes(pool.clone()).with_state(health_state))
         .nest_service("/assets", tower_http::services::ServeDir::new("uploads"))
+        .merge(auth_routes)
         .merge(protected_routes)
-        // CORS layer - debe estar PRIMERO (más cerca del servicio) para ejecutarse ULTIMO
-        .layer(cors)
-        // Rate limiting
-        .layer(GovernorLayer {
-            config: governor_conf,
-        })
         // Security headers
         .layer(SetResponseHeaderLayer::overriding(
             http::header::STRICT_TRANSPORT_SECURITY,
@@ -370,6 +347,10 @@ async fn main() {
             http::header::REFERRER_POLICY,
             http::HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
+        // CORS layer - MUST be last to execute first on response
+        .layer(cors)
+        // Trace layer for logging requests/responses
+        .layer(TraceLayer::new_for_http())
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));

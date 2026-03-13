@@ -2336,27 +2336,44 @@ pub async fn login(
     State(pool): State<PgPool>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<Json<AuthResponse>, (StatusCode, String)> {
+    tracing::info!("Login attempt for email: {}", payload.email);
+
     let user = sqlx::query_as::<_, User>("SELECT * FROM fn_get_user_by_email($1)")
         .bind(&payload.email)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid credentials".into()))?;
+        .map_err(|e| {
+            tracing::error!("Failed to fetch user: {}", e);
+            (StatusCode::UNAUTHORIZED, "Invalid credentials".into())
+        })?;
 
-    if !verify(payload.password, &user.password_hash).map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Verification failed".into(),
-        )
-    })? {
-        return Err((StatusCode::UNAUTHORIZED, "Credenciales inválidas".into()));
+    tracing::info!("User found: {}", user.email);
+
+    let verify_result = verify(payload.password, &user.password_hash);
+    match verify_result {
+        Ok(valid) => {
+            if !valid {
+                tracing::warn!("Invalid password for user: {}", user.email);
+                return Err((StatusCode::UNAUTHORIZED, "Credenciales inválidas".into()));
+            }
+        },
+        Err(e) => {
+            tracing::error!("Password verification failed: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Verification failed".into()));
+        }
     }
 
-    let token = create_jwt(user.id, user.organization_id, &user.role).map_err(|_| {
+    tracing::info!("Password verified for user: {}", user.email);
+
+    let token = create_jwt(user.id, user.organization_id, &user.role).map_err(|e| {
+        tracing::error!("JWT generation failed: {}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "JWT generation failed".into(),
         )
     })?;
+
+    tracing::info!("Login successful for user: {}", user.email);
 
     Ok(Json(AuthResponse {
         user: UserResponse {
