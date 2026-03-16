@@ -590,7 +590,11 @@ export interface CourseInstructor {
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('studio_token') : null;
 const getSelectedOrgId = () => typeof window !== 'undefined' ? localStorage.getItem('studio_selected_org_id') : null;
 
-const apiFetch = (url: string, options: RequestInit = {}, isLms: boolean = false) => {
+interface ApiFetchOptions extends RequestInit {
+    query?: Record<string, string | number | boolean | undefined | null>;
+}
+
+const apiFetch = (url: string, options: ApiFetchOptions = {}, isLms: boolean = false) => {
     const token = getToken();
     const selectedOrgId = getSelectedOrgId();
     const baseUrl = isLms ? LMS_API_BASE_URL : API_BASE_URL;
@@ -602,7 +606,23 @@ const apiFetch = (url: string, options: RequestInit = {}, isLms: boolean = false
         ...(selectedOrgId ? { 'X-Organization-Id': selectedOrgId } : {})
     };
 
-    return fetch(`${baseUrl}${url}`, { ...options, headers }).then(async res => {
+    // Build query string
+    const queryParams = options.query;
+    let finalUrl = `${baseUrl}${url}`;
+    if (queryParams) {
+        const searchParams = new URLSearchParams();
+        Object.entries(queryParams).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                searchParams.append(key, String(value));
+            }
+        });
+        const queryString = searchParams.toString();
+        if (queryString) {
+            finalUrl += `${url.includes('?') ? '&' : '?'}${queryString}`;
+        }
+    }
+
+    return fetch(finalUrl, { ...options, headers }).then(async res => {
         if (!res.ok) {
             const text = await res.text();
             try {
@@ -881,6 +901,28 @@ export const cmsApi = {
         apiFetch(`/lessons/${lessonId}/dependencies`, { method: 'POST', body: JSON.stringify(payload) }),
     removeDependency: (lessonId: string, prerequisiteId: string): Promise<void> =>
         apiFetch(`/lessons/${lessonId}/dependencies/${prerequisiteId}`, { method: 'DELETE' }),
+
+    // Test Templates
+    listTestTemplates: (filters?: TestTemplateFilters): Promise<TestTemplate[]> =>
+        apiFetch('/test-templates', { method: 'GET', query: filters as any }, false),
+    getTestTemplate: (templateId: string): Promise<TestTemplateWithQuestions> =>
+        apiFetch(`/test-templates/${templateId}`, {}, false),
+    createTestTemplate: (payload: CreateTestTemplatePayload): Promise<TestTemplate> =>
+        apiFetch('/test-templates', { method: 'POST', body: JSON.stringify(payload) }, false),
+    updateTestTemplate: (templateId: string, payload: UpdateTestTemplatePayload): Promise<TestTemplate> =>
+        apiFetch(`/test-templates/${templateId}`, { method: 'PUT', body: JSON.stringify(payload) }, false),
+    deleteTestTemplate: (templateId: string): Promise<void> =>
+        apiFetch(`/test-templates/${templateId}`, { method: 'DELETE' }, false),
+    createTemplateQuestion: (templateId: string, payload: CreateQuestionPayload): Promise<TestTemplateQuestion> =>
+        apiFetch(`/test-templates/${templateId}/questions`, { method: 'POST', body: JSON.stringify(payload) }, false),
+    deleteTemplateQuestion: (templateId: string, questionId: string): Promise<void> =>
+        apiFetch(`/test-templates/${templateId}/questions/${questionId}`, { method: 'DELETE' }, false),
+    createTemplateSection: (templateId: string, payload: CreateSectionPayload): Promise<TestTemplateSection> =>
+        apiFetch(`/test-templates/${templateId}/sections`, { method: 'POST', body: JSON.stringify(payload) }, false),
+    deleteTemplateSection: (templateId: string, sectionId: string): Promise<void> =>
+        apiFetch(`/test-templates/${templateId}/sections/${sectionId}`, { method: 'DELETE' }, false),
+    applyTemplateToLesson: (templateId: string, lessonId: string, gradingCategoryId?: string): Promise<void> =>
+        apiFetch(`/test-templates/${templateId}/apply`, { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, grading_category_id: gradingCategoryId }) }, false),
 };
 
 export const lmsApi = {
@@ -997,4 +1039,123 @@ export interface BackgroundTask {
     status: 'idle' | 'queued' | 'processing' | 'failed' | 'completed' | 'error';
     progress: number;
     updated_at: string;
+}
+
+// ==================== Test Templates ====================
+
+export type CourseLevel = 'beginner' | 'beginner_1' | 'beginner_2' | 'intermediate' | 'intermediate_1' | 'intermediate_2' | 'advanced' | 'advanced_1' | 'advanced_2';
+export type CourseType = 'intensive' | 'regular';
+export type TestType = 'CA' | 'MWT' | 'MOT' | 'FOT' | 'FWT';
+export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering';
+
+export interface TestTemplate {
+    id: string;
+    organization_id: string;
+    name: string;
+    description?: string;
+    level: CourseLevel;
+    course_type: CourseType;
+    test_type: TestType;
+    duration_minutes: number;
+    passing_score: number;
+    total_points: number;
+    instructions?: string;
+    template_data: any;
+    tags?: string[];
+    is_active: boolean;
+    usage_count: number;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TestTemplateSection {
+    id: string;
+    template_id: string;
+    title: string;
+    description?: string;
+    section_order: number;
+    points: number;
+    instructions?: string;
+    section_data?: any;
+    created_at: string;
+}
+
+export interface TestTemplateQuestion {
+    id: string;
+    template_id: string;
+    section_id?: string;
+    question_order: number;
+    question_type: QuestionType;
+    question_text: string;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+    points: number;
+    metadata?: any;
+    created_at: string;
+}
+
+export interface TestTemplateWithQuestions {
+    template: TestTemplate;
+    sections: TestTemplateSection[];
+    questions: TestTemplateQuestion[];
+}
+
+export interface CreateTestTemplatePayload {
+    name: string;
+    description?: string;
+    level: CourseLevel;
+    course_type: CourseType;
+    test_type: TestType;
+    duration_minutes: number;
+    passing_score: number;
+    total_points: number;
+    instructions?: string;
+    template_data: any;
+    tags?: string[];
+}
+
+export interface UpdateTestTemplatePayload {
+    name?: string;
+    description?: string;
+    level?: CourseLevel;
+    course_type?: CourseType;
+    test_type?: TestType;
+    duration_minutes?: number;
+    passing_score?: number;
+    total_points?: number;
+    instructions?: string;
+    template_data?: any;
+    tags?: string[];
+    is_active?: boolean;
+}
+
+export interface CreateQuestionPayload {
+    section_id?: string;
+    question_order: number;
+    question_type: string;
+    question_text: string;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+    points: number;
+    metadata?: any;
+}
+
+export interface CreateSectionPayload {
+    title: string;
+    description?: string;
+    section_order: number;
+    points: number;
+    instructions?: string;
+    section_data?: any;
+}
+
+export interface TestTemplateFilters {
+    level?: CourseLevel;
+    course_type?: CourseType;
+    test_type?: TestType;
+    tags?: string;
+    search?: string;
 }

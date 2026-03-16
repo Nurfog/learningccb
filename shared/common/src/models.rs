@@ -20,6 +20,8 @@ pub struct Course {
     pub currency: String,
     pub marketing_metadata: Option<serde_json::Value>,
     pub course_image_url: Option<String>,
+    pub level: Option<CourseLevel>,
+    pub course_type: Option<CourseType>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -41,6 +43,8 @@ impl Default for Course {
             currency: "USD".to_string(),
             marketing_metadata: None,
             course_image_url: None,
+            level: None,
+            course_type: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -975,6 +979,8 @@ mod tests {
                 currency: "USD".to_string(),
                 marketing_metadata: None,
                 course_image_url: None,
+                level: None,
+                course_type: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },
@@ -1013,6 +1019,8 @@ mod tests {
             currency: "USD".to_string(),
             marketing_metadata: None,
             course_image_url: None,
+            level: None,
+            course_type: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -1163,4 +1171,139 @@ pub struct PublicProfile {
     pub level: i32,
     pub xp: i32,
     pub completed_courses_count: i64,
+}
+
+// ==================== Test Templates ====================
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "course_level", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum CourseLevel {
+    Beginner,
+    Beginner1,
+    Beginner2,
+    Intermediate,
+    Intermediate1,
+    Intermediate2,
+    Advanced,
+    Advanced1,
+    Advanced2,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "course_type", rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
+pub enum CourseType {
+    Intensive,
+    Regular,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "test_type")]
+pub enum TestType {
+    #[sqlx(rename = "CA")]
+    CA,   // Continuous Assessment
+    #[sqlx(rename = "MWT")]
+    MWT,  // Midterm Written Test
+    #[sqlx(rename = "MOT")]
+    MOT,  // Midterm Oral Test
+    #[sqlx(rename = "FOT")]
+    FOT,  // Final Oral Test
+    #[sqlx(rename = "FWT")]
+    FWT,  // Final Written Test
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TestTemplate {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub level: CourseLevel,
+    pub course_type: CourseType,
+    pub test_type: TestType,
+    pub duration_minutes: i32,
+    pub passing_score: i32, // 0-100 percentage
+    pub total_points: i32,
+    pub instructions: Option<String>,
+    pub template_data: serde_json::Value, // Complete test structure with sections and questions
+    pub tags: Option<Vec<String>>,
+    pub is_active: bool,
+    pub usage_count: i32,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TestTemplateSection {
+    pub id: Uuid,
+    pub template_id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub section_order: i32,
+    pub points: i32,
+    pub instructions: Option<String>,
+    pub section_data: Option<serde_json::Value>, // Section-specific configuration
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TestTemplateQuestion {
+    pub id: Uuid,
+    pub template_id: Uuid,
+    pub section_id: Option<Uuid>,
+    pub question_order: i32,
+    pub question_type: String, // "multiple-choice", "true-false", "short-answer", "essay", "matching", "ordering"
+    pub question_text: String,
+    pub options: Option<serde_json::Value>, // Array of options for multiple choice
+    pub correct_answer: Option<serde_json::Value>, // Can be index, array of indices, or text
+    pub explanation: Option<String>,
+    pub points: i32,
+    pub metadata: Option<serde_json::Value>, // Additional question metadata
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateTestTemplatePayload {
+    pub name: String,
+    pub description: Option<String>,
+    pub level: CourseLevel,
+    pub course_type: CourseType,
+    pub test_type: TestType,
+    pub duration_minutes: i32,
+    pub passing_score: i32,
+    pub total_points: i32,
+    pub instructions: Option<String>,
+    pub template_data: serde_json::Value,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpdateTestTemplatePayload {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub level: Option<CourseLevel>,
+    pub course_type: Option<CourseType>,
+    pub test_type: Option<TestType>,
+    pub duration_minutes: Option<i32>,
+    pub passing_score: Option<i32>,
+    pub total_points: Option<i32>,
+    pub instructions: Option<String>,
+    pub template_data: Option<serde_json::Value>,
+    pub tags: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TestTemplateWithQuestions {
+    pub template: TestTemplate,
+    pub sections: Vec<TestTemplateSection>,
+    pub questions: Vec<TestTemplateQuestion>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApplyTemplatePayload {
+    pub lesson_id: Uuid,
+    pub grading_category_id: Option<Uuid>,
 }

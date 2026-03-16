@@ -7,6 +7,7 @@ mod handlers_assets;
 mod handlers_dependencies;
 mod handlers_library;
 mod handlers_rubrics;
+mod handlers_test_templates;
 mod webhooks;
 
 use axum::{
@@ -17,6 +18,7 @@ use axum::{
 };
 use common::health::{self, HealthState};
 use dotenvy::dotenv;
+use http::{Method, header};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
@@ -93,8 +95,14 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            header::HeaderName::from_static("x-requested-with"),
+            header::HeaderName::from_static("x-organization-id"),
+        ])
+        .expose_headers([header::CONTENT_LENGTH]);
 
     // Rate limiting: Deshabilitado temporalmente por problemas de compatibilidad con tower-governor
     // Para habilitar en producción, configurar con GovernorLayer y ajustar los límites apropiadamente
@@ -280,6 +288,38 @@ async fn main() {
         .route(
             "/lessons/{id}/dependencies/{prerequisite_id}",
             delete(handlers_dependencies::remove_dependency),
+        )
+        // Test Templates routes
+        .route(
+            "/test-templates",
+            get(handlers_test_templates::list_test_templates)
+                .post(handlers_test_templates::create_test_template),
+        )
+        .route(
+            "/test-templates/{id}",
+            get(handlers_test_templates::get_test_template)
+                .put(handlers_test_templates::update_test_template)
+                .delete(handlers_test_templates::delete_test_template),
+        )
+        .route(
+            "/test-templates/{id}/questions",
+            post(handlers_test_templates::create_template_question),
+        )
+        .route(
+            "/test-templates/{template_id}/questions/{question_id}",
+            delete(handlers_test_templates::delete_template_question),
+        )
+        .route(
+            "/test-templates/{id}/sections",
+            post(handlers_test_templates::create_template_section),
+        )
+        .route(
+            "/test-templates/{template_id}/sections/{section_id}",
+            delete(handlers_test_templates::delete_template_section),
+        )
+        .route(
+            "/test-templates/{id}/apply",
+            post(handlers_test_templates::apply_template_to_lesson),
         )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
