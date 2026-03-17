@@ -54,6 +54,15 @@ fn get_ai_url(var_base: &str, default: &str) -> String {
     }
 }
 
+/// Simple token counter (approximate: 1 token ≈ 4 characters in English)
+fn count_tokens(text: &str) -> i32 {
+    // More accurate for English: split by whitespace and count words * 1.3
+    // For Spanish/other languages, character-based is more reliable
+    let char_count = text.len();
+    // OpenAI estimate: ~4 chars per token
+    ((char_count as f64) / 4.0).ceil() as i32
+}
+
 pub async fn publish_course(
     Org(org_ctx): Org,
     claims: Claims,
@@ -883,12 +892,15 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     // 5. Bilingual translation with Ollama
     let text = transcription_result["text"].as_str().unwrap_or("").to_string();
     let detected_lang = transcription_result["language"].as_str().unwrap_or("es").to_string();
-    
+
     // Ensure the detected language text is stored in its own key
     transcription_result[detected_lang.clone()] = serde_json::json!(text);
 
     let target_lang = if detected_lang == "es" { "en" } else { "es" };
     tracing::info!("Translating transcription from {} to {} using Ollama...", detected_lang, target_lang);
+    
+    // Note: Token usage for transcription is logged in the caller context
+    // where we have access to user_id and org_id
     
     if !text.is_empty() {
         match translate_text(&text, target_lang).await {
@@ -1248,16 +1260,38 @@ pub async fn generate_quiz(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    if !response.status().is_success() {
-        let err_body = response.text().await.unwrap_or_default();
-        tracing::error!("Quiz API error: {}", err_body);
+    let response_status = response.status();
+    
+    if !response_status.is_success() {
+        tracing::error!("Quiz API error: {}", response_status);
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
+    
+    let response_json: serde_json::Value = response.json().await.unwrap_or_default();
+    
+    // Calculate token usage
+    let input_tokens = count_tokens(&system_prompt) + count_tokens(&content_text);
+    let output_tokens = count_tokens(&response_json.to_string());
+    let total_tokens = input_tokens + output_tokens;
 
-    let quiz_data: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Log AI usage
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9)")
+        .bind(claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/generate-quiz")
+        .bind(&model)
+        .bind("quiz-generation")
+        .bind(&json!({
+            "lesson_id": id,
+            "quiz_type": quiz_req.quiz_type,
+        }))
+        .execute(&pool)
+        .await;
+
+    let quiz_data: serde_json::Value = response_json;
     let quiz_json_str = quiz_data["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("{}");
@@ -2568,6 +2602,19 @@ pub async fn get_organization(
 ) -> Result<Json<Organization>, StatusCode> {
     let org = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
         .bind(org_ctx.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(org))
+}
+
+/// GET /organization - Public endpoint (returns default organization)
+pub async fn get_public_organization(
+    State(pool): State<PgPool>,
+) -> Result<Json<Organization>, StatusCode> {
+    // Get the first/default organization
+    let org = sqlx::query_as::<_, Organization>("SELECT * FROM organizations ORDER BY created_at LIMIT 1")
         .fetch_one(&pool)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;

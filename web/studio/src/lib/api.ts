@@ -923,6 +923,100 @@ export const cmsApi = {
         apiFetch(`/test-templates/${templateId}/sections/${sectionId}`, { method: 'DELETE' }, false),
     applyTemplateToLesson: (templateId: string, lessonId: string, gradingCategoryId?: string): Promise<void> =>
         apiFetch(`/test-templates/${templateId}/apply`, { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, grading_category_id: gradingCategoryId }) }, false),
+    generateQuestionsWithRAG: (courseId?: number, topic?: string, numQuestions?: number): Promise<TestTemplateQuestion[]> =>
+        apiFetch('/test-templates/generate-with-rag', { method: 'POST', body: JSON.stringify({ course_id: courseId, topic, num_questions: numQuestions }) }, false),
+};
+
+// ==================== Question Bank ====================
+
+export type QuestionBankType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering' | 'fill-in-the-blanks' | 'audio-response' | 'hotspot' | 'code-lab';
+
+export interface QuestionBank {
+    id: string;
+    organization_id: string;
+    question_text: string;
+    question_type: QuestionBankType;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+    audio_url?: string;
+    audio_text?: string;
+    audio_status?: 'pending' | 'generating' | 'ready' | 'failed';
+    audio_metadata?: any;
+    media_url?: string;
+    media_type?: string;
+    points: number;
+    difficulty?: 'easy' | 'medium' | 'hard';
+    tags?: string[];
+    skill_assessed?: 'reading' | 'listening' | 'speaking' | 'writing';
+    source?: 'manual' | 'ai-generated' | 'imported-mysql' | 'imported-csv';
+    source_metadata?: any;
+    usage_count?: number;
+    last_used_at?: string;
+    is_active: boolean;
+    is_archived: boolean;
+    created_by?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface QuestionBankFilters {
+    question_type?: QuestionBankType;
+    difficulty?: string;
+    tags?: string;
+    source?: string;
+    search?: string;
+    has_audio?: boolean;
+}
+
+export interface CreateQuestionBankPayload {
+    question_text: string;
+    question_type: QuestionBankType;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+    points?: number;
+    difficulty?: string;
+    tags?: string[];
+    media_url?: string;
+    media_type?: string;
+    generate_audio?: boolean;
+    skill_assessed?: string;
+    audio_url?: string;
+    audio_text?: string;
+}
+
+export interface UpdateQuestionBankPayload {
+    question_text?: string;
+    question_type?: QuestionBankType;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+    points?: number;
+    difficulty?: string;
+    tags?: string[];
+    is_active?: boolean;
+    is_archived?: boolean;
+    skill_assessed?: string;
+    audio_url?: string;
+    audio_text?: string;
+}
+
+export const questionBankApi = {
+    list: (filters?: QuestionBankFilters): Promise<QuestionBank[]> =>
+        apiFetch('/question-bank', { method: 'GET', query: filters as any }, false),
+    get: (id: string): Promise<QuestionBank> =>
+        apiFetch(`/question-bank/${id}`, {}, false),
+    create: (payload: CreateQuestionBankPayload): Promise<QuestionBank> =>
+        apiFetch('/question-bank', { method: 'POST', body: JSON.stringify(payload) }, false),
+    update: (id: string, payload: UpdateQuestionBankPayload): Promise<QuestionBank> =>
+        apiFetch(`/question-bank/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, false),
+    delete: (id: string): Promise<void> =>
+        apiFetch(`/question-bank/${id}`, { method: 'DELETE' }, false),
+    importFromMySQL: (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> =>
+        apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false),
+    generateAudio: (id: string, text?: string, voice?: string, speed?: number): Promise<void> =>
+        apiFetch(`/question-bank/${id}/generate-audio`, { method: 'POST', body: JSON.stringify({ text, voice, speed }) }, false),
 };
 
 export const lmsApi = {

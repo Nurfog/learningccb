@@ -1,25 +1,32 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from '@/context/I18nContext';
-import { LayoutDashboard, ShieldCheck, LogOut, Webhook, Settings, Globe, Library, BookOpen, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, LogOut, Settings, Globe, Library, BookOpen, Sun, Moon, ChevronDown, FileQuestion, Webhook, User } from 'lucide-react';
 import { useBranding } from '@/context/BrandingContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getImageUrl } from '@/lib/api';
 import Image from 'next/image';
 
-// Clase base para TODOS los links de nav — idéntica para todos
+// Clase base para TODOS los links de nav
 const NAV_LINK = "flex items-center gap-2 text-sm font-bold uppercase tracking-wide transition-colors text-slate-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400";
 
-// Admin variant — mismo tamaño pero con acento añil
+// Admin variant
 const NAV_LINK_ADMIN = "flex items-center gap-2 text-sm font-bold uppercase tracking-wide transition-colors text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300";
+
+// Dropdown menu item
+const DROPDOWN_ITEM = "flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
 
 export function Navbar() {
     const { t, language, setLanguage } = useTranslation();
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const { theme, toggleTheme } = useTheme();
+    
+    const [coursesOpen, setCoursesOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     const platformName = branding?.platform_name || branding?.name || 'Studio';
 
@@ -52,39 +59,127 @@ export function Navbar() {
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-5">
 
-                        <Link href="/" className={NAV_LINK}>
-                            <LayoutDashboard className="w-4 h-4 shrink-0" />
-                            {t('nav.courses')}
-                        </Link>
-
-                        <Link href="/library/assets" className={NAV_LINK}>
-                            <Library className="w-4 h-4 shrink-0" aria-hidden="true" />
-                            {t('nav.library') || 'Library'}
-                        </Link>
+                        {/* Cursos Dropdown */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setCoursesOpen(!coursesOpen)}
+                                className={`${NAV_LINK} cursor-pointer`}
+                            >
+                                <BookOpen className="w-4 h-4 shrink-0" />
+                                Cursos
+                                <ChevronDown className={`w-3 h-3 transition-transform ${coursesOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {coursesOpen && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-10" 
+                                        onClick={() => setCoursesOpen(false)}
+                                    />
+                                    <div className="absolute top-full left-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                                        <Link 
+                                            href="/" 
+                                            className={DROPDOWN_ITEM}
+                                            onClick={() => setCoursesOpen(false)}
+                                        >
+                                            <LayoutDashboard className="w-4 h-4" />
+                                            Listar Cursos
+                                        </Link>
+                                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        <Link 
+                                            href="/library/assets" 
+                                            className={DROPDOWN_ITEM}
+                                            onClick={() => setCoursesOpen(false)}
+                                        >
+                                            <Library className="w-4 h-4" />
+                                            Librería
+                                        </Link>
+                                        <Link 
+                                            href="/question-bank" 
+                                            className={DROPDOWN_ITEM}
+                                            onClick={() => setCoursesOpen(false)}
+                                        >
+                                            <FileQuestion className="w-4 h-4" />
+                                            Banco de Preguntas
+                                        </Link>
+                                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        <Link 
+                                            href="/test-templates" 
+                                            className={DROPDOWN_ITEM}
+                                            onClick={() => setCoursesOpen(false)}
+                                        >
+                                            <FileQuestion className="w-4 h-4" />
+                                            Plantillas de Pruebas
+                                        </Link>
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
                         {user?.role === 'admin' && (
                             <>
                                 {user.organization_id === '00000000-0000-0000-0000-000000000001' && (
                                     <Link href="/admin" className={NAV_LINK_ADMIN}>
-                                        <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                        {t('nav.globalControl')}
+                                        <ShieldCheck className="w-4 h-4 shrink-0" />
+                                        Control Global
                                     </Link>
                                 )}
-                                <Link href="/settings/webhooks" className={NAV_LINK}>
-                                    <Webhook className="w-4 h-4 shrink-0" />
-                                    {t('nav.webhooks')}
-                                </Link>
-                                <Link href="/profile" className={NAV_LINK}>
-                                    <Settings className="w-4 h-4 shrink-0" />
-                                    {t('nav.profile')}
-                                </Link>
+                                
+                                {/* Configuración Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setSettingsOpen(!settingsOpen)}
+                                        className={`${NAV_LINK} cursor-pointer`}
+                                    >
+                                        <Settings className="w-4 h-4 shrink-0" />
+                                        Configuración
+                                        <ChevronDown className={`w-3 h-3 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    
+                                    {settingsOpen && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-10" 
+                                                onClick={() => setSettingsOpen(false)}
+                                            />
+                                            <div className="absolute top-full left-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                                                <Link 
+                                                    href="/settings/webhooks" 
+                                                    className={DROPDOWN_ITEM}
+                                                    onClick={() => setSettingsOpen(false)}
+                                                >
+                                                    <Webhook className="w-4 h-4" />
+                                                    Webhooks
+                                                </Link>
+                                                <Link 
+                                                    href="/profile" 
+                                                    className={DROPDOWN_ITEM}
+                                                    onClick={() => setSettingsOpen(false)}
+                                                >
+                                                    <User className="w-4 h-4" />
+                                                    Perfil
+                                                </Link>
+                                                <Link 
+                                                    href="/settings" 
+                                                    className={DROPDOWN_ITEM}
+                                                    onClick={() => setSettingsOpen(false)}
+                                                >
+                                                    <Settings className="w-4 h-4" />
+                                                    General
+                                                </Link>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </>
                         )}
 
-                        <Link href="/settings" className={NAV_LINK}>
-                            <Settings className="w-4 h-4 shrink-0" />
-                            {t('nav.settings') || 'Settings'}
-                        </Link>
+                        {user?.role !== 'admin' && (
+                            <Link href="/settings" className={NAV_LINK}>
+                                <Settings className="w-4 h-4 shrink-0" />
+                                Configuración
+                            </Link>
+                        )}
                     </div>
 
                     <div className="h-6 w-px bg-black/10 dark:bg-white/10 mx-1" />

@@ -364,6 +364,8 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                         return (
                                                             <QuizPlayer
                                                                 id={block.id}
+                                                                lessonId={params.lessonId}
+                                                                courseId={params.id}
                                                                 title={block.title}
                                                                 quizData={block.quiz_data || { questions: [] }}
                                                                 allowRetry={lesson.allow_retry}
@@ -373,25 +375,32 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                         ? (userGrade.metadata.block_attempts as Record<string, number>)[block.id] || 0
                                                                         : 0
                                                                 }
-                                                                onAttempt={async () => {
+                                                                existingGrade={
+                                                                    userGrade?.metadata?.quiz_answers
+                                                                        ? {
+                                                                              score: userGrade.score,
+                                                                              answers: userGrade.metadata.quiz_answers[block.id] || userGrade.metadata.quiz_answers,
+                                                                              created_at: userGrade.created_at,
+                                                                          }
+                                                                        : undefined
+                                                                }
+                                                                onAttempt={async (score, answers) => {
                                                                     if (user) {
-                                                                        const currentAttempts = (userGrade?.metadata?.block_attempts as Record<string, number>) || {};
-                                                                        const newAttempts = {
-                                                                            ...currentAttempts,
-                                                                            [block.id]: (currentAttempts[block.id] || 0) + 1
-                                                                        };
-
                                                                         try {
-                                                                            const res = await lmsApi.submitScore(
+                                                                            // Submit the score for this specific quiz block
+                                                                            const res = await lmsApi.submitLessonScore(
                                                                                 user.id,
                                                                                 params.id,
                                                                                 params.lessonId,
-                                                                                userGrade?.score || 0,
-                                                                                { ...userGrade?.metadata, block_attempts: newAttempts }
+                                                                                score,
+                                                                                { 
+                                                                                    quiz_answers: { [block.id]: answers },
+                                                                                    quiz_type: block.quiz_data?.test_type || 'quiz',
+                                                                                }
                                                                             );
                                                                             setUserGrade(res);
                                                                         } catch (err) {
-                                                                            console.error("Error al guardar los intentos del bloque", err);
+                                                                            console.error("Error al guardar el puntaje del quiz", err);
                                                                         }
                                                                     }
                                                                 }}

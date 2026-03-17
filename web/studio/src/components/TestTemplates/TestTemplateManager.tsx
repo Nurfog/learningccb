@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { cmsApi, TestTemplate, TestTemplateFilters, CourseLevel, CourseType, TestType } from '@/lib/api';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Copy, BookOpen, Clock, Target, Tag } from 'lucide-react';
+import { cmsApi, TestTemplate, TestTemplateFilters, CourseLevel, CourseType, TestType, Course } from '@/lib/api';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Copy, BookOpen, Clock, Target, Tag, ExternalLink, X } from 'lucide-react';
 
 interface TestTemplateManagerProps {
     onSelectTemplate?: (template: TestTemplate) => void;
@@ -15,6 +15,12 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const [filters, setFilters] = useState<TestTemplateFilters>({});
     const [showFilters, setShowFilters] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showApplyModal, setShowApplyModal] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState<TestTemplate | null>(null);
+    const [courses, setCourses] = useState<Course[]>([]);
+    const [selectedCourse, setSelectedCourse] = useState<string>('');
+    const [selectedLesson, setSelectedLesson] = useState<string>('');
+    const [applying, setApplying] = useState(false);
 
     const loadTemplates = async () => {
         try {
@@ -45,10 +51,39 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     };
 
     const handleApplyTemplate = async (template: TestTemplate) => {
-        if (onSelectTemplate) {
-            onSelectTemplate(template);
-        } else {
-            alert(`Plantilla "${template.name}" seleccionada. (Implementar lógica de aplicación)`);
+        setSelectedTemplate(template);
+        setShowApplyModal(true);
+        loadCourses();
+    };
+
+    const loadCourses = async () => {
+        try {
+            const data = await cmsApi.getCourses();
+            setCourses(data);
+        } catch (error) {
+            console.error('Failed to load courses:', error);
+        }
+    };
+
+    const handleApplyToLesson = async () => {
+        if (!selectedTemplate || !selectedLesson) {
+            alert('Selecciona una lección');
+            return;
+        }
+
+        try {
+            setApplying(true);
+            await cmsApi.applyTemplateToLesson(selectedTemplate.id, selectedLesson);
+            alert('Plantilla aplicada exitosamente a la lección');
+            setShowApplyModal(false);
+            setSelectedTemplate(null);
+            setSelectedCourse('');
+            setSelectedLesson('');
+        } catch (error) {
+            console.error('Failed to apply template:', error);
+            alert('Error al aplicar la plantilla');
+        } finally {
+            setApplying(false);
         }
     };
 
@@ -299,6 +334,178 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                     ))}
                 </div>
             )}
+
+            {/* Apply Template Modal */}
+            {showApplyModal && selectedTemplate && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">Aplicar Plantilla a Lección</h3>
+                                <p className="text-sm text-gray-500">{selectedTemplate.name}</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowApplyModal(false);
+                                    setSelectedTemplate(null);
+                                }}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {/* Template Info */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-blue-900 mb-2">Información de la Plantilla</h4>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <span className="text-blue-700">Tipo:</span>
+                                        <span className="ml-2 font-medium">{getTestTypeLabel(selectedTemplate.test_type)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-blue-700">Duración:</span>
+                                        <span className="ml-2 font-medium">{selectedTemplate.duration_minutes} min</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-blue-700">Puntos:</span>
+                                        <span className="ml-2 font-medium">{selectedTemplate.total_points}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-blue-700">Aprobación:</span>
+                                        <span className="ml-2 font-medium">{selectedTemplate.passing_score}%</span>
+                                    </div>
+                                </div>
+                                <div className="mt-3 text-xs text-blue-700">
+                                    <p>⚠️ Esta plantilla tiene <strong>1 solo intento</strong> por alumno.</p>
+                                    <p>📝 Los alumnos podrán ver sus respuestas permanentemente.</p>
+                                </div>
+                            </div>
+
+                            {/* Select Course */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Curso
+                                </label>
+                                <select
+                                    value={selectedCourse}
+                                    onChange={(e) => {
+                                        setSelectedCourse(e.target.value);
+                                        setSelectedLesson('');
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Selecciona un curso...</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.id}>
+                                            {course.title}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Select Lesson */}
+                            {selectedCourse && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Lección (debe ser de tipo "Quiz" o estar vacía)
+                                    </label>
+                                    <LessonSelector
+                                        courseId={selectedCourse}
+                                        selectedLesson={selectedLesson}
+                                        onSelect={setSelectedLesson}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Info Box */}
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-yellow-900 mb-2 text-sm">¿Qué sucederá?</h4>
+                                <ul className="text-xs text-yellow-800 space-y-1">
+                                    <li>• La lección se convertirá en un quiz con las {selectedTemplate.name} preguntas de la plantilla</li>
+                                    <li>• Se configurará con <strong>1 solo intento</strong> por alumno</li>
+                                    <li>• Las calificaciones se sincronizarán con la base de datos MySQL</li>
+                                    <li>• Los alumnos podrán revisar sus respuestas después de completar</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowApplyModal(false);
+                                    setSelectedTemplate(null);
+                                }}
+                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleApplyToLesson}
+                                disabled={applying || !selectedLesson}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                            >
+                                <Copy className="w-4 h-4" />
+                                {applying ? 'Aplicando...' : 'Aplicar Plantilla'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+    );
+}
+
+// Lesson Selector Component
+function LessonSelector({ courseId, selectedLesson, onSelect }: { 
+    courseId: string; 
+    selectedLesson: string;
+    onSelect: (lessonId: string) => void;
+}) {
+    const [lessons, setLessons] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadLessons = async () => {
+            try {
+                setLoading(true);
+                const course = await cmsApi.getCourse(courseId);
+                if (course.modules) {
+                    const allLessons = course.modules.flatMap((m: any) => m.lessons || []);
+                    setLessons(allLessons);
+                }
+            } catch (error) {
+                console.error('Failed to load lessons:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadLessons();
+    }, [courseId]);
+
+    if (loading) {
+        return <div className="text-sm text-gray-500">Cargando lecciones...</div>;
+    }
+
+    if (lessons.length === 0) {
+        return <div className="text-sm text-red-600">Este curso no tiene lecciones</div>;
+    }
+
+    return (
+        <select
+            value={selectedLesson}
+            onChange={(e) => onSelect(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+            <option value="">Selecciona una lección...</option>
+            {lessons.map((lesson) => (
+                <option key={lesson.id} value={lesson.id}>
+                    {lesson.title} ({lesson.content_type || 'Sin contenido'})
+                </option>
+            ))}
+        </select>
     );
 }

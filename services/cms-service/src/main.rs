@@ -8,6 +8,8 @@ mod handlers_dependencies;
 mod handlers_library;
 mod handlers_rubrics;
 mod handlers_test_templates;
+mod handlers_question_bank;
+mod handlers_admin;
 mod webhooks;
 
 use axum::{
@@ -321,6 +323,48 @@ async fn main() {
             "/test-templates/{id}/apply",
             post(handlers_test_templates::apply_template_to_lesson),
         )
+        .route(
+            "/test-templates/generate-with-rag",
+            post(handlers_test_templates::generate_questions_with_rag),
+        )
+        // Question Bank routes
+        .route(
+            "/question-bank",
+            get(handlers_question_bank::list_questions)
+                .post(handlers_question_bank::create_question),
+        )
+        .route(
+            "/question-bank/{id}",
+            get(handlers_question_bank::get_question)
+                .put(handlers_question_bank::update_question)
+                .delete(handlers_question_bank::delete_question),
+        )
+        .route(
+            "/question-bank/import-mysql",
+            post(handlers_question_bank::import_from_mysql),
+        )
+        .route(
+            "/question-bank/{id}/generate-audio",
+            post(handlers_question_bank::generate_audio),
+        )
+        .route(
+            "/question-bank/mysql-courses",
+            get(handlers_question_bank::list_mysql_courses),
+        )
+        .route(
+            "/question-bank/import-mysql-all",
+            post(handlers_question_bank::import_all_from_mysql),
+        )
+        // Excel import - pendiente de fix
+        // .route(
+        //     "/question-bank/import-excel",
+        //     post(handlers_question_bank::import_from_excel),
+        // )
+        // Admin routes
+        .route(
+            "/admin/token-usage",
+            get(handlers_admin::get_token_usage),
+        )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
         ));
@@ -348,6 +392,10 @@ async fn main() {
         .route(
             "/branding",
             get(handlers_branding::get_organization_branding),
+        )
+        .route(
+            "/organization",
+            get(handlers::get_public_organization),
         );
 
     let public_routes = Router::new()

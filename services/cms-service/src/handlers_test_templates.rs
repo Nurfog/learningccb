@@ -484,8 +484,6 @@ pub async fn apply_template_to_lesson(
     State(pool): State<PgPool>,
     Json(payload): Json<ApplyTemplatePayload>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    use common::models::ApplyTemplatePayload;
-
     // Verify template exists and belongs to organization
     let template: TestTemplate = sqlx::query_as(
         r#"
@@ -519,17 +517,91 @@ pub async fn apply_template_to_lesson(
         return Err((StatusCode::NOT_FOUND, "Lesson not found".to_string()));
     }
 
-    // Update lesson with template data
-    // This would typically involve:
-    // 1. Setting lesson content_type to "quiz" or "test"
-    // 2. Setting lesson metadata with template_data
-    // 3. Optionally linking to a grading category
-    // For now, we just increment the usage count
+    // Get template questions with their sections
+    let template_questions: Vec<TestTemplateQuestion> = sqlx::query_as(
+        r#"
+        SELECT id, template_id, section_id, question_order, question_type, question_text,
+            options, correct_answer, explanation, points, metadata, created_at
+        FROM test_template_questions
+        WHERE template_id = $1
+        ORDER BY section_id, question_order
+        "#
+    )
+    .bind(template_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if template_questions.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Template has no questions".to_string()));
+    }
+
+    // Build quiz_data JSON from template questions
+    let questions_json: Vec<serde_json::Value> = template_questions
+        .iter()
+        .map(|q| {
+            serde_json::json!({
+                "id": q.id.to_string(),
+                "type": q.question_type,
+                "question": q.question_text,
+                "options": q.options.clone().unwrap_or(serde_json::Value::Null),
+                "correct": q.correct_answer.clone().unwrap_or(serde_json::Value::Null),
+                "explanation": q.explanation.clone().unwrap_or_default(),
+                "points": q.points,
+            })
+        })
+        .collect();
+
+    let quiz_data = serde_json::json!({
+        "questions": questions_json,
+        "template_id": template_id.to_string(),
+        "template_name": template.name,
+        "test_type": template.test_type.to_string(),
+        "duration_minutes": template.duration_minutes,
+        "passing_score": template.passing_score,
+        "total_points": template.total_points,
+        "instructions": template.instructions,
+        "max_attempts": 1, // Single attempt as requested
+        "show_feedback": true, // Show explanations after answering
+        "permanent_history": true, // Student can always view their responses
+    });
+
+    // Update lesson with quiz data and configuration
+    sqlx::query(
+        r#"
+        UPDATE lessons 
+        SET content_type = 'quiz',
+            content_url = NULL,
+            metadata = $1,
+            is_graded = true,
+            max_attempts = 1,
+            allow_retry = false,
+            grading_category_id = $2,
+            updated_at = NOW()
+        WHERE id = $3 AND organization_id = $4
+        "#
+    )
+    .bind(&quiz_data)
+    .bind(payload.grading_category_id)
+    .bind(payload.lesson_id)
+    .bind(org_ctx.id)
+    .execute(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Increment template usage count
     sqlx::query("SELECT increment_template_usage($1)")
         .bind(template_id)
         .execute(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tracing::info!(
+        "Applied template '{}' to lesson '{}' with {} questions",
+        template.name,
+        payload.lesson_id,
+        template_questions.len()
+    );
 
     Ok(StatusCode::OK)
 }
@@ -538,4 +610,245 @@ pub async fn apply_template_to_lesson(
 pub struct ApplyTemplatePayload {
     pub lesson_id: Uuid,
     pub grading_category_id: Option<Uuid>,
+}
+
+// ==================== RAG Question Generation ====================
+
+/// POST /api/test-templates/generate-with-rag - Generate questions using RAG from MySQL question bank
+pub async fn generate_questions_with_rag(
+    Org(org_ctx): Org,
+    State(pool): State<PgPool>,
+    Json(payload): Json<RagGenerationPayload>,
+) -> Result<Json<Vec<TestTemplateQuestion>>, (StatusCode, String)> {
+    use serde_json::json;
+    
+    // 1. Fetch questions from external MySQL database (RAG context)
+    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
+    
+    // Create MySQL pool connection
+    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+    
+    // Fetch questions from MySQL bank filtered by course if provided
+    let mysql_questions: Vec<MySqlQuestion> = if let Some(course_id) = payload.course_id {
+        sqlx::query_as(
+            r#"
+            SELECT bp.descripcion, bp.idTipoPregunta, c.NombreCurso, pe.Nombre as PlanNombre
+            FROM bancopreguntas bp
+            JOIN curso c ON bp.idCursos = c.idCursos
+            JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
+            WHERE bp.idCursos = ? AND bp.activo = 1
+            LIMIT 50
+            "#
+        )
+        .bind(course_id)
+        .fetch_all(&mysql_pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?
+    } else {
+        sqlx::query_as(
+            r#"
+            SELECT bp.descripcion, bp.idTipoPregunta, c.NombreCurso, pe.Nombre as PlanNombre
+            FROM bancopreguntas bp
+            JOIN curso c ON bp.idCursos = c.idCursos
+            JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
+            WHERE bp.activo = 1
+            LIMIT 50
+            "#
+        )
+        .fetch_all(&mysql_pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?
+    };
+    
+    mysql_pool.close().await;
+    
+    if mysql_questions.is_empty() && payload.course_id.is_some() {
+        return Err((StatusCode::NOT_FOUND, "No questions found in MySQL bank for this course".to_string()));
+    }
+    
+    // 2. Build RAG context from MySQL questions
+    let rag_context: String = mysql_questions
+        .iter()
+        .map(|q| format!("- {} (Tipo: {}, Curso: {})", q.descripcion, q.id_tipo_pregunta, q.nombre_curso))
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    // 3. Call AI to generate new questions based on RAG context
+    let provider = std::env::var("AI_PROVIDER").unwrap_or_else(|_| "local".to_string());
+    let client = reqwest::Client::new();
+    
+    let (url, auth_header, model) = if provider == "local" {
+        let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let model = std::env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+        (
+            format!("{}/v1/chat/completions", base_url),
+            "".to_string(),
+            model,
+        )
+    } else {
+        let api_key = std::env::var("OPENAI_API_KEY")
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not configured".to_string()))?;
+        (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            format!("Bearer {}", api_key),
+            "gpt-4o".to_string(),
+        )
+    };
+    
+    let system_prompt = format!(
+        r#"You are an expert English Teacher creating ORIGINAL quiz questions that assess the FOUR KEY LANGUAGE SKILLS.
+        
+        Below are EXAMPLE questions from our existing question bank. Use them as INSPIRATION ONLY:
+        - Understand the TOPICS, STYLE, and DIFFICULTY LEVEL
+        - Create COMPLETELY NEW questions with different wording, contexts, and answer options
+        - Do NOT copy any question directly
+        - Adapt the concepts to fresh scenarios
+        
+        EXAMPLE QUESTIONS (for inspiration only):
+        {}
+        
+        Task: Create {} ORIGINAL multiple-choice questions about: {}
+        
+        IMPORTANT: Each question must assess ONE of these FOUR skills:
+        1. READING - Comprehension, vocabulary in context, text analysis
+        2. LISTENING - Audio comprehension, spoken dialogue understanding
+        3. SPEAKING - Oral production, pronunciation, conversational response
+        4. WRITING - Written production, grammar in writing, composition
+        
+        For EACH question, you MUST:
+        - Specify which skill it assesses (reading/listening/speaking/writing)
+        - Ensure the question actually tests that skill (not just knowledge)
+        - Provide pedagogically sound content for English language learning
+        - Match the difficulty level appropriately
+        
+        Return ONLY a JSON array of questions with this exact structure:
+        [
+            {{
+                "question_text": "Your ORIGINAL question text here",
+                "question_type": "multiple-choice",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correct_answer": 0,
+                "explanation": "Brief explanation of why this is correct. End with: 'Skill assessed: [READING|LISTENING|SPEAKING|WRITING]'",
+                "points": 1,
+                "skill_assessed": "reading"
+            }}
+        ]
+        
+        GUIDELINES:
+        - Each question must be UNIQUE - rephrase concepts from examples
+        - Use different vocabulary, scenarios, and contexts
+        - Maintain similar difficulty level to the examples
+        - Ensure correct_answer is the index (0-3) of the correct option
+        - Write clear explanations that teach, not just state the answer
+        - DISTRIBUTE questions across all 4 skills (don't focus on just one)
+        
+        Example transformations by skill:
+        - READING: "Read this passage and answer..." or "What does the word X mean in context?"
+        - LISTENING: "After listening to the dialogue..." or "What would you hear in this situation?"
+        - SPEAKING: "Which response is most appropriate in this conversation?"
+        - WRITING: "Which sentence is grammatically correct?" or "Complete the sentence with..."
+        
+        Be creative while maintaining educational value and ensuring all 4 skills are covered!"#,
+        rag_context,
+        payload.num_questions.unwrap_or(5),
+        payload.topic.unwrap_or_else(|| "English grammar and vocabulary".to_string())
+    );
+    
+    let mut request = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": system_prompt
+                }
+            ],
+            "response_format": { "type": "json_object" }
+        }));
+    
+    if !auth_header.is_empty() {
+        request = request.header("Authorization", auth_header);
+    }
+    
+    let response = request.send().await.map_err(|e| {
+        tracing::error!("AI request failed: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "AI service unavailable".to_string())
+    })?;
+    
+    let response_json: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse AI response: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Invalid AI response".to_string())
+    })?;
+    
+    // Parse questions from AI response
+    let questions_data = response_json
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(content.as_str().unwrap_or("{}")).ok())
+        .and_then(|data| {
+            if let Some(questions) = data.get("questions").or(data.get("items")) {
+                questions.as_array().cloned()
+            } else if let Some(arr) = data.as_array() {
+                Some(arr.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
+    
+    // Convert to TestTemplateQuestion format
+    let generated_questions: Vec<TestTemplateQuestion> = questions_data
+        .iter()
+        .enumerate()
+        .map(|(idx, q)| {
+            TestTemplateQuestion {
+                id: Uuid::new_v4(),
+                template_id: Uuid::nil(),
+                section_id: None,
+                question_order: idx as i32,
+                question_type: q.get("question_type").and_then(|v| v.as_str()).unwrap_or("multiple-choice").to_string(),
+                question_text: q.get("question_text").and_then(|v| v.as_str()).unwrap_or("Question").to_string(),
+                options: q.get("options").cloned(),
+                correct_answer: q.get("correct_answer").or(q.get("correct")).cloned(),
+                explanation: q.get("explanation").and_then(|v| v.as_str()).map(String::from),
+                points: q.get("points").and_then(|v| v.as_i64()).unwrap_or(1) as i32,
+                metadata: Some(json!({
+                    "generated_by": "rag-ai",
+                    "source": "mysql-bank",
+                    "generated_at": chrono::Utc::now().to_rfc3339(),
+                })),
+                created_at: chrono::Utc::now(),
+            }
+        })
+        .collect();
+    
+    if generated_questions.is_empty() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI failed to generate questions".to_string()));
+    }
+    
+    tracing::info!("Generated {} questions using RAG from MySQL bank", generated_questions.len());
+    
+    Ok(Json(generated_questions))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RagGenerationPayload {
+    pub course_id: Option<i32>, // MySQL course ID
+    pub topic: Option<String>,
+    pub num_questions: Option<i32>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct MySqlQuestion {
+    descripcion: String,
+    id_tipo_pregunta: i32,
+    nombre_curso: String,
+    plan_nombre: String,
 }

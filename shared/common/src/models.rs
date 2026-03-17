@@ -1213,6 +1213,18 @@ pub enum TestType {
     FWT,  // Final Written Test
 }
 
+impl std::fmt::Display for TestType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TestType::CA => write!(f, "CA"),
+            TestType::MWT => write!(f, "MWT"),
+            TestType::MOT => write!(f, "MOT"),
+            TestType::FOT => write!(f, "FOT"),
+            TestType::FWT => write!(f, "FWT"),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct TestTemplate {
     pub id: Uuid,
@@ -1306,4 +1318,134 @@ pub struct TestTemplateWithQuestions {
 pub struct ApplyTemplatePayload {
     pub lesson_id: Uuid,
     pub grading_category_id: Option<Uuid>,
+}
+
+// ==================== Question Bank ====================
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "question_bank_type")]
+pub enum QuestionBankType {
+    #[sqlx(rename = "multiple-choice")]
+    MultipleChoice,
+    #[sqlx(rename = "true-false")]
+    TrueFalse,
+    #[sqlx(rename = "short-answer")]
+    ShortAnswer,
+    #[sqlx(rename = "essay")]
+    Essay,
+    #[sqlx(rename = "matching")]
+    Matching,
+    #[sqlx(rename = "ordering")]
+    Ordering,
+    #[sqlx(rename = "fill-in-the-blanks")]
+    FillInTheBlanks,
+    #[sqlx(rename = "audio-response")]
+    AudioResponse,
+    #[sqlx(rename = "hotspot")]
+    Hotspot,
+    #[sqlx(rename = "code-lab")]
+    CodeLab,
+}
+
+impl std::fmt::Display for QuestionBankType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QuestionBankType::MultipleChoice => write!(f, "multiple-choice"),
+            QuestionBankType::TrueFalse => write!(f, "true-false"),
+            QuestionBankType::ShortAnswer => write!(f, "short-answer"),
+            QuestionBankType::Essay => write!(f, "essay"),
+            QuestionBankType::Matching => write!(f, "matching"),
+            QuestionBankType::Ordering => write!(f, "ordering"),
+            QuestionBankType::FillInTheBlanks => write!(f, "fill-in-the-blanks"),
+            QuestionBankType::AudioResponse => write!(f, "audio-response"),
+            QuestionBankType::Hotspot => write!(f, "hotspot"),
+            QuestionBankType::CodeLab => write!(f, "code-lab"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct QuestionBank {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub question_text: String,
+    pub question_type: QuestionBankType,
+    pub options: Option<serde_json::Value>,
+    pub correct_answer: Option<serde_json::Value>,
+    pub explanation: Option<String>,
+    pub audio_url: Option<String>,
+    pub audio_text: Option<String>,
+    pub audio_status: Option<String>,
+    pub audio_metadata: Option<serde_json::Value>,
+    pub media_url: Option<String>,
+    pub media_type: Option<String>,
+    pub points: i32,
+    pub difficulty: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub skill_assessed: Option<String>, // reading, listening, speaking, writing
+    pub source: Option<String>,
+    pub source_metadata: Option<serde_json::Value>,
+    pub imported_mysql_id: Option<i32>,
+    pub imported_mysql_course_id: Option<i32>,
+    pub usage_count: Option<i32>,
+    pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_active: bool,
+    pub is_archived: bool,
+    pub created_by: Option<Uuid>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateQuestionBankPayload {
+    pub question_text: String,
+    pub question_type: QuestionBankType,
+    pub options: Option<serde_json::Value>,
+    pub correct_answer: Option<serde_json::Value>,
+    pub explanation: Option<String>,
+    pub points: Option<i32>,
+    pub difficulty: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub media_url: Option<String>,
+    pub media_type: Option<String>,
+    pub generate_audio: Option<bool>,
+    pub skill_assessed: Option<String>, // reading, listening, speaking, writing
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpdateQuestionBankPayload {
+    pub question_text: Option<String>,
+    pub question_type: Option<QuestionBankType>,
+    pub options: Option<serde_json::Value>,
+    pub correct_answer: Option<serde_json::Value>,
+    pub explanation: Option<String>,
+    pub points: Option<i32>,
+    pub difficulty: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_active: Option<bool>,
+    pub is_archived: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImportQuestionFromMySQLPayload {
+    pub mysql_course_id: Option<i32>,
+    pub question_ids: Option<Vec<i32>>, // MySQL question IDs
+    pub import_all: Option<bool>,       // Import all questions from MySQL
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GenerateAudioPayload {
+    pub text: String,
+    pub voice: Option<String>, // Bark voice preset
+    pub speed: Option<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QuestionBankFilters {
+    pub question_type: Option<QuestionBankType>,
+    pub difficulty: Option<String>,
+    pub tags: Option<String>, // Comma-separated
+    pub source: Option<String>,
+    pub search: Option<String>,
+    pub has_audio: Option<bool>,
 }
