@@ -290,10 +290,6 @@ if user_usage > DAILY_LIMIT {
    - Gráficos de tendencia
    - Comparativa mes a mes
 
-4. **Integrar con Bark**
-   - Track tokens de audio generation
-   - Costos específicos de TTS
-
 ---
 
 **Implementación: 100% Completa** 🎉

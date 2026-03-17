@@ -22,7 +22,6 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
         tags: question?.tags || [],
         media_url: question?.media_url,
         media_type: question?.media_type,
-        generate_audio: false,
         skill_assessed: question?.skill_assessed,
     });
 
@@ -498,21 +497,6 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
                             ))}
                         </div>
                     )}
-
-                    {/* Audio Generation Option */}
-                    <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                        <input
-                            type="checkbox"
-                            id="generate_audio"
-                            checked={formData.generate_audio}
-                            onChange={(e) => setFormData({ ...formData, generate_audio: e.target.checked })}
-                            className="w-4 h-4 text-green-600 rounded"
-                        />
-                        <label htmlFor="generate_audio" className="flex items-center gap-2 text-sm text-green-800 dark:text-green-200">
-                            <Volume2 className="w-4 h-4" />
-                            Generar audio automáticamente con Bark después de guardar
-                        </label>
-                    </div>
 
                     {/* Actions */}
                     <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 sticky bottom-0 bg-white dark:bg-gray-800 -mx-6 px-6 py-4">

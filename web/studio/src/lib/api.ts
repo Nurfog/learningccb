@@ -594,7 +594,7 @@ interface ApiFetchOptions extends RequestInit {
     query?: Record<string, string | number | boolean | undefined | null>;
 }
 
-const apiFetch = (url: string, options: ApiFetchOptions = {}, isLms: boolean = false) => {
+export const apiFetch = (url: string, options: ApiFetchOptions = {}, isLms: boolean = false) => {
     const token = getToken();
     const selectedOrgId = getSelectedOrgId();
     const baseUrl = isLms ? LMS_API_BASE_URL : API_BASE_URL;
@@ -654,6 +654,7 @@ export const cmsApi = {
     },
     getSSOConfig: (): Promise<OrganizationSSOConfig> => apiFetch('/organization/sso'),
     updateSSOConfig: (payload: Partial<OrganizationSSOConfig>): Promise<void> => apiFetch('/organization/sso', { method: 'PUT', body: JSON.stringify(payload) }),
+    getOrganization: (): Promise<Organization> => apiFetch('/organization'),
 
     // Auth
     register: (payload: AuthPayload): Promise<AuthResponse> => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
@@ -980,7 +981,6 @@ export interface CreateQuestionBankPayload {
     tags?: string[];
     media_url?: string;
     media_type?: string;
-    generate_audio?: boolean;
     skill_assessed?: string;
     audio_url?: string;
     audio_text?: string;
@@ -1015,8 +1015,6 @@ export const questionBankApi = {
         apiFetch(`/question-bank/${id}`, { method: 'DELETE' }, false),
     importFromMySQL: (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> =>
         apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false),
-    generateAudio: (id: string, text?: string, voice?: string, speed?: number): Promise<void> =>
-        apiFetch(`/question-bank/${id}/generate-audio`, { method: 'POST', body: JSON.stringify({ text, voice, speed }) }, false),
 };
 
 export const lmsApi = {

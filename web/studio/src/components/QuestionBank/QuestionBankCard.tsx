@@ -2,16 +2,15 @@
 
 import React, { useState } from 'react';
 import { QuestionBank } from '@/lib/api';
-import { Edit2, Trash2, Volume2, VolumeX, Sparkles, Globe, MoreVertical, Play, Pause } from 'lucide-react';
+import { Edit2, Trash2, Volume2, Sparkles, Globe } from 'lucide-react';
 
 interface QuestionBankCardProps {
     question: QuestionBank;
     onEdit: () => void;
     onDelete: () => void;
-    onGenerateAudio: () => void;
 }
 
-export default function QuestionBankCard({ question, onEdit, onDelete, onGenerateAudio }: QuestionBankCardProps) {
+export default function QuestionBankCard({ question, onEdit, onDelete }: QuestionBankCardProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
 
@@ -87,21 +86,13 @@ export default function QuestionBankCard({ question, onEdit, onDelete, onGenerat
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    {question.audio_status === 'ready' ? (
+                    {question.audio_url && (
                         <button
                             onClick={isPlaying ? handleStopAudio : handlePlayAudio}
                             className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
                             title={isPlaying ? 'Detener audio' : 'Reproducir audio'}
                         >
-                            {isPlaying ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                        </button>
-                    ) : (
-                        <button
-                            onClick={onGenerateAudio}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                            title="Generar audio"
-                        >
-                            <VolumeX className="w-4 h-4" />
+                            <Volume2 className="w-4 h-4" />
                         </button>
                     )}
                     <button
@@ -175,14 +166,6 @@ export default function QuestionBankCard({ question, onEdit, onDelete, onGenerat
                         </div>
                     )}
                 </div>
-                {question.audio_status === 'ready' && (
-                    <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                        <Volume2 className="w-3 h-3" /> Audio listo
-                    </span>
-                )}
-                {question.audio_status === 'generating' && (
-                    <span className="text-xs text-yellow-600 dark:text-yellow-400">Generando audio...</span>
-                )}
             </div>
 
             {/* Usage Stats */}

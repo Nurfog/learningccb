@@ -2,15 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { questionBankApi, QuestionBank, QuestionBankFilters, QuestionBankType } from '@/lib/api';
-import { 
-    Plus, Search, Filter, Edit2, Trash2, Volume2, VolumeX, Download, 
+import {
+    Plus, Search, Filter, Edit2, Trash2, Download,
     Upload, Sparkles, ChevronDown, ChevronUp, X, Check, AlertCircle,
     Headphones, BookOpen, Tag, Hash, Globe
 } from 'lucide-react';
 import QuestionBankEditor from '@/components/QuestionBank/QuestionBankEditor';
 import QuestionBankCard from '@/components/QuestionBank/QuestionBankCard';
 import MySQLImportModal from '@/components/QuestionBank/MySQLImportModal';
-import AudioGeneratorModal from '@/components/QuestionBank/AudioGeneratorModal';
 
 export default function QuestionBankPage() {
     const [questions, setQuestions] = useState<QuestionBank[]>([]);
@@ -21,8 +20,6 @@ export default function QuestionBankPage() {
     const [showEditor, setShowEditor] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionBank | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
-    const [showAudioModal, setShowAudioModal] = useState(false);
-    const [selectedForAudio, setSelectedForAudio] = useState<string | null>(null);
 
     const loadQuestions = async () => {
         try {
@@ -64,17 +61,6 @@ export default function QuestionBankPage() {
 
     const handleImportSuccess = async () => {
         setShowImportModal(false);
-        await loadQuestions();
-    };
-
-    const handleAudioGenerate = (questionId: string) => {
-        setSelectedForAudio(questionId);
-        setShowAudioModal(true);
-    };
-
-    const handleAudioSuccess = async () => {
-        setShowAudioModal(false);
-        setSelectedForAudio(null);
         await loadQuestions();
     };
 
@@ -311,7 +297,6 @@ export default function QuestionBankPage() {
                                 question={question}
                                 onEdit={() => handleEdit(question)}
                                 onDelete={() => handleDelete(question.id)}
-                                onGenerateAudio={() => handleAudioGenerate(question.id)}
                             />
                         ))}
                     </div>
@@ -335,18 +320,6 @@ export default function QuestionBankPage() {
                 <MySQLImportModal
                     onSuccess={handleImportSuccess}
                     onCancel={() => setShowImportModal(false)}
-                />
-            )}
-
-            {/* Audio Generator Modal */}
-            {showAudioModal && selectedForAudio && (
-                <AudioGeneratorModal
-                    questionId={selectedForAudio}
-                    onSuccess={handleAudioSuccess}
-                    onCancel={() => {
-                        setShowAudioModal(false);
-                        setSelectedForAudio(null);
-                    }}
                 />
             )}
         </div>

@@ -1408,7 +1408,6 @@ pub struct CreateQuestionBankPayload {
     pub tags: Option<Vec<String>>,
     pub media_url: Option<String>,
     pub media_type: Option<String>,
-    pub generate_audio: Option<bool>,
     pub skill_assessed: Option<String>, // reading, listening, speaking, writing
 }
 
@@ -1431,13 +1430,6 @@ pub struct ImportQuestionFromMySQLPayload {
     pub mysql_course_id: Option<i32>,
     pub question_ids: Option<Vec<i32>>, // MySQL question IDs
     pub import_all: Option<bool>,       // Import all questions from MySQL
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenerateAudioPayload {
-    pub text: String,
-    pub voice: Option<String>, // Bark voice preset
-    pub speed: Option<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -29,12 +29,12 @@ export default function UsersPage() {
 
     const loadData = async () => {
         try {
-            const [usersData, orgsData] = await Promise.all([
+            const [usersData, orgData] = await Promise.all([
                 cmsApi.getAllUsers(),
-                cmsApi.getOrganizations()
+                cmsApi.getOrganization()
             ]);
             setUsers(usersData);
-            setOrganizations(orgsData);
+            setOrganizations([orgData]); // Single tenant - wrap in array for compatibility
         } catch (error) {
             console.error('Failed to load data', error);
         } finally {

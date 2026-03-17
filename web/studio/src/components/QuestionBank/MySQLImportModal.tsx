@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Download, Database, Check, AlertCircle, Upload, FileSpreadsheet } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 import ExcelImportModal from './ExcelImportModal';
 
 interface MySQLImportModalProps {
@@ -23,17 +24,13 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
         try {
             setImporting(true);
             setError(null);
-            
-            const result = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/question-bank/import-mysql-all`, {
+
+            const result = await apiFetch('/question-bank/import-mysql-all', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            }).then(r => r.json());
-            
+            });
+
             setImportResult(result);
-            
+
             setTimeout(() => {
                 onSuccess?.();
             }, 1500);

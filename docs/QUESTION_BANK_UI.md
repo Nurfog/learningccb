@@ -101,40 +101,6 @@ Modal para importar preguntas desde MySQL:
 - Progreso de importación
 - Resultado (éxito/error)
 
-### 5. AudioGeneratorModal (`AudioGeneratorModal.tsx`)
-
-Modal para generar audio con Bark TTS:
-
-**Configuración:**
-- Vista previa del texto de la pregunta
-- Texto personalizable (opcional)
-- Selector de voz (6 opciones: 3 inglés, 3 español)
-- Control de velocidad (0.5x - 2.0x)
-
-**Voces disponibles:**
-```
-Inglés:
-- v2/en_speaker_0 (English Speaker 0)
-- v2/en_speaker_1 (English Speaker 1) ← default
-- v2/en_speaker_6 (English Speaker 6)
-
-Español:
-- v2/es_speaker_0 (Spanish Speaker 0)
-- v2/es_speaker_1 (Spanish Speaker 1)
-- v2/es_speaker_3 (Spanish Speaker 3)
-```
-
-**Estados:**
-- ⏳ Generando... (polling cada 1s, max 30s)
-- ✅ Audio generado (con preview play/pause)
-- ❌ Error (mensaje descriptivo)
-
-**Características:**
-- Polling automático para verificar estado
-- Reproductor de audio integrado
-- Botón Play/Pause
-- Indicador visual de estado
-
 ## Flujos de Usuario
 
 ### Crear Pregunta Manualmente
@@ -288,11 +254,6 @@ GET /question-bank/mysql-courses
 - Verificar que `MYSQL_DATABASE_URL` esté configurado en `.env`
 - Verificar conectividad al servidor MySQL
 
-**Error: "Error al generar audio"**
-- Verificar que Bark TTS esté corriendo en t-800
-- Verificar que `BARK_API_URL` esté configurado
-- Revisar logs de Bark: `ssh juan@t-800 && journalctl -u bark-tts -f`
-
 **Audio no se reproduce**
 - Verificar formato de audio (WAV soportado)
 - Verificar permisos del navegador
@@ -301,5 +262,4 @@ GET /question-bank/mysql-courses
 ## Referencias
 
 - [Question Bank Backend](../../services/cms-service/src/handlers_question_bank.rs)
-- [Bark TTS Guide](../../docs/BARK_TTS_GUIDE.md)
 - [Test Templates UI](./TestTemplates/)

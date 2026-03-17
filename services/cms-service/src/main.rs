@@ -96,7 +96,7 @@ async fn main() {
     });
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin("http://localhost:3000".parse::<http::HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH])
         .allow_headers([
             header::CONTENT_TYPE,
@@ -104,7 +104,7 @@ async fn main() {
             header::HeaderName::from_static("x-requested-with"),
             header::HeaderName::from_static("x-organization-id"),
         ])
-        .expose_headers([header::CONTENT_LENGTH]);
+        .expose_headers([header::CONTENT_LENGTH, header::CONTENT_TYPE]);
 
     // Rate limiting: Deshabilitado temporalmente por problemas de compatibilidad con tower-governor
     // Para habilitar en producción, configurar con GovernorLayer y ajustar los límites apropiadamente
@@ -344,10 +344,6 @@ async fn main() {
             post(handlers_question_bank::import_from_mysql),
         )
         .route(
-            "/question-bank/{id}/generate-audio",
-            post(handlers_question_bank::generate_audio),
-        )
-        .route(
             "/question-bank/mysql-courses",
             get(handlers_question_bank::list_mysql_courses),
         )
@@ -392,10 +388,6 @@ async fn main() {
         .route(
             "/branding",
             get(handlers_branding::get_organization_branding),
-        )
-        .route(
-            "/organization",
-            get(handlers::get_public_organization),
         );
 
     let public_routes = Router::new()

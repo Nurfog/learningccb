@@ -43,18 +43,10 @@ pub async fn create_question(
     .bind(payload.difficulty.as_deref().unwrap_or("medium"))
     .bind(payload.tags.as_deref())
     .bind(payload.skill_assessed.as_deref())
-    .bind(payload.media_url.as_deref())
     .bind(payload.media_type.as_deref())
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    // If audio generation requested, trigger it asynchronously
-    if payload.generate_audio.unwrap_or(false) {
-        tokio::spawn(async move {
-            let _ = generate_audio_for_question(question.id, pool.clone()).await;
-        });
-    }
 
     Ok(Json(question))
 }
@@ -435,129 +427,6 @@ pub async fn import_from_mysql(
     tracing::info!("Imported {} questions from MySQL (skipped {} already imported)", imported_questions.len(), skipped_count);
 
     Ok(Json(imported_questions))
-}
-
-// ==================== Audio Generation ====================
-
-/// POST /api/question-bank/{id}/generate-audio - Generate audio for a question using Bark
-pub async fn generate_audio(
-    Org(org_ctx): Org,
-    Path(id): Path<Uuid>,
-    State(pool): State<PgPool>,
-    payload: Option<Json<common::models::GenerateAudioPayload>>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // Get question
-    let question: QuestionBank = sqlx::query_as(
-        "SELECT * FROM question_bank WHERE id = $1 AND organization_id = $2"
-    )
-    .bind(id)
-    .bind(org_ctx.id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Question not found".to_string()),
-        _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    })?;
-    
-    // Spawn async task for audio generation
-    tokio::spawn(async move {
-        let _ = generate_audio_for_question_with_params(id, pool, payload.map(|p| p.0)).await;
-    });
-    
-    Ok(StatusCode::ACCEPTED)
-}
-
-async fn generate_audio_for_question(
-    question_id: Uuid,
-    pool: PgPool,
-) -> Result<(), String> {
-    generate_audio_for_question_with_params(question_id, pool, None).await
-}
-
-async fn generate_audio_for_question_with_params(
-    question_id: Uuid,
-    pool: PgPool,
-    payload: Option<common::models::GenerateAudioPayload>,
-) -> Result<(), String> {
-    use reqwest::Client;
-    use serde_json::json;
-    
-    // Get question text
-    let question_text: String = sqlx::query_scalar("SELECT audio_text FROM question_bank WHERE id = $1")
-        .bind(question_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| format!("Failed to get question: {}", e))?
-        .unwrap_or_default();
-    
-    let text = payload.as_ref().map(|p| p.text.clone()).unwrap_or(question_text);
-    
-    // Update status to generating
-    sqlx::query("UPDATE question_bank SET audio_status = 'generating' WHERE id = $1")
-        .bind(question_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| format!("Failed to update status: {}", e))?;
-    
-    // Call Bark TTS API
-    let bark_url = std::env::var("BARK_API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let client = Client::new();
-    
-    let voice = payload.as_ref().and_then(|p| p.voice.clone()).unwrap_or_else(|| "v2/en_speaker_1".to_string());
-    let speed = payload.as_ref().and_then(|p| p.speed).unwrap_or(1.0);
-    
-    let response = client
-        .post(&format!("{}/api/generate", bark_url))
-        .json(&json!({
-            "text": text,
-            "voice": voice,
-            "speed": speed,
-            "output_format": "mp3"
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("Bark API request failed: {}", e))?;
-    
-    if !response.status().is_success() {
-        sqlx::query("UPDATE question_bank SET audio_status = 'failed' WHERE id = $1")
-            .bind(question_id)
-            .execute(&pool)
-            .await
-            .map_err(|_| "Failed to update status".to_string())?;
-        
-        return Err(format!("Bark API returned error: {}", response.status()));
-    }
-    
-    // Save audio file
-    let audio_bytes = response.bytes().await.map_err(|e| format!("Failed to get audio bytes: {}", e))?;
-    
-    // Save to uploads directory
-    let filename = format!("question_{}.mp3", question_id);
-    let file_path = format!("uploads/audio/{}", filename);
-    
-    std::fs::create_dir_all("uploads/audio").map_err(|e| format!("Failed to create directory: {}", e))?;
-    std::fs::write(&file_path, &audio_bytes).map_err(|e| format!("Failed to save audio: {}", e))?;
-    
-    // Update question with audio URL
-    let audio_url = format!("/audio/{}", filename);
-    sqlx::query(
-        "UPDATE question_bank SET audio_url = $1, audio_status = 'ready', audio_metadata = $2 WHERE id = $3"
-    )
-    .bind(&audio_url)
-    .bind(&json!({
-        "voice": voice,
-        "speed": speed,
-        "generated_at": chrono::Utc::now().to_rfc3339(),
-        "file_size": audio_bytes.len(),
-    }))
-    .bind(question_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| format!("Failed to update question: {}", e))?;
-    
-    tracing::info!("Generated audio for question {}", question_id);
-    
-    Ok(())
 }
 
 // ==================== Helpers ====================

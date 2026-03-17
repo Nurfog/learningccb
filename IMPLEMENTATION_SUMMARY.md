@@ -1,4 +1,4 @@
-# 🚀 Resumen de Implementación - Question Bank con Audio
+# 🚀 Resumen de Implementación - Question Bank
 
 ## ✅ Estado de la Implementación
 
@@ -6,21 +6,18 @@
 - ✅ Migración de base de datos con `skill_assessed`
 - ✅ Endpoints CRUD para Question Bank
 - ✅ Importación desde MySQL
-- ✅ Generación de audio con Bark
 - ✅ RAG con verificación de 4 habilidades
-- ✅ Compilación exitosa (8 warnings menores)
+- ✅ Compilación exitosa
 
-### Frontend (TypeScript/React) - COMPLETO  
+### Frontend (TypeScript/React) - COMPLETO
 - ✅ Página `/question-bank` con dashboard
 - ✅ Componente QuestionBankCard con badge de skills
 - ✅ QuestionBankEditor con generación IA de skills
 - ✅ MySQLImportModal
-- ✅ AudioGeneratorModal
 - ✅ Navegación actualizada con link
 - ✅ TypeScript: 3 errores menores (admin, no críticos)
 
-### Infraestructura - LISTO PARA DESPLEGAR
-- ✅ Scripts de instalación de Bark
+### Infraestructura - LISTO
 - ✅ install.sh actualizado con detección dev/prod
 - ✅ Documentación completa
 
@@ -43,49 +40,16 @@ web/studio/src/app/question-bank/page.tsx (NUEVO)
 web/studio/src/components/QuestionBank/QuestionBankCard.tsx (NUEVO)
 web/studio/src/components/QuestionBank/QuestionBankEditor.tsx (NUEVO)
 web/studio/src/components/QuestionBank/MySQLImportModal.tsx (NUEVO)
-web/studio/src/components/QuestionBank/AudioGeneratorModal.tsx (NUEVO)
 web/studio/src/components/Navbar.tsx (link agregado)
 web/studio/src/lib/api.ts (API client)
 ```
 
 ### Scripts & Docs
 ```
-scripts/install_bark_tts.sh (NUEVO)
-scripts/deploy_to_t800.sh (NUEVO)
-docs/BARK_TTS_GUIDE.md (NUEVO)
 docs/QUESTION_BANK_UI.md (NUEVO)
-docs/BARK_MANUAL_INSTALL.md (NUEVO)
-install.sh (actualizado con Bark)
-.env.example (BARK_API_URL agregado)
+docs/EXCEL_IMPORT_TEMPLATE.md
+install.sh (actualizado)
 ```
-
----
-
-## 🔧 Instalación de Bark en t-800
-
-### Opción Automática (Recomendada)
-```bash
-cd /home/juan/dev/openccb
-./scripts/deploy_to_t800.sh
-# Ingresar contraseña: apoca11
-```
-
-### Opción Manual
-```bash
-# Copiar script
-scp scripts/install_bark_tts.sh juan@t-800:/tmp/
-
-# Conectarse
-ssh juan@t-800
-
-# Ejecutar
-sudo /tmp/install_bark_tts.sh
-
-# Verificar
-curl http://localhost:8000/health
-```
-
-**Ver documentación completa en:** `docs/BARK_MANUAL_INSTALL.md`
 
 ---
 
@@ -123,14 +87,12 @@ curl http://localhost:8000/health
 
 **Desarrollo:**
 ```bash
-BARK_API_URL=http://t-800:8000
 OLLAMA_URL=http://t-800:11434
 WHISPER_URL=http://t-800:9000
 ```
 
 **Producción:**
 ```bash
-BARK_API_URL=http://t-800.norteamericano.cl:8000
 OLLAMA_URL=http://t-800.norteamericano.cl:11434
 WHISPER_URL=http://t-800.norteamericano.cl:9000
 ```
@@ -147,8 +109,8 @@ GET    /question-bank/{id}               # Obtener pregunta
 PUT    /question-bank/{id}               # Actualizar pregunta
 DELETE /question-bank/{id}               # Eliminar pregunta
 POST   /question-bank/import-mysql       # Importar desde MySQL
-POST   /question-bank/{id}/generate-audio # Generar audio Bark
 GET    /question-bank/mysql-courses      # Listar cursos MySQL
+POST   /question-bank/import-mysql-all   # Importar todo desde MySQL
 ```
 
 ### Test Templates (actualizado)
@@ -175,12 +137,6 @@ npm run type-check
 # ⚠️ 3 errores menores en admin (no afectan Question Bank)
 ```
 
-### 3. Bark (después de instalar)
-```bash
-curl http://t-800:8000/health
-# Expected: {"status":"healthy","service":"bark-tts"}
-```
-
 ---
 
 ## 🎨 UI Features
@@ -201,25 +157,20 @@ curl http://t-800:8000/health
 - 10 tipos de preguntas
 - Generación IA con skills
 - Tags automáticos
-- Audio generation checkbox
 
 ---
 
 ## 📝 Próximos Pasos (Opcionales)
 
-1. **Desplegar Bark en t-800**
-   - Ejecutar `./scripts/deploy_to_t800.sh`
-   - O seguir `docs/BARK_MANUAL_INSTALL.md`
-
-2. **Filtrar errores de admin** (no críticos)
+1. **Filtrar errores de admin** (no críticos)
    - `getOrganizations` no existe
    - `BrandingContext` type error
 
-3. **Integración con Test Templates**
+2. **Integración con Test Templates**
    - Selector de preguntas desde banco
    - Bulk selection
 
-4. **Analytics de Skills**
+3. **Analytics de Skills**
    - Dashboard de distribución de skills
    - Reportes por habilidad
 
@@ -231,10 +182,9 @@ curl http://t-800:8000/health
 |------------|--------|-------|
 | Backend Question Bank | ✅ 100% | Compila exitosamente |
 | Frontend Question Bank | ✅ 95% | UI completa, 3 errores admin menores |
-| Bark Scripts | ✅ 100% | Listos para desplegar |
 | install.sh | ✅ 100% | Detecta dev/prod automáticamente |
 | Skills Verification | ✅ 100% | Implementado en IA y BD |
-| Documentación | ✅ 100% | 4 archivos docs completos |
+| Documentación | ✅ 100% | Archivos docs completos |
 
 **Progreso Total: 98%** 🎉
 
@@ -242,7 +192,5 @@ curl http://t-800:8000/health
 
 ## 📞 Soporte
 
-- **Bark Installation**: `docs/BARK_MANUAL_INSTALL.md`
 - **UI Usage**: `docs/QUESTION_BANK_UI.md`
-- **Bark API**: `docs/BARK_TTS_GUIDE.md`
 - **General**: `README.md` del proyecto

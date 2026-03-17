@@ -23,15 +23,15 @@ export default function AdminDashboard() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                // In a real app we'd have a specific stats endpoint, 
+                // In a real app we'd have a specific stats endpoint,
                 // but for now we'll calculate from lists
-                const [orgs, users] = await Promise.all([
-                    cmsApi.getOrganizations(),
+                const [org, users] = await Promise.all([
+                    cmsApi.getOrganization(),
                     cmsApi.getAllUsers()
                 ]);
 
                 setStats({
-                    orgs: orgs.length,
+                    orgs: 1, // Single tenant architecture
                     users: users.length,
                     courses: 0 // We'd need a global courses count
                 });

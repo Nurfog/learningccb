@@ -120,11 +120,9 @@ echo "🔍 Configurando Servicios de IA Remota ($ENV_CHOICE)..."
 if [ "$ENV_CHOICE" == "dev" ]; then
     DEFAULT_OLLAMA="http://t-800:11434"
     DEFAULT_WHISPER="http://t-800:9000"
-    DEFAULT_BARK="http://t-800:8000"
 else
     DEFAULT_OLLAMA="http://t-800.norteamericano.cl:11434"
     DEFAULT_WHISPER="http://t-800.norteamericano.cl:9000"
-    DEFAULT_BARK="http://t-800.norteamericano.cl:8000"
 fi
 
 read -p "Ingrese la URL de Ollama Remoto [$DEFAULT_OLLAMA]: " REMOTE_OLLAMA_URL
@@ -133,27 +131,22 @@ read -p "Ingrese la URL de Whisper Remoto [$DEFAULT_WHISPER]: " REMOTE_WHISPER_U
 REMOTE_WHISPER_URL=${REMOTE_WHISPER_URL:-$DEFAULT_WHISPER}
 read -p "Ingrese la URL del Image Bridge Remoto [http://t-800:8080]: " REMOTE_IMAGE_URL
 REMOTE_IMAGE_URL=${REMOTE_IMAGE_URL:-"http://t-800:8080"}
-read -p "Ingrese la URL de Bark TTS Remoto [$DEFAULT_BARK]: " REMOTE_BARK_URL
-REMOTE_BARK_URL=${REMOTE_BARK_URL:-$DEFAULT_BARK}
 read -p "Ingrese el nombre del Modelo (en el servidor remoto) [llama3.2:3b]: " LLM_MODEL
 LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
 
 update_env "AI_PROVIDER" "local"
 update_env "LOCAL_LLM_MODEL" "$LLM_MODEL"
 update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_IMAGE_URL"
-update_env "BARK_API_URL" "$REMOTE_BARK_URL"
 
 if [ "$ENV_CHOICE" == "dev" ]; then
     update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
     update_env "DEV_WHISPER_URL" "$REMOTE_WHISPER_URL"
-    update_env "DEV_BARK_URL" "$REMOTE_BARK_URL"
     # Portavilidad: set base URLs too
     update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
     update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
 else
     update_env "PROD_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
     update_env "PROD_WHISPER_URL" "$REMOTE_WHISPER_URL"
-    update_env "PROD_BARK_URL" "$REMOTE_BARK_URL"
     # Portavilidad: set base URLs too
     update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
     update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
