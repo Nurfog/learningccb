@@ -10,6 +10,7 @@ use common::models::{
 use common::{auth::Claims, middleware::Org};
 use serde::Deserialize;
 use sqlx::PgPool;
+use std::time::Duration;
 use uuid::Uuid;
 
 // ==================== Query Parameters ====================
@@ -635,12 +636,16 @@ pub async fn generate_questions_with_rag(
     let mysql_questions: Vec<MySqlQuestion> = if let Some(course_id) = payload.course_id {
         sqlx::query_as(
             r#"
-            SELECT bp.descripcion, bp.idTipoPregunta, c.NombreCurso, pe.Nombre as PlanNombre
+            SELECT 
+                bp.descripcion, 
+                bp.idTipoPregunta AS id_tipo_pregunta, 
+                c.NombreCurso AS nombre_curso, 
+                pe.Nombre as plan_nombre
             FROM bancopreguntas bp
             JOIN curso c ON bp.idCursos = c.idCursos
             JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
             WHERE bp.idCursos = ? AND bp.activo = 1
-            LIMIT 50
+            LIMIT 20
             "#
         )
         .bind(course_id)
@@ -650,114 +655,83 @@ pub async fn generate_questions_with_rag(
     } else {
         sqlx::query_as(
             r#"
-            SELECT bp.descripcion, bp.idTipoPregunta, c.NombreCurso, pe.Nombre as PlanNombre
+            SELECT 
+                bp.descripcion, 
+                bp.idTipoPregunta AS id_tipo_pregunta, 
+                c.NombreCurso AS nombre_curso, 
+                pe.Nombre as plan_nombre
             FROM bancopreguntas bp
             JOIN curso c ON bp.idCursos = c.idCursos
             JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
             WHERE bp.activo = 1
-            LIMIT 50
+            LIMIT 20
             "#
         )
         .fetch_all(&mysql_pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?
     };
-    
+
     mysql_pool.close().await;
-    
+
     if mysql_questions.is_empty() && payload.course_id.is_some() {
         return Err((StatusCode::NOT_FOUND, "No questions found in MySQL bank for this course".to_string()));
     }
-    
-    // 2. Build RAG context from MySQL questions
+
+    // 2. Build RAG context from MySQL questions (lightweight format)
     let rag_context: String = mysql_questions
         .iter()
-        .map(|q| format!("- {} (Tipo: {}, Curso: {})", q.descripcion, q.id_tipo_pregunta, q.nombre_curso))
+        .take(15) // Use only first 15 for context
+        .map(|q| format!("* {}", q.descripcion))
         .collect::<Vec<_>>()
         .join("\n");
+
+    tracing::info!("RAG context built with {} questions", mysql_questions.len().min(15));
     
-    // 3. Call AI to generate new questions based on RAG context
-    let provider = std::env::var("AI_PROVIDER").unwrap_or_else(|_| "local".to_string());
-    let client = reqwest::Client::new();
+    // 3. Call AI to generate new questions based on RAG context (Ollama only)
+    let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let model = std::env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+    let url = format!("{}/api/chat", base_url);
     
-    let (url, auth_header, model) = if provider == "local" {
-        let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
-        let model = std::env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
-        (
-            format!("{}/v1/chat/completions", base_url),
-            "".to_string(),
-            model,
-        )
-    } else {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "OPENAI_API_KEY not configured".to_string()))?;
-        (
-            "https://api.openai.com/v1/chat/completions".to_string(),
-            format!("Bearer {}", api_key),
-            "gpt-4o".to_string(),
-        )
-    };
-    
+    // Create client with extended timeout for slower Ollama instances
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600)) // 10 minutes timeout for slower machines
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    tracing::info!("Calling Ollama at {} with model {}", url, model);
+
+    // Simplified system prompt for better performance on slower machines
     let system_prompt = format!(
-        r#"You are an expert English Teacher creating ORIGINAL quiz questions that assess the FOUR KEY LANGUAGE SKILLS.
-        
-        Below are EXAMPLE questions from our existing question bank. Use them as INSPIRATION ONLY:
-        - Understand the TOPICS, STYLE, and DIFFICULTY LEVEL
-        - Create COMPLETELY NEW questions with different wording, contexts, and answer options
-        - Do NOT copy any question directly
-        - Adapt the concepts to fresh scenarios
-        
-        EXAMPLE QUESTIONS (for inspiration only):
+        r#"You are an English Teacher creating quiz questions.
+
+        Use these examples as inspiration (do NOT copy):
         {}
-        
-        Task: Create {} ORIGINAL multiple-choice questions about: {}
-        
-        IMPORTANT: Each question must assess ONE of these FOUR skills:
-        1. READING - Comprehension, vocabulary in context, text analysis
-        2. LISTENING - Audio comprehension, spoken dialogue understanding
-        3. SPEAKING - Oral production, pronunciation, conversational response
-        4. WRITING - Written production, grammar in writing, composition
-        
-        For EACH question, you MUST:
-        - Specify which skill it assesses (reading/listening/speaking/writing)
-        - Ensure the question actually tests that skill (not just knowledge)
-        - Provide pedagogically sound content for English language learning
-        - Match the difficulty level appropriately
-        
-        Return ONLY a JSON array of questions with this exact structure:
+
+        Create {} ORIGINAL multiple-choice questions about: {}
+
+        Return ONLY a JSON array with this structure:
         [
             {{
-                "question_text": "Your ORIGINAL question text here",
+                "question_text": "Question text",
                 "question_type": "multiple-choice",
-                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "options": ["A", "B", "C", "D"],
                 "correct_answer": 0,
-                "explanation": "Brief explanation of why this is correct. End with: 'Skill assessed: [READING|LISTENING|SPEAKING|WRITING]'",
+                "explanation": "Why this is correct",
                 "points": 1,
                 "skill_assessed": "reading"
             }}
         ]
-        
-        GUIDELINES:
-        - Each question must be UNIQUE - rephrase concepts from examples
-        - Use different vocabulary, scenarios, and contexts
-        - Maintain similar difficulty level to the examples
-        - Ensure correct_answer is the index (0-3) of the correct option
-        - Write clear explanations that teach, not just state the answer
-        - DISTRIBUTE questions across all 4 skills (don't focus on just one)
-        
-        Example transformations by skill:
-        - READING: "Read this passage and answer..." or "What does the word X mean in context?"
-        - LISTENING: "After listening to the dialogue..." or "What would you hear in this situation?"
-        - SPEAKING: "Which response is most appropriate in this conversation?"
-        - WRITING: "Which sentence is grammatically correct?" or "Complete the sentence with..."
-        
-        Be creative while maintaining educational value and ensuring all 4 skills are covered!"#,
+
+        Skills: reading, listening, speaking, writing. Distribute across all 4."#,
         rag_context,
         payload.num_questions.unwrap_or(5),
-        payload.topic.unwrap_or_else(|| "English grammar and vocabulary".to_string())
+        payload.topic.unwrap_or_else(|| "English grammar".to_string())
     );
+
+    tracing::debug!("System prompt length: {} chars", system_prompt.len());
     
-    let mut request = client
+    let request = client
         .post(&url)
         .json(&json!({
             "model": model,
@@ -765,33 +739,38 @@ pub async fn generate_questions_with_rag(
                 {
                     "role": "system",
                     "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": "Generate the questions in valid JSON format."
                 }
             ],
-            "response_format": { "type": "json_object" }
+            "stream": false,
+            "format": "json"  // Ollama native JSON mode
         }));
-    
-    if !auth_header.is_empty() {
-        request = request.header("Authorization", auth_header);
-    }
+
+    tracing::info!("Sending request to Ollama (model: {}, prompt length: {} chars)", model, system_prompt.len());
     
     let response = request.send().await.map_err(|e| {
-        tracing::error!("AI request failed: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, "AI service unavailable".to_string())
+        tracing::error!("AI request failed after timeout: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("Ollama timeout - el equipo t-800 está tardando en responder. Intenta nuevamente: {}", e))
     })?;
-    
+
+    tracing::info!("Ollama response status: {}", response.status());
+
     let response_json: serde_json::Value = response.json().await.map_err(|e| {
         tracing::error!("Failed to parse AI response: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, "Invalid AI response".to_string())
     })?;
-    
-    // Parse questions from AI response
+
+    tracing::debug!("Ollama response: {:?}", response_json);
+
+    // Parse questions from Ollama response
     let questions_data = response_json
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|choices| choices.first())
-        .and_then(|c| c.get("message"))
+        .get("message")
         .and_then(|m| m.get("content"))
-        .and_then(|content| serde_json::from_str::<serde_json::Value>(content.as_str().unwrap_or("{}")).ok())
+        .and_then(|content| content.as_str())
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
         .and_then(|data| {
             if let Some(questions) = data.get("questions").or(data.get("items")) {
                 questions.as_array().cloned()

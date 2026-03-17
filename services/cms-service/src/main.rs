@@ -351,6 +351,10 @@ async fn main() {
             "/question-bank/import-mysql-all",
             post(handlers_question_bank::import_all_from_mysql),
         )
+        .route(
+            "/question-bank/ai-generate",
+            post(handlers_question_bank::ai_generate_question),
+        )
         // Excel import - pendiente de fix
         // .route(
         //     "/question-bank/import-excel",

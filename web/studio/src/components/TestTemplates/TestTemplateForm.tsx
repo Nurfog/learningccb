@@ -163,65 +163,61 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
         setExpandedQuestion(newQuestion.id);
     };
 
-    const handleUpdateQuestion = (questionId: string, updates: Partial<Question>) => {
-        setQuestions(questions.map(q => q.id === questionId ? { ...q, ...updates } : q));
-    };
-
-    const handleRemoveQuestion = (questionId: string) => {
-        setQuestions(questions.filter(q => q.id !== questionId));
-    };
-
     const handleGenerateWithAI = async () => {
         if (!aiContext.trim()) {
             alert('Ingresa el contexto para generar las preguntas (ej: tema de la lección, contenido, etc.)');
             return;
         }
 
+        const token = localStorage.getItem('studio_token');
+        if (!token) {
+            alert('No hay sesión activa. Por favor inicia sesión nuevamente.');
+            return;
+        }
+
         try {
             setGeneratingAI(true);
-            
-            // Usar el endpoint de generación de quiz existente
-            const response = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/lessons/dummy/generate-quiz`, {
+
+            // Usar el endpoint RAG de generación de preguntas desde banco MySQL
+            const response = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/test-templates/generate-with-rag`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    context: aiContext,
-                    quiz_type: 'multiple-choice',
+                    topic: aiContext,
+                    num_questions: 5,
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Error al generar con IA');
+                const errorText = await response.text();
+                throw new Error(`Error ${response.status}: ${errorText}`);
             }
 
-            const data = await response.json();
-            
+            const generatedQuestions = await response.json();
+
             // Parsear las preguntas generadas
-            if (data.blocks && data.blocks.length > 0) {
-                const block = data.blocks[0];
-                if (block.quiz_data && block.quiz_data.questions) {
-                    const generatedQuestions: Question[] = block.quiz_data.questions.map((q: any, idx: number) => ({
-                        id: `q-${Date.now()}-${idx}`,
-                        section_id: undefined,
-                        question_order: idx,
-                        question_type: q.type || 'multiple-choice',
-                        question_text: q.question,
-                        options: q.options,
-                        correct_answer: q.correct,
-                        explanation: q.explanation || '',
-                        points: 1,
-                    }));
-                    
-                    setQuestions([...questions, ...generatedQuestions]);
-                    alert(`Se generaron ${generatedQuestions.length} preguntas con IA`);
-                }
+            if (Array.isArray(generatedQuestions) && generatedQuestions.length > 0) {
+                const questionsToAdd: Question[] = generatedQuestions.map((q: any, idx: number) => ({
+                    id: `q-${Date.now()}-${idx}`,
+                    section_id: undefined,
+                    question_order: questions.length + idx,
+                    question_type: q.question_type || 'multiple-choice',
+                    question_text: q.question_text || q.text,
+                    options: q.options || [],
+                    correct_answer: q.correct_answer || q.correct,
+                    explanation: q.explanation || '',
+                    points: q.points || 1,
+                }));
+
+                setQuestions([...questions, ...questionsToAdd]);
+                alert(`Se generaron ${questionsToAdd.length} preguntas con IA`);
             }
         } catch (error) {
             console.error('AI generation error:', error);
-            alert('Error al generar preguntas con IA. Asegúrate de tener Ollama configurado.');
+            alert(`Error al generar preguntas con IA: ${error instanceof Error ? error.message : 'Verifica que Ollama esté configurado y el banco de preguntas MySQL tenga datos'}`);
         } finally {
             setGeneratingAI(false);
         }

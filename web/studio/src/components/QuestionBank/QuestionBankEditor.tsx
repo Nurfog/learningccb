@@ -147,55 +147,44 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
 
         try {
             setGeneratingAI(true);
-            
-            // AI generation with skill verification
-            const response = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/lessons/dummy/generate-quiz`, {
+
+            // AI generation con el nuevo endpoint de question bank
+            const token = localStorage.getItem('studio_token');
+            const response = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/question-bank/ai-generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    context: `Generate a question that assesses ${randomSkill.toUpperCase()} skill. ${skillPrompts[randomSkill as keyof typeof skillPrompts]}
-                    
-                    Base question context: ${formData.question_text}
-                    
-                    IMPORTANT: The question must:
-                    1. Test the ${randomSkill} skill specifically
-                    2. Be pedagogically sound for English language learning
-                    3. Include clear options and a thorough explanation
-                    4. Be appropriate for the difficulty level: ${formData.difficulty}
-                    
-                    Return the question with options and explanation.`,
-                    quiz_type: formData.question_type,
+                    question_text: formData.question_text,
+                    difficulty: formData.difficulty,
+                    skill: randomSkill,
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Error al generar con IA');
+                const errorText = await response.text();
+                throw new Error(`Error ${response.status}: ${errorText}`);
             }
 
             const data = await response.json();
-            
-            if (data.blocks && data.blocks.length > 0) {
-                const block = data.blocks[0];
-                if (block.quiz_data && block.quiz_data.questions && block.quiz_data.questions.length > 0) {
-                    const aiQuestion = block.quiz_data.questions[0];
-                    setFormData({
-                        ...formData,
-                        options: aiQuestion.options || formData.options,
-                        correct_answer: aiQuestion.correct,
-                        explanation: aiQuestion.explanation 
-                            ? `${aiQuestion.explanation}\n\n📊 Skill assessed: ${randomSkill.toUpperCase()}`
-                            : `This question assesses ${randomSkill.toUpperCase()} skills.`,
-                        tags: [...(formData.tags || []), randomSkill, 'ai-generated'],
-                    });
-                    alert(`IA generó las opciones y explicación enfocadas en la habilidad: ${randomSkill.toUpperCase()}`);
-                }
+
+            if (data.options && data.correct_answer !== undefined) {
+                setFormData({
+                    ...formData,
+                    options: data.options,
+                    correct_answer: data.correct_answer,
+                    explanation: data.explanation
+                        ? `${data.explanation}\n\n📊 Skill assessed: ${randomSkill.toUpperCase()}`
+                        : `This question assesses ${randomSkill.toUpperCase()} skills.`,
+                    tags: [...(formData.tags || []), randomSkill, 'ai-generated'],
+                });
+                alert(`IA generó las opciones y explicación enfocadas en la habilidad: ${randomSkill.toUpperCase()}`);
             }
         } catch (error) {
             console.error('AI generation error:', error);
-            alert('Error al generar con IA. Asegúrate de tener Ollama configurado.');
+            alert(`Error al generar con IA: ${error instanceof Error ? error.message : 'Verifica que Ollama esté configurado'}`);
         } finally {
             setGeneratingAI(false);
         }

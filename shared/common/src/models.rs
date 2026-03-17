@@ -1322,7 +1322,7 @@ pub struct ApplyTemplatePayload {
 
 // ==================== Question Bank ====================
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "question_bank_type")]
 pub enum QuestionBankType {
     #[sqlx(rename = "multiple-choice")]

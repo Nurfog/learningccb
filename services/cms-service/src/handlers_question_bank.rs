@@ -294,8 +294,8 @@ pub async fn import_from_mysql(
             
             if let Some(question) = mq {
                 // Map MySQL question type to platform question type
-                let question_type = map_mysql_question_type(question.id_tipo_pregunta);
-                
+                let question_type = map_mysql_question_type(question.id_tipo_pregunta, None);
+
                 let options = if question_type == QuestionBankType::MultipleChoice {
                     Some(json!(["Opción A", "Opción B", "Opción C", "Opción D"]))
                 } else if question_type == QuestionBankType::TrueFalse {
@@ -374,7 +374,7 @@ pub async fn import_from_mysql(
         }
 
         // Map MySQL question type to platform question type
-        let question_type = map_mysql_question_type(mq.id_tipo_pregunta);
+        let question_type = map_mysql_question_type(mq.id_tipo_pregunta, None);
 
         // Create options for multiple choice (if applicable)
         let options = if question_type == QuestionBankType::MultipleChoice {
@@ -431,16 +431,110 @@ pub async fn import_from_mysql(
 
 // ==================== Helpers ====================
 
-fn map_mysql_question_type(mysql_type: i32) -> QuestionBankType {
+fn map_mysql_question_type(mysql_type: i32, tipo_nombre: Option<&str>) -> QuestionBankType {
     // Map MySQL question types to platform types
-    // This depends on how tipos are defined in the MySQL database
-    match mysql_type {
-        1 => QuestionBankType::MultipleChoice,
-        2 => QuestionBankType::TrueFalse,
-        3 => QuestionBankType::ShortAnswer,
-        4 => QuestionBankType::Matching,
-        _ => QuestionBankType::MultipleChoice, // Default
+    // First try by name, then by ID as fallback
+    if let Some(nombre) = tipo_nombre {
+        let nombre_lower = nombre.to_lowercase();
+        if nombre_lower.contains("selecc") || nombre_lower.contains("múltiple") || nombre_lower.contains("multiple") || nombre_lower.contains("alternativa") {
+            return QuestionBankType::MultipleChoice;
+        }
+        if nombre_lower.contains("verdadero") || nombre_lower.contains("falso") {
+            return QuestionBankType::TrueFalse;
+        }
+        if nombre_lower.contains("emparej") || nombre_lower.contains("match") {
+            return QuestionBankType::Matching;
+        }
+        if nombre_lower.contains("orden") {
+            return QuestionBankType::Ordering;
+        }
+        if nombre_lower.contains("complet") {
+            return QuestionBankType::FillInTheBlanks;
+        }
+        if nombre_lower.contains("ensayo") || nombre_lower.contains("essay") {
+            return QuestionBankType::Essay;
+        }
+        if nombre_lower.contains("corta") || nombre_lower.contains("short") || nombre_lower.contains("texto") {
+            return QuestionBankType::ShortAnswer;
+        }
+        // Audio type in MySQL is typically listening comprehension with multiple choice answers
+        if nombre_lower.contains("audio") || nombre_lower.contains("listening") {
+            return QuestionBankType::MultipleChoice;
+        }
     }
+
+    // Fallback to ID mapping
+    match mysql_type {
+        1 => QuestionBankType::MultipleChoice, // Alternativa
+        2 => QuestionBankType::MultipleChoice, // Audio (listening comprehension)
+        3 => QuestionBankType::ShortAnswer,    // Texto
+        4 => QuestionBankType::Matching,
+        5 => QuestionBankType::Ordering,
+        6 => QuestionBankType::FillInTheBlanks,
+        7 => QuestionBankType::Essay,
+        _ => QuestionBankType::MultipleChoice,
+    }
+}
+
+/// Parse MySQL answers JSON and extract options and correct answer
+fn parse_mysql_answers(
+    answers_json: Option<&str>,
+    question_type: QuestionBankType,
+) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+    if let Some(json_str) = answers_json {
+        if let Ok(answers) = serde_json::from_str::<Vec<serde_json::Value>>(json_str) {
+            if !answers.is_empty() {
+                // Extract options (all answer texts)
+                let options: Vec<String> = answers
+                    .iter()
+                    .filter_map(|a| a.get("texto").and_then(|t| t.as_str()).map(String::from))
+                    .collect();
+                
+                // Extract correct answer(s)
+                let correct_indices: Vec<usize> = answers
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, a)| a.get("es_correcta").and_then(|c| c.as_bool()).unwrap_or(false))
+                    .map(|(i, _)| i)
+                    .collect();
+                
+                let options_json = if !options.is_empty() {
+                    Some(serde_json::json!(options))
+                } else {
+                    None
+                };
+                
+                let correct_answer = if question_type == QuestionBankType::TrueFalse || 
+                    question_type == QuestionBankType::MultipleChoice {
+                    // For multiple choice, store index/indices
+                    if correct_indices.len() == 1 {
+                        Some(serde_json::json!(correct_indices[0]))
+                    } else if correct_indices.len() > 1 {
+                        Some(serde_json::json!(correct_indices))
+                    } else {
+                        Some(serde_json::json!(0)) // Default to first
+                    }
+                } else {
+                    // For other types, store the text
+                    correct_indices.first()
+                        .and_then(|&i| answers.get(i))
+                        .and_then(|a| a.get("texto").and_then(|t| t.as_str()))
+                        .map(|t| serde_json::json!(t))
+                };
+                
+                return (options_json, correct_answer);
+            }
+        }
+    }
+    
+    // Default values if no answers provided
+    let default_options = match question_type {
+        QuestionBankType::MultipleChoice => Some(serde_json::json!(["Opción A", "Opción B", "Opción C", "Opción D"])),
+        QuestionBankType::TrueFalse => Some(serde_json::json!(["Verdadero", "Falso"])),
+        _ => None,
+    };
+    
+    (default_options, Some(serde_json::json!(0)))
 }
 
 // ==================== MySQL Integration ====================
@@ -496,24 +590,41 @@ pub async fn import_all_from_mysql(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
     
-    // Fetch ALL questions from MySQL
+    // Fetch ALL questions from MySQL with answers (using JSON aggregation for answers)
     let mysql_questions: Vec<MySqlQuestionFull> = sqlx::query_as(
         r#"
-        SELECT 
-            bp.idPregunta,
-            bp.descripcion,
-            bp.idTipoPregunta,
-            bp.activo,
-            c.idCursos,
-            c.NombreCurso,
-            c.NivelCurso,
-            pe.idPlanDeEstudios,
-            pe.Nombre as PlanNombre
+        SELECT
+            bp.idPregunta AS id_pregunta,
+            bp.descripcion AS descripcion,
+            bp.idTipoPregunta AS id_tipo_pregunta,
+            bp.activo AS activo,
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS plan_nombre,
+            tp.descripcion AS tipo_pregunta_nombre,
+            CAST(
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'idRespuesta', br.idRespuesta,
+                            'texto', br.descripcion,
+                            'es_correcta', br.resultado = 1
+                        )
+                    )
+                    FROM bancorespuestas br
+                    WHERE br.idPregunta = bp.idPregunta
+                    AND br.activo = 1
+                ) AS CHAR
+            ) AS respuestas_json
         FROM bancopreguntas bp
         JOIN curso c ON bp.idCursos = c.idCursos
         JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
+        JOIN tipopregunta tp ON bp.idTipoPregunta = tp.idTipoPregunta
         WHERE bp.activo = 1
         ORDER BY pe.Nombre, c.NombreCurso, bp.idPregunta
+        LIMIT 500
         "#
     )
     .fetch_all(&mysql_pool)
@@ -566,15 +677,14 @@ pub async fn import_all_from_mysql(
                 }
             }
             None => {
-                // New question - insert
-                let question_type = map_mysql_question_type(mq.id_tipo_pregunta);
-                let options = if question_type == QuestionBankType::MultipleChoice {
-                    Some(serde_json::json!(["Opción A", "Opción B", "Opción C", "Opción D"]))
-                } else if question_type == QuestionBankType::TrueFalse {
-                    Some(serde_json::json!(["Verdadero", "Falso"]))
-                } else {
-                    None
-                };
+                // New question - insert with answers from MySQL
+                let question_type = map_mysql_question_type(mq.id_tipo_pregunta, mq.tipo_pregunta_nombre.as_deref());
+                
+                // Parse answers from MySQL
+                let (options, correct_answer) = parse_mysql_answers(mq.respuestas_json.as_deref(), question_type);
+
+                let has_answers = mq.respuestas_json.is_some();
+                let question_type_name = mq.tipo_pregunta_nombre.clone();
                 
                 let source_metadata = serde_json::json!({
                     "mysql_table": "bancopreguntas",
@@ -585,10 +695,12 @@ pub async fn import_all_from_mysql(
                     "idPlanDeEstudios": mq.id_plan_de_estudios,
                     "plan_nombre": mq.plan_nombre,
                     "idTipoPregunta": mq.id_tipo_pregunta,
+                    "tipo_pregunta_nombre": question_type_name,
                     "imported_at": chrono::Utc::now().to_rfc3339(),
                     "import_method": "bulk_import_all",
+                    "has_answers": has_answers,
                 });
-                
+
                 let _ = sqlx::query(
                     r#"
                     INSERT INTO question_bank (
@@ -605,13 +717,13 @@ pub async fn import_all_from_mysql(
                 .bind(&mq.descripcion)
                 .bind(&question_type)
                 .bind(&options)
-                .bind(&serde_json::Value::Null)
+                .bind(&correct_answer)
                 .bind(&source_metadata)
                 .bind(mq.id_pregunta)
                 .bind(mq.id_cursos)
                 .execute(&pool)
                 .await;
-                
+
                 imported_count += 1;
             }
         }
@@ -672,6 +784,8 @@ pub struct MySqlQuestionFull {
     pub nivel_curso: Option<i32>,
     pub id_plan_de_estudios: i32,
     pub plan_nombre: String,
+    pub respuestas_json: Option<String>, // JSON array de respuestas
+    pub tipo_pregunta_nombre: Option<String>, // Nombre del tipo de pregunta
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -684,4 +798,102 @@ struct MySqlQuestion {
     nombre_curso: String,
     id_plan_de_estudios: i32,
     plan_nombre: String,
+}
+
+// ==================== AI Generation ====================
+
+#[derive(Debug, Deserialize)]
+pub struct AIGenerateQuestionPayload {
+    pub question_text: Option<String>,
+    pub question_type: Option<String>,
+    pub difficulty: Option<String>,
+    pub skill: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AIQuestionResponse {
+    pub question_text: String,
+    pub options: Vec<String>,
+    pub correct_answer: serde_json::Value,
+    pub explanation: String,
+}
+
+/// POST /question-bank/ai-generate - Generate question options/answers using AI (Ollama only)
+pub async fn ai_generate_question(
+    _org_ctx: Org,
+    _claims: Claims,
+    Json(payload): Json<AIGenerateQuestionPayload>,
+) -> Result<Json<AIQuestionResponse>, (StatusCode, String)> {
+    use std::env;
+    use std::time::Duration;
+
+    let question_text = payload.question_text.unwrap_or_else(|| "English grammar question".to_string());
+    let difficulty = payload.difficulty.unwrap_or_else(|| "medium".to_string());
+    let skill = payload.skill.unwrap_or_else(|| "grammar".to_string());
+
+    // Build prompt for AI
+    let system_prompt = format!(
+        r#"You are an expert English Teacher creating quiz questions.
+
+        Create a multiple-choice question with the following parameters:
+        - Topic/Context: {}
+        - Difficulty: {}
+        - Skill assessed: {}
+
+        Return ONLY a JSON object with this exact structure:
+        {{
+            "question_text": "The question text here",
+            "options": ["Option A", "Option B", "Option C", "Option D"],
+            "correct_answer": 0,
+            "explanation": "Detailed explanation of why this is correct"
+        }}"#,
+        question_text, difficulty, skill
+    );
+
+    // Call Ollama AI with extended timeout
+    let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
+    let url = format!("{}/api/chat", base_url);
+    
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600)) // 10 minutes timeout for slower machines
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    tracing::info!("Calling Ollama at {} with model {}", url, model);
+
+    let response = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": "Generate the question in JSON format" }
+            ],
+            "stream": false,
+            "format": "json"
+        }))
+        .send()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("AI request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("AI API error: {}", response.status())));
+    }
+
+    let result: serde_json::Value = response.json().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse AI response: {}", e)))?;
+
+    // Extract content from Ollama response
+    let content = result
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Invalid AI response format".to_string()))?;
+
+    // Parse AI response as JSON
+    let ai_question: AIQuestionResponse = serde_json::from_str(content)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse question JSON: {}", e)))?;
+
+    Ok(Json(ai_question))
 }
