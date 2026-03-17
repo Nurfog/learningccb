@@ -1135,7 +1135,7 @@ export interface BackgroundTask {
 
 // ==================== Test Templates ====================
 
-export type CourseLevel = 'beginner' | 'beginner_1' | 'beginner_2' | 'intermediate' | 'intermediate_1' | 'intermediate_2' | 'advanced' | 'advanced_1' | 'advanced_2';
+export type CourseLevel = 'beginner' | 'beginner1' | 'beginner2' | 'intermediate' | 'intermediate1' | 'intermediate2' | 'advanced' | 'advanced1' | 'advanced2';
 export type CourseType = 'intensive' | 'regular';
 export type TestType = 'CA' | 'MWT' | 'MOT' | 'FOT' | 'FWT';
 export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering';

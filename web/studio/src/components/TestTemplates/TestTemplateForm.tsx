@@ -328,14 +328,14 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="beginner">Beginner</option>
-                                    <option value="beginner_1">Beginner 1</option>
-                                    <option value="beginner_2">Beginner 2</option>
+                                    <option value="beginner1">Beginner 1</option>
+                                    <option value="beginner2">Beginner 2</option>
                                     <option value="intermediate">Intermediate</option>
-                                    <option value="intermediate_1">Intermediate 1</option>
-                                    <option value="intermediate_2">Intermediate 2</option>
+                                    <option value="intermediate1">Intermediate 1</option>
+                                    <option value="intermediate2">Intermediate 2</option>
                                     <option value="advanced">Advanced</option>
-                                    <option value="advanced_1">Advanced 1</option>
-                                    <option value="advanced_2">Advanced 2</option>
+                                    <option value="advanced1">Advanced 1</option>
+                                    <option value="advanced2">Advanced 2</option>
                                 </select>
                             </div>
 

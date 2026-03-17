@@ -90,14 +90,14 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const getLevelLabel = (level: CourseLevel) => {
         const labels: Record<CourseLevel, string> = {
             beginner: 'Beginner',
-            beginner_1: 'Beginner 1',
-            beginner_2: 'Beginner 2',
+            beginner1: 'Beginner 1',
+            beginner2: 'Beginner 2',
             intermediate: 'Intermediate',
-            intermediate_1: 'Intermediate 1',
-            intermediate_2: 'Intermediate 2',
+            intermediate1: 'Intermediate 1',
+            intermediate2: 'Intermediate 2',
             advanced: 'Advanced',
-            advanced_1: 'Advanced 1',
-            advanced_2: 'Advanced 2',
+            advanced1: 'Advanced 1',
+            advanced2: 'Advanced 2',
         };
         return labels[level] || level;
     };
@@ -185,14 +185,14 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                         >
                             <option value="">Todos los niveles</option>
                             <option value="beginner">Beginner</option>
-                            <option value="beginner_1">Beginner 1</option>
-                            <option value="beginner_2">Beginner 2</option>
+                            <option value="beginner1">Beginner 1</option>
+                            <option value="beginner2">Beginner 2</option>
                             <option value="intermediate">Intermediate</option>
-                            <option value="intermediate_1">Intermediate 1</option>
-                            <option value="intermediate_2">Intermediate 2</option>
+                            <option value="intermediate1">Intermediate 1</option>
+                            <option value="intermediate2">Intermediate 2</option>
                             <option value="advanced">Advanced</option>
-                            <option value="advanced_1">Advanced 1</option>
-                            <option value="advanced_2">Advanced 2</option>
+                            <option value="advanced1">Advanced 1</option>
+                            <option value="advanced2">Advanced 2</option>
                         </select>
                     </div>
                     <div>

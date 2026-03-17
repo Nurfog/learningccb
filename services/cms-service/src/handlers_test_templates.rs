@@ -615,9 +615,10 @@ pub struct ApplyTemplatePayload {
 
 // ==================== RAG Question Generation ====================
 
-/// POST /api/test-templates/generate-with-rag - Generate questions using RAG from MySQL question bank
+/// POST /test-templates/generate-with-rag - Generate questions using RAG from MySQL question bank
 pub async fn generate_questions_with_rag(
     Org(org_ctx): Org,
+    claims: Claims,
     State(pool): State<PgPool>,
     Json(payload): Json<RagGenerationPayload>,
 ) -> Result<Json<Vec<TestTemplateQuestion>>, (StatusCode, String)> {
@@ -701,6 +702,10 @@ pub async fn generate_questions_with_rag(
 
     tracing::info!("Calling Ollama at {} with model {}", url, model);
 
+    // Save topic for later use
+    let topic = payload.topic.clone().unwrap_or_else(|| "English grammar".to_string());
+    let num_questions = payload.num_questions.unwrap_or(5);
+
     // Simplified system prompt for better performance on slower machines
     let system_prompt = format!(
         r#"You are an English Teacher creating quiz questions.
@@ -725,8 +730,8 @@ pub async fn generate_questions_with_rag(
 
         Skills: reading, listening, speaking, writing. Distribute across all 4."#,
         rag_context,
-        payload.num_questions.unwrap_or(5),
-        payload.topic.unwrap_or_else(|| "English grammar".to_string())
+        num_questions,
+        topic
     );
 
     tracing::debug!("System prompt length: {} chars", system_prompt.len());
@@ -811,9 +816,59 @@ pub async fn generate_questions_with_rag(
     if generated_questions.is_empty() {
         return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI failed to generate questions".to_string()));
     }
-    
-    tracing::info!("Generated {} questions using RAG from MySQL bank", generated_questions.len());
-    
+
+    // Save generated questions to question bank
+    let mut saved_count = 0;
+    for question in &generated_questions {
+        let question_type = match question.question_type.as_str() {
+            "true-false" => common::models::QuestionBankType::TrueFalse,
+            "short-answer" => common::models::QuestionBankType::ShortAnswer,
+            "essay" => common::models::QuestionBankType::Essay,
+            "matching" => common::models::QuestionBankType::Matching,
+            "ordering" => common::models::QuestionBankType::Ordering,
+            _ => common::models::QuestionBankType::MultipleChoice,
+        };
+
+        let result = sqlx::query(
+            r#"
+            INSERT INTO question_bank (
+                organization_id, created_by, question_text, question_type,
+                options, correct_answer, explanation, points, difficulty,
+                source, source_metadata, is_active
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)
+            "#
+        )
+        .bind(org_ctx.id)
+        .bind(claims.sub)
+        .bind(&question.question_text)
+        .bind(&question_type)
+        .bind(&question.options)
+        .bind(&question.correct_answer)
+        .bind(&question.explanation)
+        .bind(question.points)
+        .bind("medium")
+        .bind("rag-ai")
+        .bind(&json!({
+            "generated_by": "rag-ai",
+            "source": "mysql-bank",
+            "topic": topic,
+            "generated_at": chrono::Utc::now().to_rfc3339(),
+        }))
+        .execute(&pool)
+        .await;
+
+        if result.is_ok() {
+            saved_count += 1;
+        }
+    }
+
+    tracing::info!(
+        "Generated {} questions using RAG from MySQL bank, saved {} to question bank",
+        generated_questions.len(),
+        saved_count
+    );
+
     Ok(Json(generated_questions))
 }
 
