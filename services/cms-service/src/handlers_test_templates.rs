@@ -732,6 +732,7 @@ pub async fn generate_questions_with_rag(
     } else if let Some(course_id) = payload.course_id {
         // Fetch questions from imported MySQL questions in PostgreSQL question_bank
         // Filter by course_id if provided (mysql_course_id from imported metadata)
+        // NO LIMIT - fetch all questions for better RAG context
         mysql_questions = sqlx::query_as(
             r#"
             SELECT
@@ -753,7 +754,7 @@ pub async fn generate_questions_with_rag(
             WHERE qb.organization_id = $1
                 AND qb.source = 'imported-mysql'
                 AND (qb.source_metadata->>'idCursos')::integer = $2
-            LIMIT 20
+            ORDER BY qb.created_at DESC
             "#
         )
         .bind(org_ctx.id)
@@ -763,6 +764,7 @@ pub async fn generate_questions_with_rag(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
     } else {
         // Fetch all imported MySQL questions for this organization
+        // NO LIMIT - fetch all questions for better RAG context
         mysql_questions = sqlx::query_as(
             r#"
             SELECT
@@ -783,7 +785,7 @@ pub async fn generate_questions_with_rag(
             FROM question_bank qb
             WHERE qb.organization_id = $1
                 AND qb.source = 'imported-mysql'
-            LIMIT 20
+            ORDER BY qb.created_at DESC
             "#
         )
         .bind(org_ctx.id)
