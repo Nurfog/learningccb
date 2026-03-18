@@ -2608,28 +2608,92 @@ pub async fn chat_with_tutor(
         }
     }
 
-    // 2.2 Knowledge Base Retrieval (RAG)
-    let search_results = sqlx::query(
-        r#"
-        SELECT content_chunk
-        FROM knowledge_base
-        WHERE organization_id = $1
-          AND search_vector @@ plainto_tsquery('english', $2)
-        LIMIT 3
-        "#,
-    )
-    .bind(org_ctx.id)
-    .bind(&payload.message)
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
+    // 2.2 Knowledge Base Retrieval (RAG) - Hybrid Search
+    // First try semantic search with embeddings (more accurate)
+    // Fall back to full-text search if embeddings not available
+    
+    use common::ai::{self, generate_embedding};
+    
     let mut kb_context = String::new();
-    if !search_results.is_empty() {
-        kb_context.push_str("\n--- CONTEXTO ADICIONAL DE LA BASE DE CONOCIMIENTOS ---\n");
-        for row in search_results {
-            let chunk: String = row.get("content_chunk");
-            kb_context.push_str(&format!("Relevant Snippet: {}\n\n", chunk));
+    
+    // Try semantic search with embeddings first
+    // Create client that accepts invalid certificates (for dev with self-signed certs)
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .map_err(|e| {
+            tracing::warn!("Failed to create HTTP client for embeddings: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e))
+        })?;
+    
+    let ollama_url = ai::get_ollama_url();
+    let model = ai::get_embedding_model();
+    
+    match generate_embedding(&client, &ollama_url, &model, &payload.message).await {
+        Ok(response) => {
+            let pgvector = ai::embedding_to_pgvector(&response.embedding);
+            
+            // Semantic search with pgvector
+            let search_results = sqlx::query(
+                r#"
+                SELECT content_chunk, 1 - (embedding <=> $1::vector) AS similarity
+                FROM knowledge_base
+                WHERE organization_id = $2
+                  AND embedding IS NOT NULL
+                ORDER BY embedding <=> $1::vector
+                LIMIT 5
+                "#,
+            )
+            .bind(&pgvector)
+            .bind(org_ctx.id)
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
+            
+            // Filter by similarity threshold (0.5)
+            let relevant_results: Vec<_> = search_results
+                .into_iter()
+                .filter(|row| {
+                    let similarity: f64 = row.get("similarity");
+                    similarity >= 0.5
+                })
+                .collect();
+            
+            if !relevant_results.is_empty() {
+                kb_context.push_str("\n--- CONTEXTO DE LA BASE DE CONOCIMIENTOS (Búsqueda Semántica) ---\n");
+                for row in relevant_results {
+                    let chunk: String = row.get("content_chunk");
+                    kb_context.push_str(&format!("Relevant Snippet: {}\n\n", chunk));
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Semantic search failed, falling back to full-text search: {}", e);
+            
+            // Fall back to full-text search
+            let search_results = sqlx::query(
+                r#"
+                SELECT content_chunk
+                FROM knowledge_base
+                WHERE organization_id = $1
+                  AND search_vector @@ plainto_tsquery('english', $2)
+                LIMIT 3
+                "#,
+            )
+            .bind(org_ctx.id)
+            .bind(&payload.message)
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
+            
+            if !search_results.is_empty() {
+                kb_context.push_str("\n--- CONTEXTO DE LA BASE DE CONOCIMIENTOS (Búsqueda Full-Text) ---\n");
+                for row in search_results {
+                    let chunk: String = row.get("content_chunk");
+                    kb_context.push_str(&format!("Relevant Snippet: {}\n\n", chunk));
+                }
+            }
         }
     }
 

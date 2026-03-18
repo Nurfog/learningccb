@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct TestTemplateFilters {
+    pub mysql_course_id: Option<i32>, // Filter by MySQL course ID
     pub level: Option<CourseLevel>,
     pub course_type: Option<CourseType>,
     pub test_type: Option<TestType>,
@@ -36,12 +37,12 @@ pub async fn create_test_template(
     let template: TestTemplate = sqlx::query_as(
         r#"
         INSERT INTO test_templates (
-            organization_id, created_by, name, description, level, course_type, 
-            test_type, duration_minutes, passing_score, total_points, 
+            organization_id, created_by, name, description, mysql_course_id,
+            level, course_type, test_type, duration_minutes, passing_score, total_points,
             instructions, template_data, tags
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING id, organization_id, created_by, name, description, level, course_type,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING id, organization_id, mysql_course_id, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
             template_data, tags, is_active, usage_count, created_at, updated_at
         "#
@@ -50,8 +51,9 @@ pub async fn create_test_template(
     .bind(claims.sub)
     .bind(&payload.name)
     .bind(&payload.description)
-    .bind(&payload.level)
-    .bind(&payload.course_type)
+    .bind(payload.mysql_course_id)
+    .bind(payload.level.as_ref())
+    .bind(payload.course_type.as_ref())
     .bind(&payload.test_type)
     .bind(payload.duration_minutes)
     .bind(payload.passing_score)
@@ -77,6 +79,12 @@ pub async fn list_test_templates(
     // Base query
     let mut query = String::from("SELECT * FROM test_templates WHERE organization_id = $1");
     let mut param_count = 1;
+
+    // Filter by mysql_course_id
+    if filters.mysql_course_id.is_some() {
+        param_count += 1;
+        query.push_str(&format!(" AND mysql_course_id = ${}", param_count));
+    }
 
     // Filter by level
     if filters.level.is_some() {
@@ -115,6 +123,10 @@ pub async fn list_test_templates(
 
     // Build query with dynamic binds
     let mut sql_query = sqlx::query_as::<_, TestTemplate>(&query).bind(org_ctx.id);
+
+    if let Some(mysql_course_id) = &filters.mysql_course_id {
+        sql_query = sql_query.bind(mysql_course_id);
+    }
 
     if let Some(level) = &filters.level {
         sql_query = sql_query.bind(level);
@@ -220,22 +232,23 @@ pub async fn update_test_template(
     let template: TestTemplate = sqlx::query_as(
         r#"
         UPDATE test_templates
-        SET 
+        SET
             name = COALESCE($3, name),
             description = COALESCE($4, description),
-            level = COALESCE($5, level),
-            course_type = COALESCE($6, course_type),
-            test_type = COALESCE($7, test_type),
-            duration_minutes = COALESCE($8, duration_minutes),
-            passing_score = COALESCE($9, passing_score),
-            total_points = COALESCE($10, total_points),
-            instructions = COALESCE($11, instructions),
-            template_data = COALESCE($12, template_data),
-            tags = COALESCE($13, tags),
-            is_active = COALESCE($14, is_active),
+            mysql_course_id = COALESCE($5, mysql_course_id),
+            level = COALESCE($6, level),
+            course_type = COALESCE($7, course_type),
+            test_type = COALESCE($8, test_type),
+            duration_minutes = COALESCE($9, duration_minutes),
+            passing_score = COALESCE($10, passing_score),
+            total_points = COALESCE($11, total_points),
+            instructions = COALESCE($12, instructions),
+            template_data = COALESCE($13, template_data),
+            tags = COALESCE($14, tags),
+            is_active = COALESCE($15, is_active),
             updated_at = NOW()
         WHERE id = $1 AND organization_id = $2
-        RETURNING id, organization_id, created_by, name, description, level, course_type,
+        RETURNING id, organization_id, mysql_course_id, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
             template_data, tags, is_active, usage_count, created_at, updated_at
         "#
@@ -244,6 +257,7 @@ pub async fn update_test_template(
     .bind(org_ctx.id)
     .bind(payload.name)
     .bind(payload.description)
+    .bind(payload.mysql_course_id)
     .bind(payload.level)
     .bind(payload.course_type)
     .bind(payload.test_type)
@@ -615,69 +629,185 @@ pub struct ApplyTemplatePayload {
 
 // ==================== RAG Question Generation ====================
 
-/// POST /test-templates/generate-with-rag - Generate questions using RAG from MySQL question bank
+/// POST /test-templates/generate-with-rag - Generate questions using RAG from imported MySQL question bank
+/// Uses semantic search with pgvector embeddings when available, falls back to course_id filtering
 pub async fn generate_questions_with_rag(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Json(payload): Json<RagGenerationPayload>,
 ) -> Result<Json<Vec<TestTemplateQuestion>>, (StatusCode, String)> {
+    use common::ai::{self, generate_embedding};
+    use reqwest::Client;
     use serde_json::json;
-    
-    // 1. Fetch questions from external MySQL database (RAG context)
-    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
-    
-    // Create MySQL pool connection
-    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
-    
-    // Fetch questions from MySQL bank filtered by course if provided
-    let mysql_questions: Vec<MySqlQuestion> = if let Some(course_id) = payload.course_id {
-        sqlx::query_as(
-            r#"
-            SELECT 
-                bp.descripcion, 
-                bp.idTipoPregunta AS id_tipo_pregunta, 
-                c.NombreCurso AS nombre_curso, 
-                pe.Nombre as plan_nombre
-            FROM bancopreguntas bp
-            JOIN curso c ON bp.idCursos = c.idCursos
-            JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
-            WHERE bp.idCursos = ? AND bp.activo = 1
-            LIMIT 20
-            "#
-        )
-        .bind(course_id)
-        .fetch_all(&mysql_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?
-    } else {
-        sqlx::query_as(
-            r#"
-            SELECT 
-                bp.descripcion, 
-                bp.idTipoPregunta AS id_tipo_pregunta, 
-                c.NombreCurso AS nombre_curso, 
-                pe.Nombre as plan_nombre
-            FROM bancopreguntas bp
-            JOIN curso c ON bp.idCursos = c.idCursos
-            JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
-            WHERE bp.activo = 1
-            LIMIT 20
-            "#
-        )
-        .fetch_all(&mysql_pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?
-    };
 
-    mysql_pool.close().await;
+    let mut mysql_questions: Vec<QuestionBankForRAG> = Vec::new();
+    
+    // If topic is provided, use semantic search; otherwise use course_id filtering
+    if let Some(topic) = &payload.topic {
+        // Try semantic search with embeddings
+        // Create client that accepts invalid certificates (for dev with self-signed certs)
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true)
+            .build()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e)))?;
+        
+        let ollama_url = ai::get_ollama_url();
+        let model = ai::get_embedding_model();
+        
+        match generate_embedding(&client, &ollama_url, &model, topic).await {
+            Ok(response) => {
+                let pgvector = ai::embedding_to_pgvector(&response.embedding);
+                
+                // Semantic search in question_bank
+                mysql_questions = sqlx::query_as(
+                    r#"
+                    SELECT
+                        qb.question_text as descripcion,
+                        qb.options,
+                        COALESCE(
+                            (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                            0
+                        ) as id_plan_de_estudios,
+                        COALESCE(
+                            qb.source_metadata->>'plan_nombre',
+                            ''
+                        ) as plan_nombre,
+                        COALESCE(
+                            (qb.source_metadata->>'nivel_curso')::integer,
+                            NULL
+                        ) as nivel_curso,
+                        1 - (qb.embedding <=> $1::vector) AS similarity
+                    FROM question_bank qb
+                    WHERE qb.organization_id = $2
+                      AND qb.embedding IS NOT NULL
+                    ORDER BY qb.embedding <=> $1::vector
+                    LIMIT $3
+                    "#
+                )
+                .bind(&pgvector)
+                .bind(org_ctx.id)
+                .bind(payload.num_questions.unwrap_or(5) * 3) // Get more for diversity
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Semantic search failed: {}", e)))?;
+                
+                tracing::info!("Semantic search found {} similar questions", mysql_questions.len());
+            }
+            Err(e) => {
+                tracing::warn!("Semantic search failed, falling back to keyword search: {}", e);
+                // Fall back to text search
+                mysql_questions = sqlx::query_as(
+                    r#"
+                    SELECT
+                        qb.question_text as descripcion,
+                        qb.options,
+                        COALESCE(
+                            (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                            0
+                        ) as id_plan_de_estudios,
+                        COALESCE(
+                            qb.source_metadata->>'plan_nombre',
+                            ''
+                        ) as plan_nombre,
+                        COALESCE(
+                            (qb.source_metadata->>'nivel_curso')::integer,
+                            NULL
+                        ) as nivel_curso
+                    FROM question_bank qb
+                    WHERE qb.organization_id = $1
+                      AND qb.question_text ILIKE $2
+                    LIMIT $3
+                    "#
+                )
+                .bind(org_ctx.id)
+                .bind(&format!("%{}%", topic))
+                .bind(payload.num_questions.unwrap_or(5) * 3)
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword search failed: {}", e)))?;
+            }
+        }
+    } else if let Some(course_id) = payload.course_id {
+        // Fetch questions from imported MySQL questions in PostgreSQL question_bank
+        // Filter by course_id if provided (mysql_course_id from imported metadata)
+        mysql_questions = sqlx::query_as(
+            r#"
+            SELECT
+                qb.question_text as descripcion,
+                qb.options,
+                COALESCE(
+                    (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                    0
+                ) as id_plan_de_estudios,
+                COALESCE(
+                    qb.source_metadata->>'plan_nombre',
+                    ''
+                ) as plan_nombre,
+                COALESCE(
+                    (qb.source_metadata->>'nivel_curso')::integer,
+                    NULL
+                ) as nivel_curso
+            FROM question_bank qb
+            WHERE qb.organization_id = $1
+                AND qb.source = 'imported-mysql'
+                AND (qb.source_metadata->>'idCursos')::integer = $2
+            LIMIT 20
+            "#
+        )
+        .bind(org_ctx.id)
+        .bind(course_id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
+    } else {
+        // Fetch all imported MySQL questions for this organization
+        mysql_questions = sqlx::query_as(
+            r#"
+            SELECT
+                qb.question_text as descripcion,
+                qb.options,
+                COALESCE(
+                    (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                    0
+                ) as id_plan_de_estudios,
+                COALESCE(
+                    qb.source_metadata->>'plan_nombre',
+                    ''
+                ) as plan_nombre,
+                COALESCE(
+                    (qb.source_metadata->>'nivel_curso')::integer,
+                    NULL
+                ) as nivel_curso
+            FROM question_bank qb
+            WHERE qb.organization_id = $1
+                AND qb.source = 'imported-mysql'
+            LIMIT 20
+            "#
+        )
+        .bind(org_ctx.id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
+    }
 
     if mysql_questions.is_empty() && payload.course_id.is_some() {
-        return Err((StatusCode::NOT_FOUND, "No questions found in MySQL bank for this course".to_string()));
+        return Err((StatusCode::NOT_FOUND, "No questions found in imported question bank for this course. Please import questions from MySQL first.".to_string()));
     }
+
+    // Determine course_type and level from imported data
+    let course_type = mysql_questions
+        .first()
+        .map(|q| get_course_type_from_plan(&q.plan_nombre))
+        .unwrap_or(CourseType::Regular);
+    
+    let level = mysql_questions
+        .first()
+        .map(|q| get_course_level_from_mysql(q.nivel_curso, &q.plan_nombre, ""))
+        .unwrap_or(CourseLevel::Intermediate);
+
+    tracing::info!("Determined course_type: {:?}, level: {:?} from imported data", course_type, level);
 
     // 2. Build RAG context from MySQL questions (lightweight format)
     let rag_context: String = mysql_questions
@@ -715,18 +845,24 @@ pub async fn generate_questions_with_rag(
 
         Create {} ORIGINAL multiple-choice questions about: {}
 
-        Return ONLY a JSON array with this structure:
+        IMPORTANT - Return ONLY a JSON array with this EXACT structure:
         [
             {{
-                "question_text": "Question text",
+                "question_text": "The tourist got lost in the ______ of the city.",
                 "question_type": "multiple-choice",
-                "options": ["A", "B", "C", "D"],
+                "options": ["downtown", "countryside", "mountains", "desert"],
                 "correct_answer": 0,
-                "explanation": "Why this is correct",
+                "explanation": "Downtown is the main area of a city where tourists typically visit.",
                 "points": 1,
                 "skill_assessed": "reading"
             }}
         ]
+
+        RULES FOR OPTIONS:
+        - Each option must be ONLY the answer text (1-3 words max)
+        - Do NOT include letters like "A.", "B.", "a)", "b)"
+        - Do NOT include "Option 1:", "Answer:", or any prefix
+        - Just the pure answer text (e.g., "downtown", "Paris", "True")
 
         Skills: reading, listening, speaking, writing. Distribute across all 4."#,
         rag_context,
@@ -777,21 +913,118 @@ pub async fn generate_questions_with_rag(
         .and_then(|content| content.as_str())
         .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
         .and_then(|data| {
-            if let Some(questions) = data.get("questions").or(data.get("items")) {
-                questions.as_array().cloned()
-            } else if let Some(arr) = data.as_array() {
-                Some(arr.clone())
-            } else {
-                None
+            // Try multiple formats:
+            // 1. Standard array format: [...]
+            if let Some(arr) = data.as_array() {
+                return Some(arr.clone());
             }
+            // 2. Wrapped format: {questions: [...]} or {items: [...]}
+            if let Some(questions) = data.get("questions").or(data.get("items")) {
+                return questions.as_array().cloned();
+            }
+            // 3. Object format with numbered keys: {q1: {...}, q2: {...}, ...}
+            if let Some(obj) = data.as_object() {
+                let questions: Vec<serde_json::Value> = obj.values().cloned().collect();
+                if !questions.is_empty() {
+                    return Some(questions);
+                }
+            }
+            None
         })
         .unwrap_or_default();
-    
+
+    // Helper function to clean options (remove "A.", "B.", "a)", etc.)
+    let clean_option = |opt: &str| -> String {
+        let opt = opt.trim();
+        // Remove patterns like "A.", "B.", "a)", "b)", "1.", "1)", "A)", "B)"
+        let patterns = [
+            (r"^[A-Za-z]\.\s*", ""),  // "A. ", "B. "
+            (r"^[A-Za-z]\)\s*", ""),  // "A) ", "B) "
+            (r"^\d+\.\s*", ""),       // "1. ", "2. "
+            (r"^\d+\)\s*", ""),       // "1) ", "2) "
+            (r"^Option\s+[A-Za-z]\.?\s*", ""), // "Option A. ", "Option B "
+            (r"^Answer\s*[:\.]?\s*", ""),      // "Answer: ", "Answer. "
+        ];
+        
+        let mut cleaned = opt.to_string();
+        for (pattern, replacement) in patterns.iter() {
+            if let Ok(re) = regex::Regex::new(pattern) {
+                cleaned = re.replace(&cleaned, *replacement).to_string();
+            }
+        }
+        cleaned.trim().to_string()
+    };
+
+    // Helper function to shuffle options and adjust correct_answer index
+    let shuffle_options = |options: Vec<String>, correct_answer: Option<i64>| -> (Vec<String>, Option<i64>) {
+        use rand::seq::SliceRandom;
+        use rand::thread_rng;
+        
+        if options.is_empty() || correct_answer.is_none() {
+            return (options, correct_answer);
+        }
+        
+        let correct_idx = correct_answer.unwrap() as usize;
+        if correct_idx >= options.len() {
+            return (options, correct_answer);
+        }
+        
+        // Store the correct answer text
+        let correct_answer_text = options[correct_idx].clone();
+        
+        // Create a vector of indices and shuffle it
+        let mut indices: Vec<usize> = (0..options.len()).collect();
+        let mut rng = thread_rng();
+        indices.shuffle(&mut rng);
+        
+        // Reorder options according to shuffled indices
+        let shuffled_options: Vec<String> = indices.iter().map(|&i| options[i].clone()).collect();
+        
+        // Find the new position of the correct answer
+        let new_correct_idx = shuffled_options
+            .iter()
+            .position(|opt| opt == &correct_answer_text)
+            .map(|idx| idx as i64);
+        
+        (shuffled_options, new_correct_idx)
+    };
+
     // Convert to TestTemplateQuestion format
     let generated_questions: Vec<TestTemplateQuestion> = questions_data
         .iter()
         .enumerate()
         .map(|(idx, q)| {
+            // Get original options and correct answer
+            let original_options: Vec<String> = q
+                .get("options")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| clean_option(s))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let original_correct_idx: Option<usize> = q
+                .get("correct_answer")
+                .or(q.get("correct"))
+                .and_then(|v| v.as_i64())
+                .map(|idx| idx as usize);
+
+            // Shuffle options if we have valid data
+            let (options, correct_answer) = if !original_options.is_empty() && original_correct_idx.is_some() {
+                let correct_idx = original_correct_idx.unwrap();
+                if correct_idx < original_options.len() {
+                    let (shuffled, new_correct_idx) = shuffle_options(original_options.clone(), Some(correct_idx as i64));
+                    (Some(json!(shuffled)), new_correct_idx.map(|idx| json!(idx)))
+                } else {
+                    (Some(json!(original_options)), q.get("correct_answer").or(q.get("correct")).cloned())
+                }
+            } else {
+                (Some(json!(original_options)), q.get("correct_answer").or(q.get("correct")).cloned())
+            };
+
             TestTemplateQuestion {
                 id: Uuid::new_v4(),
                 template_id: Uuid::nil(),
@@ -799,14 +1032,15 @@ pub async fn generate_questions_with_rag(
                 question_order: idx as i32,
                 question_type: q.get("question_type").and_then(|v| v.as_str()).unwrap_or("multiple-choice").to_string(),
                 question_text: q.get("question_text").and_then(|v| v.as_str()).unwrap_or("Question").to_string(),
-                options: q.get("options").cloned(),
-                correct_answer: q.get("correct_answer").or(q.get("correct")).cloned(),
+                options,
+                correct_answer,
                 explanation: q.get("explanation").and_then(|v| v.as_str()).map(String::from),
                 points: q.get("points").and_then(|v| v.as_i64()).unwrap_or(1) as i32,
                 metadata: Some(json!({
                     "generated_by": "rag-ai",
                     "source": "mysql-bank",
                     "generated_at": chrono::Utc::now().to_rfc3339(),
+                    "options_shuffled": true,
                 })),
                 created_at: chrono::Utc::now(),
             }
@@ -874,9 +1108,20 @@ pub async fn generate_questions_with_rag(
 
 #[derive(Debug, Deserialize)]
 pub struct RagGenerationPayload {
-    pub course_id: Option<i32>, // MySQL course ID
+    pub course_id: Option<i32>, // MySQL course ID from imported metadata
     pub topic: Option<String>,
     pub num_questions: Option<i32>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct QuestionBankForRAG {
+    descripcion: String,
+    options: Option<serde_json::Value>,
+    id_plan_de_estudios: i32,
+    plan_nombre: String,
+    nivel_curso: Option<i32>,
+    #[sqlx(default)]
+    similarity: Option<f32>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -885,4 +1130,42 @@ struct MySqlQuestion {
     id_tipo_pregunta: i32,
     nombre_curso: String,
     plan_nombre: String,
+    nivel_curso: Option<i32>,
+    id_plan_de_estudios: i32,
+}
+
+/// Helper function to determine course type from plan name
+fn get_course_type_from_plan(plan_name: &str) -> CourseType {
+    let plan_lower = plan_name.to_lowercase();
+    if plan_lower.contains("intensive") || plan_lower.contains("intensivo") {
+        CourseType::Intensive
+    } else {
+        CourseType::Regular
+    }
+}
+
+/// Helper function to determine course level from MySQL data
+fn get_course_level_from_mysql(nivel_curso: Option<i32>, plan_nombre: &str, _nombre_curso: &str) -> CourseLevel {
+    // Try to determine level from nivel_curso field first
+    if let Some(nivel) = nivel_curso {
+        return match nivel {
+            1..=2 => CourseLevel::Beginner,
+            3..=4 => CourseLevel::Beginner_1,
+            5..=6 => CourseLevel::Beginner_2,
+            7..=8 => CourseLevel::Intermediate,
+            9..=10 => CourseLevel::Intermediate_1,
+            11..=12 => CourseLevel::Intermediate_2,
+            _ => CourseLevel::Advanced,
+        };
+    }
+    
+    // Fallback: try to extract level from plan name
+    let plan_lower = plan_nombre.to_lowercase();
+    if plan_lower.contains("basic") || plan_lower.contains("beginner") {
+        CourseLevel::Beginner
+    } else if plan_lower.contains("intermediate") || plan_lower.contains("intermedio") {
+        CourseLevel::Intermediate
+    } else {
+        CourseLevel::Advanced
+    }
 }

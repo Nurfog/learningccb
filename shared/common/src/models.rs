@@ -1176,18 +1176,18 @@ pub struct PublicProfile {
 // ==================== Test Templates ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
-#[sqlx(type_name = "course_level", rename_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "course_level", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum CourseLevel {
     Beginner,
-    Beginner1,
-    Beginner2,
+    Beginner_1,
+    Beginner_2,
     Intermediate,
-    Intermediate1,
-    Intermediate2,
+    Intermediate_1,
+    Intermediate_2,
     Advanced,
-    Advanced1,
-    Advanced2,
+    Advanced_1,
+    Advanced_2,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
@@ -1229,10 +1229,11 @@ impl std::fmt::Display for TestType {
 pub struct TestTemplate {
     pub id: Uuid,
     pub organization_id: Uuid,
+    pub mysql_course_id: Option<i32>, // Reference to imported MySQL course
     pub name: String,
     pub description: Option<String>,
-    pub level: CourseLevel,
-    pub course_type: CourseType,
+    pub level: Option<CourseLevel>, // Deprecated: use mysql_course_id instead
+    pub course_type: Option<CourseType>, // Deprecated: use mysql_course_id instead
     pub test_type: TestType,
     pub duration_minutes: i32,
     pub passing_score: i32, // 0-100 percentage
@@ -1280,8 +1281,9 @@ pub struct TestTemplateQuestion {
 pub struct CreateTestTemplatePayload {
     pub name: String,
     pub description: Option<String>,
-    pub level: CourseLevel,
-    pub course_type: CourseType,
+    pub mysql_course_id: Option<i32>, // Reference to imported MySQL course (preferred)
+    pub level: Option<CourseLevel>, // Fallback if mysql_course_id not provided
+    pub course_type: Option<CourseType>, // Fallback if mysql_course_id not provided
     pub test_type: TestType,
     pub duration_minutes: i32,
     pub passing_score: i32,
@@ -1295,6 +1297,7 @@ pub struct CreateTestTemplatePayload {
 pub struct UpdateTestTemplatePayload {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub mysql_course_id: Option<i32>,
     pub level: Option<CourseLevel>,
     pub course_type: Option<CourseType>,
     pub test_type: Option<TestType>,
@@ -1394,6 +1397,8 @@ pub struct QuestionBank {
     pub created_by: Option<Uuid>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub embedding: Option<String>, // PGVector embedding for semantic search
+    pub embedding_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

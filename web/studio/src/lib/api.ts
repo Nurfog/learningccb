@@ -1015,7 +1015,25 @@ export const questionBankApi = {
         apiFetch(`/question-bank/${id}`, { method: 'DELETE' }, false),
     importFromMySQL: (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> =>
         apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false),
+    getMySQLPlans: (): Promise<MySqlPlan[]> =>
+        apiFetch('/question-bank/mysql-plans', {}, false),
+    getMySQLCoursesByPlan: (planId: number): Promise<MySqlCourse[]> =>
+        apiFetch(`/question-bank/mysql-courses?plan_id=${planId}`, {}, false),
 };
+
+export interface MySqlPlan {
+    idPlanDeEstudios: number;
+    NombrePlan: string;
+}
+
+export interface MySqlCourse {
+    idCursos: number;
+    NombreCurso: string;
+    NivelCurso?: number;
+    idPlanDeEstudios: number;
+    NombrePlan: string;
+    Duracion?: number;  // Duration in hours (40=regular, 80=intensive)
+}
 
 export const lmsApi = {
     getCohorts: (): Promise<Cohort[]> => apiFetch('/cohorts', {}, true),
@@ -1135,7 +1153,7 @@ export interface BackgroundTask {
 
 // ==================== Test Templates ====================
 
-export type CourseLevel = 'beginner' | 'beginner1' | 'beginner2' | 'intermediate' | 'intermediate1' | 'intermediate2' | 'advanced' | 'advanced1' | 'advanced2';
+export type CourseLevel = 'beginner' | 'beginner_1' | 'beginner_2' | 'intermediate' | 'intermediate_1' | 'intermediate_2' | 'advanced' | 'advanced_1' | 'advanced_2';
 export type CourseType = 'intensive' | 'regular';
 export type TestType = 'CA' | 'MWT' | 'MOT' | 'FOT' | 'FWT';
 export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering';
@@ -1143,10 +1161,11 @@ export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | '
 export interface TestTemplate {
     id: string;
     organization_id: string;
+    mysql_course_id?: number; // Reference to imported MySQL course
     name: string;
     description?: string;
-    level: CourseLevel;
-    course_type: CourseType;
+    level?: CourseLevel; // Deprecated: use mysql_course_id instead
+    course_type?: CourseType; // Deprecated: use mysql_course_id instead
     test_type: TestType;
     duration_minutes: number;
     passing_score: number;
@@ -1197,8 +1216,9 @@ export interface TestTemplateWithQuestions {
 export interface CreateTestTemplatePayload {
     name: string;
     description?: string;
-    level: CourseLevel;
-    course_type: CourseType;
+    mysql_course_id?: number; // Reference to imported MySQL course (preferred)
+    level?: CourseLevel; // Fallback if mysql_course_id not provided
+    course_type?: CourseType; // Fallback if mysql_course_id not provided
     test_type: TestType;
     duration_minutes: number;
     passing_score: number;
@@ -1211,6 +1231,7 @@ export interface CreateTestTemplatePayload {
 export interface UpdateTestTemplatePayload {
     name?: string;
     description?: string;
+    mysql_course_id?: number;
     level?: CourseLevel;
     course_type?: CourseType;
     test_type?: TestType;

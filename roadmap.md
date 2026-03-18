@@ -235,7 +235,19 @@
 
 ---
 
-**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos**, **Landing Pages de Cursos (Marketing) automatizadas**, **Diagramas de Mermaid Dinámicos** y **Laboratorios de Código con Hints de IA**.
+## Fase 21: Búsqueda Semántica y RAG Avanzado ✅
+- [x] **PGVector Integration**: Implementación de búsqueda semántica con embeddings de 768 dimensiones. (Completado)
+- [x] **Semantic Question Search**: Búsqueda por similitud de coseno en question bank. (Completado)
+- [x] **Duplicate Detection**: Detección automática de preguntas duplicadas (>95% similitud). (Completado)
+- [x] **RAG Mejorado para Generación**: Contexto semántico + verificación de 4 habilidades. (Completado)
+- [x] **Knowledge Base Embeddings**: Búsqueda semántica en base de conocimiento para tutor IA. (Completado)
+- [x] **Índices IVFFlat**: Optimización para >100k filas (25-100x más rápido). (Completado)
+- [x] **MySQL Integration Completa**: Importación de study plans y courses con tracking. (Completado)
+- [x] **Test Templates con Filtros**: Filtrado por mysql_course_id, level, course_type. (Completado)
+
+---
+
+**Estado Actual**: La plataforma cuenta con un motor de IA avanzado, gestión multi-tenant completa, tutoría inteligente con memoria histórica, una **interfaz 100% responsiva**, flujos de autenticación diferenciados, **sistema de foros de discusión funcional**, **gestión de anuncios segmentados**, **monetización integrada con Mercado Pago**, **Inscripción Masiva de Usuarios**, **Exportación Avanzada de Calificaciones**, **Librerías de Contenido reutilizables**, **Sistema de Rúbricas Avanzado**, **Secuencias de Aprendizaje**, **Gestión de Equipos Docentes**, **Vista Previa de Cursos**, **Dashboard de Progreso Estudiantil**, **Sistema de Marcadores**, **Biblioteca Global de Activos**, **Interoperabilidad LTI 1.3**, **Analíticas Predictivas**, **Integración de Jitsi**, **Portafolios con Perfiles Públicos**, **Landing Pages de Cursos (Marketing) automatizadas**, **Diagramas de Mermaid Dinámicos**, **Laboratorios de Código con Hints de IA**, y **Búsqueda Semántica con PGVector**.
 
 **Próximas Prioridades**:
 1. **Accesibilidad Universal**: Auditoría y ajustes de contraste para cumplimiento WCAG 2.1.

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { cmsApi, CreateTestTemplatePayload, CourseLevel, CourseType, TestType, QuestionType } from '@/lib/api';
+import React, { useState, useEffect } from 'react';
+import { cmsApi, questionBankApi, CreateTestTemplatePayload, CourseLevel, CourseType, TestType, QuestionType, MySqlPlan, MySqlCourse } from '@/lib/api';
 import { X, Save, Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Copy, GripVertical, Edit2 } from 'lucide-react';
 
 interface Section {
@@ -35,8 +35,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const [formData, setFormData] = useState<CreateTestTemplatePayload>({
         name: '',
         description: '',
-        level: 'beginner',
-        course_type: 'regular',
+        mysql_course_id: undefined,
         test_type: 'CA',
         duration_minutes: 60,
         passing_score: 70,
@@ -53,6 +52,61 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const [generatingAI, setGeneratingAI] = useState(false);
     const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
     const [aiContext, setAiContext] = useState('');
+    
+    // MySQL course selection state
+    const [mysqlPlans, setMysqlPlans] = useState<MySqlPlan[]>([]);
+    const [mysqlCourses, setMysqlCourses] = useState<MySqlCourse[]>([]);
+    const [selectedPlanId, setSelectedPlanId] = useState<number | ''>('');
+    const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
+    const [loadingPlans, setLoadingPlans] = useState(false);
+    const [loadingCourses, setLoadingCourses] = useState(false);
+
+    // Load MySQL plans on mount
+    useEffect(() => {
+        const loadPlans = async () => {
+            try {
+                setLoadingPlans(true);
+                const plans = await questionBankApi.getMySQLPlans();
+                setMysqlPlans(plans);
+            } catch (error) {
+                console.error('Failed to load MySQL plans:', error);
+            } finally {
+                setLoadingPlans(false);
+            }
+        };
+        loadPlans();
+    }, []);
+
+    // Load courses when plan is selected
+    useEffect(() => {
+        const loadCourses = async () => {
+            if (!selectedPlanId) {
+                setMysqlCourses([]);
+                return;
+            }
+            
+            try {
+                setLoadingCourses(true);
+                const courses = await questionBankApi.getMySQLCoursesByPlan(selectedPlanId as number);
+                setMysqlCourses(courses);
+            } catch (error) {
+                console.error('Failed to load MySQL courses:', error);
+            } finally {
+                setLoadingCourses(false);
+            }
+        };
+        loadCourses();
+    }, [selectedPlanId]);
+
+    // Handle course selection - store mysql_course_id (preferred approach)
+    const handleCourseSelect = (courseId: number) => {
+        setSelectedCourseId(courseId);
+        // Store the MySQL course ID directly - level/course_type can be derived from mysql_courses table
+        setFormData({
+            ...formData,
+            mysql_course_id: courseId,
+        });
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,9 +121,15 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
             return;
         }
 
+        // Validate: either mysql_course_id OR level+course_type must be provided
+        if (!formData.mysql_course_id && (!formData.level || !formData.course_type)) {
+            alert('Debes seleccionar un curso de MySQL o especificar nivel y tipo de curso manualmente');
+            return;
+        }
+
         try {
             setSaving(true);
-            
+
             // Primero crear la plantilla
             const template = await cmsApi.createTestTemplate(formData);
             
@@ -233,6 +293,12 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
         setQuestions([...questions, duplicate]);
     };
 
+    const handleUpdateQuestion = (questionId: string, updates: Partial<Question>) => {
+        setQuestions(questions.map(q => 
+            q.id === questionId ? { ...q, ...updates } : q
+        ));
+    };
+
     const getQuestionTypeLabel = (type: QuestionType) => {
         const labels: Record<QuestionType, string> = {
             'multiple-choice': 'Opción Múltiple',
@@ -317,40 +383,109 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                             />
                         </div>
 
+                        {/* MySQL Course Selection */}
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <h4 className="text-sm font-medium text-blue-900 mb-3">
+                                📚 Seleccionar Curso desde MySQL (Opcional)
+                            </h4>
+                            <p className="text-xs text-blue-700 mb-3">
+                                Selecciona un curso para autocompletar automáticamente el Nivel y Tipo de Curso
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-blue-800 mb-1">
+                                        Plan de Estudios *
+                                    </label>
+                                    <select
+                                        value={selectedPlanId}
+                                        onChange={(e) => {
+                                            setSelectedPlanId(e.target.value ? Number(e.target.value) : '');
+                                            setSelectedCourseId('');
+                                        }}
+                                        disabled={loadingPlans}
+                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                    >
+                                        <option value="">-- Seleccionar Plan --</option>
+                                        {mysqlPlans.map(plan => (
+                                            <option key={plan.idPlanDeEstudios} value={plan.idPlanDeEstudios}>
+                                                {plan.NombrePlan}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {loadingPlans && <p className="text-xs text-blue-600 mt-1">Cargando planes...</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-blue-800 mb-1">
+                                        Curso *
+                                    </label>
+                                    <select
+                                        value={selectedCourseId}
+                                        onChange={(e) => handleCourseSelect(e.target.value ? Number(e.target.value) : '')}
+                                        disabled={!selectedPlanId || loadingCourses}
+                                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+                                    >
+                                        <option value="">-- Seleccionar Curso --</option>
+                                        {mysqlCourses.map(course => (
+                                            <option key={course.idCursos} value={course.idCursos}>
+                                                {course.NombreCurso}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {loadingCourses && <p className="text-xs text-blue-600 mt-1">Cargando cursos...</p>}
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Nivel *
+                                    Nivel {formData.mysql_course_id ? '(del curso seleccionado)' : '*'}
                                 </label>
                                 <select
-                                    value={formData.level}
-                                    onChange={(e) => setFormData({ ...formData, level: e.target.value as CourseLevel })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    value={formData.level || ''}
+                                    onChange={(e) => setFormData({ ...formData, level: e.target.value as CourseLevel || undefined })}
+                                    disabled={!!formData.mysql_course_id}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                                 >
+                                    <option value="">Seleccionar nivel</option>
                                     <option value="beginner">Beginner</option>
-                                    <option value="beginner1">Beginner 1</option>
-                                    <option value="beginner2">Beginner 2</option>
+                                    <option value="beginner_1">Beginner 1</option>
+                                    <option value="beginner_2">Beginner 2</option>
                                     <option value="intermediate">Intermediate</option>
-                                    <option value="intermediate1">Intermediate 1</option>
-                                    <option value="intermediate2">Intermediate 2</option>
+                                    <option value="intermediate_1">Intermediate 1</option>
+                                    <option value="intermediate_2">Intermediate 2</option>
                                     <option value="advanced">Advanced</option>
-                                    <option value="advanced1">Advanced 1</option>
-                                    <option value="advanced2">Advanced 2</option>
+                                    <option value="advanced_1">Advanced 1</option>
+                                    <option value="advanced_2">Advanced 2</option>
                                 </select>
+                                {formData.mysql_course_id && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                        ✓ Nivel determinado automáticamente desde el curso MySQL
+                                    </p>
+                                )}
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Tipo de Curso *
+                                    Tipo de Curso {formData.mysql_course_id ? '(del curso seleccionado)' : '*'}
                                 </label>
                                 <select
-                                    value={formData.course_type}
-                                    onChange={(e) => setFormData({ ...formData, course_type: e.target.value as CourseType })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    value={formData.course_type || ''}
+                                    onChange={(e) => setFormData({ ...formData, course_type: e.target.value as CourseType || undefined })}
+                                    disabled={!!formData.mysql_course_id}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                                 >
+                                    <option value="">Seleccionar tipo</option>
                                     <option value="regular">Regular</option>
                                     <option value="intensive">Intensivo</option>
                                 </select>
+                                {formData.mysql_course_id && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                        ✓ Tipo determinado automáticamente desde el curso MySQL
+                                    </p>
+                                )}
                             </div>
 
                             <div>

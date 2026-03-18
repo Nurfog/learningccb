@@ -10,6 +10,7 @@ mod handlers_rubrics;
 mod handlers_test_templates;
 mod handlers_question_bank;
 mod handlers_admin;
+mod handlers_embeddings;
 mod webhooks;
 
 use axum::{
@@ -344,8 +345,12 @@ async fn main() {
             post(handlers_question_bank::import_from_mysql),
         )
         .route(
+            "/question-bank/mysql-plans",
+            get(handlers_question_bank::get_mysql_plans),
+        )
+        .route(
             "/question-bank/mysql-courses",
-            get(handlers_question_bank::list_mysql_courses),
+            get(handlers_question_bank::get_mysql_courses_by_plan),
         )
         .route(
             "/question-bank/import-mysql-all",
@@ -355,11 +360,23 @@ async fn main() {
             "/question-bank/ai-generate",
             post(handlers_question_bank::ai_generate_question),
         )
-        // Excel import - pendiente de fix
-        // .route(
-        //     "/question-bank/import-excel",
-        //     post(handlers_question_bank::import_from_excel),
-        // )
+        // Embedding routes for semantic search
+        .route(
+            "/question-bank/embeddings/generate",
+            post(handlers_embeddings::generate_question_embeddings),
+        )
+        .route(
+            "/question-bank/semantic-search",
+            get(handlers_embeddings::semantic_search),
+        )
+        .route(
+            "/question-bank/similar/{id}",
+            get(handlers_embeddings::find_similar_questions),
+        )
+        .route(
+            "/question-bank/{id}/embedding/regenerate",
+            post(handlers_embeddings::regenerate_question_embedding),
+        )
         // Admin routes
         .route(
             "/admin/token-usage",

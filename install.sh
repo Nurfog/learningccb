@@ -7,13 +7,13 @@
 # 3. Environment configuration (.env)
 # 4. Database creation and migrations (CMS, LMS, AI Bridge)
 # 5. System initialization (Admin account and Organization)
-# Version: 1.5 - AI Marketing & High-Res Support
+# Version: 2.0 - PGVector & Semantic Search Support
 
 set -e
 
 echo "===================================================="
-echo "      🚀 Bienvenido al Instalador de OpenCCB v1.5"
-echo "    (Edición Marketing & Imágenes de Alta Resolución)"
+echo "      🚀 Bienvenido al Instalador de OpenCCB v2.0"
+echo "    (Con Búsqueda Semántica PGVector)"
 echo "===================================================="
 echo ""
 
@@ -133,10 +133,13 @@ read -p "Ingrese la URL del Image Bridge Remoto [http://t-800:8080]: " REMOTE_IM
 REMOTE_IMAGE_URL=${REMOTE_IMAGE_URL:-"http://t-800:8080"}
 read -p "Ingrese el nombre del Modelo (en el servidor remoto) [llama3.2:3b]: " LLM_MODEL
 LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
+read -p "Ingrese el nombre del Modelo de Embeddings [nomic-embed-text]: " EMBEDDING_MODEL
+EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
 
 update_env "AI_PROVIDER" "local"
 update_env "LOCAL_LLM_MODEL" "$LLM_MODEL"
 update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_IMAGE_URL"
+update_env "EMBEDDING_MODEL" "nomic-embed-text"
 
 if [ "$ENV_CHOICE" == "dev" ]; then
     update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
@@ -231,6 +234,32 @@ LMS_URL=$(grep "LMS_DATABASE_URL=" .env | cut -d'=' -f2-)
 echo "🏗️  Ejecutando migraciones..."
 DATABASE_URL=$CMS_URL sqlx migrate run --source services/cms-service/migrations
 DATABASE_URL=$LMS_URL sqlx migrate run --source services/lms-service/migrations
+
+# PGVector: Generate embeddings for existing data
+echo ""
+echo "🧠 Configurando PGVector y Embeddings..."
+echo "   - Extensión vector instalada en ambas bases de datos"
+echo "   - Índices IVFFlat creados para búsqueda rápida"
+echo "   - Funciones de similitud y diversidad disponibles"
+echo ""
+echo "⚠️  Nota: Los embeddings se generarán automáticamente cuando:"
+echo "   - Importes preguntas desde MySQL"
+echo "   - Generes preguntas con IA (RAG)"
+echo "   - Ejecutes: curl -X POST http://localhost:3001/question-bank/embeddings/generate"
+echo ""
+
+# Pull embedding model if Ollama is available locally
+if curl -s http://localhost:11434/api/tags &> /dev/null; then
+    echo "📥 Verificando modelo de embeddings en Ollama local..."
+    if ! curl -s http://localhost:11434/api/tags | grep -q "nomic-embed-text"; then
+        echo "🔽 Descargando modelo nomic-embed-text..."
+        docker exec -it ollama ollama pull nomic-embed-text || echo "⚠️  No se pudo descargar el modelo. Se usará el servidor remoto."
+    else
+        echo "✅ Modelo de embeddings ya disponible"
+    fi
+else
+    echo "ℹ️  Ollama local no detectado. Se usará el servidor remoto: $REMOTE_OLLAMA_URL"
+fi
 
 # 7. System Initialization (Integrated init-system.sh)
 echo ""
@@ -346,4 +375,16 @@ echo ""
 echo "📋 Notas:"
 echo "   - Rate limiter: DESHABILITADO (problemas de compatibilidad)"
 echo "   - Para producción, configura tower_governor en services/cms-service/src/main.rs"
+echo "   - PGVector: Habilitado para búsqueda semántica"
+echo "   - Embeddings: Usando modelo '$EMBEDDING_MODEL'"
+echo ""
+echo "🔗 Comandos Útiles:"
+echo "   # Generar embeddings para preguntas existentes"
+echo "   curl -X POST http://localhost:3001/question-bank/embeddings/generate -H \"Authorization: Bearer TOKEN\""
+echo ""
+echo "   # Búsqueda semántica de preguntas"
+echo "   curl -G \"http://localhost:3001/question-bank/semantic-search?query=past+tense\""
+echo ""
+echo "   # Detectar preguntas duplicadas"
+echo "   curl -G \"http://localhost:3001/question-bank/similar/{id}?threshold=0.95\""
 echo "===================================================="

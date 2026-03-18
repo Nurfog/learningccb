@@ -6,6 +6,7 @@ mod handlers_discussions;
 mod handlers_notes;
 mod handlers_payments;
 mod handlers_peer_review;
+mod handlers_embeddings;
 mod lti;
 mod jwks;
 mod predictive;
@@ -148,6 +149,19 @@ async fn main() {
         .route(
             "/notifications/{id}/read",
             post(handlers::mark_notification_as_read),
+        )
+        // Knowledge Base Embedding Routes for Semantic RAG
+        .route(
+            "/knowledge-base/embeddings/generate",
+            post(handlers_embeddings::generate_knowledge_embeddings),
+        )
+        .route(
+            "/knowledge-base/semantic-search",
+            get(handlers_embeddings::semantic_search_knowledge),
+        )
+        .route(
+            "/knowledge-base/{id}/embedding/regenerate",
+            post(handlers_embeddings::regenerate_knowledge_embedding),
         )
         // Discussion Forums Routes
         .route(

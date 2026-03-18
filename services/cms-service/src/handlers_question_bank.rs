@@ -12,6 +12,142 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+// ==================== MySQL Study Plans & Courses ====================
+
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+pub struct MySqlStudyPlan {
+    pub id: i32,
+    pub mysql_id: i32,
+    pub organization_id: Uuid,
+    pub name: String,
+    pub course_type: String,
+    pub is_active: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+pub struct MySqlCourse {
+    pub id: i32,
+    pub mysql_id: i32,
+    pub organization_id: Uuid,
+    pub study_plan_id: i32,
+    pub name: String,
+    pub level: Option<i32>,
+    pub course_type: String,
+    pub level_calculated: Option<String>,
+    pub is_active: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Save or update study plans and courses from MySQL during import
+pub async fn save_mysql_courses_and_plans(
+    pool: &PgPool,
+    org_id: Uuid,
+    plans: Vec<MySqlPlanInfo>,
+    courses: Vec<MySqlCourseInfo>,
+) -> Result<(), String> {
+    // Save study plans first
+    for plan in plans {
+        let course_type = calculate_course_type(&plan.nombre_plan);
+        
+        sqlx::query(
+            r#"
+            INSERT INTO mysql_study_plans (mysql_id, organization_id, name, course_type)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (mysql_id) DO UPDATE SET
+                name = EXCLUDED.name,
+                course_type = EXCLUDED.course_type,
+                updated_at = NOW()
+            "#
+        )
+        .bind(plan.id_plan_de_estudios)
+        .bind(org_id)
+        .bind(&plan.nombre_plan)
+        .bind(&course_type)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to save study plan: {}", e))?;
+    }
+    
+    // Save courses
+    for course in courses {
+        // Determine course_type from duration (40h = regular, 80h = intensive)
+        let course_type = calculate_course_type_from_duration(course.duracion);
+        let level_calculated = calculate_course_level(course.nivel_curso);
+        
+        // Get study_plan_id from mysql_study_plans
+        let study_plan_id: i32 = sqlx::query_scalar(
+            "SELECT id FROM mysql_study_plans WHERE mysql_id = $1 AND organization_id = $2"
+        )
+        .bind(course.id_plan_de_estudios)
+        .bind(org_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("Failed to find study plan: {}", e))?;
+        
+        sqlx::query(
+            r#"
+            INSERT INTO mysql_courses (
+                mysql_id, organization_id, study_plan_id, name, level, duracion,
+                course_type, level_calculated
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (mysql_id) DO UPDATE SET
+                name = EXCLUDED.name,
+                level = EXCLUDED.level,
+                duracion = EXCLUDED.duracion,
+                course_type = EXCLUDED.course_type,
+                level_calculated = EXCLUDED.level_calculated,
+                updated_at = NOW()
+            "#
+        )
+        .bind(course.id_cursos)
+        .bind(org_id)
+        .bind(study_plan_id)
+        .bind(&course.nombre_curso)
+        .bind(course.nivel_curso)
+        .bind(course.duracion)
+        .bind(&course_type)
+        .bind(&level_calculated)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to save course: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+fn calculate_course_type(plan_name: &str) -> String {
+    let plan_lower = plan_name.to_lowercase();
+    if plan_lower.contains("intensive") || plan_lower.contains("intensivo") {
+        "intensive".to_string()
+    } else {
+        "regular".to_string()
+    }
+}
+
+fn calculate_course_type_from_duration(duracion: Option<i32>) -> String {
+    match duracion {
+        Some(d) if d >= 70 => "intensive".to_string(),  // 80h or more = intensive
+        _ => "regular".to_string(),  // 40h or less = regular
+    }
+}
+
+fn calculate_course_level(nivel: Option<i32>) -> String {
+    match nivel {
+        None => "intermediate".to_string(),
+        Some(n) if n <= 2 => "beginner".to_string(),
+        Some(n) if n <= 4 => "beginner_1".to_string(),
+        Some(n) if n <= 6 => "beginner_2".to_string(),
+        Some(n) if n <= 8 => "intermediate".to_string(),
+        Some(n) if n <= 10 => "intermediate_1".to_string(),
+        Some(n) if n <= 12 => "intermediate_2".to_string(),
+        Some(_) => "advanced".to_string(),
+    }
+}
+
 // ==================== Create ====================
 
 /// POST /api/question-bank - Create a new question in the bank
@@ -239,7 +375,47 @@ pub async fn import_from_mysql(
     let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
-    
+
+    // Fetch all study plans and courses from MySQL to sync them
+    let mysql_plans: Vec<MySqlPlanInfo> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS nombre_plan
+        FROM plandeestudios pe
+        WHERE pe.Activo = 1
+        ORDER BY pe.Nombre
+        "#
+    )
+    .fetch_all(&mysql_pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch plans: {}", e)))?;
+
+    let mysql_courses: Vec<MySqlCourseInfo> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS nombre_plan,
+            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+        FROM curso c
+        JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
+        WHERE c.Activo = 1
+          AND pe.Activo = 1
+        ORDER BY pe.Nombre, c.NivelCurso
+        "#
+    )
+    .fetch_all(&mysql_pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch courses: {}", e)))?;
+
+    // Save plans and courses to PostgreSQL
+    save_mysql_courses_and_plans(&pool, org_ctx.id, mysql_plans, mysql_courses)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save courses/plans: {}", e)))?;
+
     // Fetch questions from MySQL
     let mysql_questions: Vec<MySqlQuestion> = if payload.import_all.unwrap_or(false) {
         sqlx::query_as(
@@ -250,6 +426,8 @@ pub async fn import_from_mysql(
             JOIN curso c ON bp.idCursos = c.idCursos
             JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
             WHERE bp.activo = 1
+              AND c.Activo = 1
+              AND pe.Activo = 1
             LIMIT 200
             "#
         )
@@ -265,6 +443,8 @@ pub async fn import_from_mysql(
             JOIN curso c ON bp.idCursos = c.idCursos
             JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
             WHERE bp.idCursos = ? AND bp.activo = 1
+              AND c.Activo = 1
+              AND pe.Activo = 1
             LIMIT 100
             "#
         )
@@ -285,6 +465,8 @@ pub async fn import_from_mysql(
                 JOIN curso c ON bp.idCursos = c.idCursos
                 JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
                 WHERE bp.idPregunta = ? AND bp.activo = 1
+                  AND c.Activo = 1
+                  AND pe.Activo = 1
                 "#
             )
             .bind(q_id)
@@ -555,16 +737,18 @@ pub async fn list_mysql_courses(
     // Fetch courses with their plan names
     let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
         r#"
-        SELECT DISTINCT 
-            c.idCursos,
-            c.NombreCurso,
-            c.NivelCurso,
-            pe.idPlanDeEstudios,
-            pe.Nombre as NombrePlan
+        SELECT DISTINCT
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS nombre_plan,
+            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
         FROM curso c
         JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
         WHERE c.Activo = 1
-        ORDER BY pe.Nombre, c.NombreCurso
+          AND pe.Activo = 1
+        ORDER BY pe.Nombre, c.NivelCurso
         "#
     )
     .fetch_all(&mysql_pool)
@@ -574,6 +758,78 @@ pub async fn list_mysql_courses(
     mysql_pool.close().await;
     
     Ok(Json(courses))
+}
+
+/// GET /api/question-bank/mysql-plans - Get all study plans from PostgreSQL (imported from MySQL)
+pub async fn get_mysql_plans(
+    Org(org_ctx): Org,
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<MySqlPlanInfo>>, (StatusCode, String)> {
+    // Fetch all study plans from PostgreSQL
+    let plans: Vec<MySqlPlanInfo> = sqlx::query_as(
+        r#"
+        SELECT
+            mysql_id as "idPlanDeEstudios",
+            name as "NombrePlan"
+        FROM mysql_study_plans
+        WHERE organization_id = $1 AND is_active = true
+        ORDER BY name
+        "#
+    )
+    .bind(org_ctx.id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch plans: {}", e)))?;
+
+    Ok(Json(plans))
+}
+
+/// GET /api/question-bank/mysql-courses - Get courses filtered by plan from PostgreSQL
+pub async fn get_mysql_courses_by_plan(
+    Org(org_ctx): Org,
+    State(pool): State<PgPool>,
+    Query(filters): Query<MySqlCoursesFilters>,
+) -> Result<Json<Vec<MySqlCourseInfo>>, (StatusCode, String)> {
+    // Fetch courses filtered by plan from PostgreSQL
+    let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
+        r#"
+        SELECT
+            c.mysql_id as "idCursos",
+            c.name as "NombreCurso",
+            c.level as "NivelCurso",
+            sp.mysql_id as "idPlanDeEstudios",
+            sp.name as "NombrePlan",
+            c.duracion as "Duracion"
+        FROM mysql_courses c
+        JOIN mysql_study_plans sp ON c.study_plan_id = sp.id
+        WHERE c.organization_id = $1
+            AND c.is_active = true
+            AND sp.mysql_id = $2
+        ORDER BY c.level
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.plan_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch courses: {}", e)))?;
+
+    Ok(Json(courses))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MySqlCoursesFilters {
+    pub plan_id: i32,
+}
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct MySqlPlanInfo {
+    #[sqlx(rename = "idPlanDeEstudios")]
+    #[serde(rename = "idPlanDeEstudios")]
+    pub id_plan_de_estudios: i32,
+    #[sqlx(rename = "NombrePlan")]
+    #[serde(rename = "NombrePlan")]
+    pub nombre_plan: String,
 }
 
 /// POST /api/question-bank/import-mysql-all - Import ALL questions from MySQL (bulk import)
@@ -623,6 +879,8 @@ pub async fn import_all_from_mysql(
         JOIN plandeestudios pe ON bp.idPlanDeEstudios = pe.idPlanDeEstudios
         JOIN tipopregunta tp ON bp.idTipoPregunta = tp.idTipoPregunta
         WHERE bp.activo = 1
+          AND pe.Activo = 1
+          AND c.Activo = 1
         ORDER BY pe.Nombre, c.NombreCurso, bp.idPregunta
         LIMIT 500
         "#
@@ -754,11 +1012,24 @@ pub struct ImportResult {
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct MySqlCourseInfo {
+    #[sqlx(rename = "idCursos")]
+    #[serde(rename = "idCursos")]
     pub id_cursos: i32,
+    #[sqlx(rename = "NombreCurso")]
+    #[serde(rename = "NombreCurso")]
     pub nombre_curso: String,
+    #[sqlx(rename = "NivelCurso")]
+    #[serde(rename = "NivelCurso", skip_serializing_if = "Option::is_none")]
     pub nivel_curso: Option<i32>,
+    #[sqlx(rename = "idPlanDeEstudios")]
+    #[serde(rename = "idPlanDeEstudios")]
     pub id_plan_de_estudios: i32,
+    #[sqlx(rename = "NombrePlan")]
+    #[serde(rename = "NombrePlan")]
     pub nombre_plan: String,
+    #[sqlx(rename = "Duracion")]
+    #[serde(rename = "Duracion", skip_serializing_if = "Option::is_none")]
+    pub duracion: Option<i32>,  // Duration in hours (40=regular, 80=intensive)
 }
 
 // Excel import - pendiente de fix

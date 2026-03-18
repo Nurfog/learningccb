@@ -46,6 +46,9 @@ The project uses a **unified container architecture** with the following structu
 - Predictive analytics (dropout risk detection)
 - Multi-language support (EN, ES, PT)
 - Gamification (XP, levels, badges, leaderboards)
+- **Semantic search with PGVector** (question bank, knowledge base)
+- **RAG-enhanced AI tutor** with contextual retrieval
+- **MySQL integration** (study plans, courses import)
 
 ## Project Structure
 
@@ -254,6 +257,13 @@ curl http://localhost:3002/health/ready
 | POST | `/lessons/{id}/chat` | Chat with lesson tutor |
 | GET | `/lessons/{id}/feedback` | Get AI feedback |
 | GET | `/courses/{id}/dropout-risks` | Get dropout risk analysis |
+| POST | `/question-bank/embeddings/generate` | Generate embeddings for questions |
+| POST | `/question-bank/{id}/embedding/regenerate` | Regenerate question embedding |
+| GET | `/question-bank/semantic-search` | Search questions semantically |
+| GET | `/question-bank/similar/{id}` | Find similar questions (duplicates) |
+| POST | `/question-bank/generate-with-rag` | Generate question with RAG + 4 skills |
+| POST | `/knowledge-base/embeddings/generate` | Generate knowledge base embeddings |
+| GET | `/knowledge-base/semantic-search` | Search knowledge base semantically |
 
 ## Environment Configuration
 
@@ -272,6 +282,7 @@ AI_PROVIDER=local
 LOCAL_WHISPER_URL=http://localhost:9000
 LOCAL_OLLAMA_URL=http://localhost:11434
 LOCAL_LLM_MODEL=llama3.2:3b
+EMBEDDING_MODEL=nomic-embed-text
 
 # Frontend URLs
 NEXT_PUBLIC_CMS_API_URL=http://localhost:3001
@@ -396,6 +407,32 @@ docker ps | grep postgres
 
 # Check database connectivity
 docker exec openccb-db-1 pg_isready -U user
+```
+
+### PGVector Issues
+
+```bash
+# Check if pgvector extension is enabled
+docker exec -it openccb-db-1 psql -U user -d openccb_cms -c "SELECT * FROM pg_extension WHERE extname = 'vector';"
+
+# If not enabled, run migration
+DATABASE_URL=postgresql://user:password@localhost:5433/openccb_cms \
+  sqlx migrate run --source services/cms-service/migrations
+```
+
+### Embedding Generation Issues
+
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Pull embedding model
+docker exec -it ollama ollama pull nomic-embed-text
+
+# Test embedding generation
+curl -X POST http://localhost:11434/api/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"model": "nomic-embed-text", "prompt": "Hello world"}'
 ```
 
 ### Frontend Build Issues
