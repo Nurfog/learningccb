@@ -386,6 +386,10 @@ async fn main() {
             "/admin/token-usage",
             get(handlers_admin::get_token_usage),
         )
+        .route(
+            "/admin/ai-usage/global",
+            get(handlers_admin::get_ai_usage_global),
+        )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
         ));

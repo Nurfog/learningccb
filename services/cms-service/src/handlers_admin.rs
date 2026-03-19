@@ -6,6 +6,7 @@ use axum::{
 use common::{auth::Claims, middleware::Org};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use chrono::{DateTime, Utc};
 
 // ==================== Token Usage Tracking ====================
 
@@ -18,7 +19,7 @@ pub async fn get_token_usage(
     // Get user token usage from database
     let usage: Vec<TokenUsageRecord> = sqlx::query_as(
         r#"
-        SELECT 
+        SELECT
             u.id as user_id,
             u.email,
             u.full_name,
@@ -85,6 +86,293 @@ pub async fn get_token_usage(
     }))
 }
 
+/// GET /api/admin/ai-usage-dashboard - Comprehensive AI usage dashboard data
+pub async fn get_ai_usage_dashboard(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Query(filters): Query<DashboardFilters>,
+) -> Result<Json<DashboardResponse>, (StatusCode, String)> {
+    // Get daily usage for charts
+    let daily_usage: Vec<DailyUsage> = sqlx::query_as(
+        r#"
+        SELECT
+            DATE(au.created_at) as date,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        WHERE au.organization_id = $1
+            AND ($2::DATE IS NULL OR DATE(au.created_at) >= $2::DATE)
+            AND ($3::DATE IS NULL OR DATE(au.created_at) <= $3::DATE)
+        GROUP BY DATE(au.created_at)
+        ORDER BY date DESC
+        LIMIT 30
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch daily usage: {}", e)))?;
+
+    // Get usage by endpoint/feature
+    let by_endpoint: Vec<UsageByEndpoint> = sqlx::query_as(
+        r#"
+        SELECT
+            au.endpoint,
+            au.request_type,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        WHERE au.organization_id = $1
+            AND ($2::DATE IS NULL OR DATE(au.created_at) >= $2::DATE)
+            AND ($3::DATE IS NULL OR DATE(au.created_at) <= $3::DATE)
+        GROUP BY au.endpoint, au.request_type
+        ORDER BY total_tokens DESC
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch endpoint usage: {}", e)))?;
+
+    // Get top users
+    let top_users: Vec<TopUserUsage> = sqlx::query_as(
+        r#"
+        SELECT
+            u.id as user_id,
+            u.email,
+            u.full_name,
+            u.role,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        JOIN users u ON au.user_id = u.id
+        WHERE au.organization_id = $1
+            AND ($2::DATE IS NULL OR DATE(au.created_at) >= $2::DATE)
+            AND ($3::DATE IS NULL OR DATE(au.created_at) <= $3::DATE)
+        GROUP BY u.id, u.email, u.full_name, u.role
+        ORDER BY total_tokens DESC
+        LIMIT 10
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch top users: {}", e)))?;
+
+    // Calculate summary stats
+    let total_tokens: i64 = daily_usage.iter().map(|d| d.total_tokens).sum();
+    let total_input: i64 = daily_usage.iter().map(|d| d.input_tokens).sum();
+    let total_output: i64 = daily_usage.iter().map(|d| d.output_tokens).sum();
+    let total_cost: f64 = daily_usage.iter().map(|d| d.cost_usd).sum();
+    let total_requests: i64 = daily_usage.iter().map(|d| d.requests).sum();
+
+    // Calculate savings estimate (vs OpenAI GPT-4 pricing)
+    // GPT-4: ~$0.03/1K input, ~$0.06/1K output
+    // Our local AI: ~$0.001/1K input, ~$0.003/1K output
+    let openai_equivalent_cost = (total_input as f64 * 0.00003) + (total_output as f64 * 0.00006);
+    let savings_vs_openai = openai_equivalent_cost - total_cost;
+
+    Ok(Json(DashboardResponse {
+        summary: DashboardSummary {
+            total_tokens,
+            total_input,
+            total_output,
+            total_requests,
+            total_cost_usd: total_cost,
+            savings_vs_openai_usd: savings_vs_openai,
+            openai_equivalent_cost_usd: openai_equivalent_cost,
+        },
+        daily_usage,
+        by_endpoint,
+        top_users,
+    }))
+}
+
+/// GET /api/admin/ai-usage/logs - Get detailed AI usage logs with pagination
+pub async fn get_ai_usage_logs(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Query(filters): Query<UsageLogFilters>,
+) -> Result<Json<UsageLogsResponse>, (StatusCode, String)> {
+    let limit = filters.limit.unwrap_or(50).min(200);
+    let offset = filters.offset.unwrap_or(0);
+
+    let logs: Vec<UsageLogRecord> = sqlx::query_as(
+        r#"
+        SELECT
+            au.id,
+            au.user_id,
+            u.email as user_email,
+            u.full_name as user_name,
+            au.endpoint,
+            au.request_type,
+            au.model,
+            au.tokens_used,
+            au.input_tokens,
+            au.output_tokens,
+            au.estimated_cost_usd,
+            au.prompt,
+            au.response,
+            au.request_metadata,
+            au.created_at
+        FROM ai_usage_logs au
+        JOIN users u ON au.user_id = u.id
+        WHERE au.organization_id = $1
+            AND ($2::TEXT IS NULL OR au.endpoint = $2)
+            AND ($3::TEXT IS NULL OR au.request_type = $3)
+            AND ($4::UUID IS NULL OR au.user_id = $4)
+        ORDER BY au.created_at DESC
+        LIMIT $5 OFFSET $6
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.endpoint.clone())
+    .bind(filters.request_type.clone())
+    .bind(filters.user_id.clone())
+    .bind(limit as i64)
+    .bind(offset as i64)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch logs: {}", e)))?;
+
+    // Get total count for pagination
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM ai_usage_logs
+        WHERE organization_id = $1
+            AND ($2::TEXT IS NULL OR endpoint = $2)
+            AND ($3::TEXT IS NULL OR request_type = $3)
+            AND ($4::UUID IS NULL OR user_id = $4)
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.endpoint.clone())
+    .bind(filters.request_type.clone())
+    .bind(filters.user_id.clone())
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to count logs: {}", e)))?;
+
+    Ok(Json(UsageLogsResponse {
+        logs,
+        total: count.0,
+        limit,
+        offset,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DashboardFilters {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsageLogFilters {
+    pub endpoint: Option<String>,
+    pub request_type: Option<String>,
+    pub user_id: Option<String>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DashboardSummary {
+    pub total_tokens: i64,
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_requests: i64,
+    pub total_cost_usd: f64,
+    pub savings_vs_openai_usd: f64,
+    pub openai_equivalent_cost_usd: f64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct DailyUsage {
+    pub date: chrono::NaiveDate,
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+    pub requests: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UsageByEndpoint {
+    pub endpoint: String,
+    pub request_type: String,
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+    pub requests: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TopUserUsage {
+    pub user_id: uuid::Uuid,
+    pub email: String,
+    pub full_name: String,
+    pub role: String,
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+    pub requests: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DashboardResponse {
+    pub summary: DashboardSummary,
+    pub daily_usage: Vec<DailyUsage>,
+    pub by_endpoint: Vec<UsageByEndpoint>,
+    pub top_users: Vec<TopUserUsage>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UsageLogRecord {
+    pub id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
+    pub user_email: String,
+    pub user_name: String,
+    pub endpoint: String,
+    pub request_type: String,
+    pub model: String,
+    pub tokens_used: i32,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub estimated_cost_usd: f64,
+    pub prompt: Option<String>,
+    pub response: Option<String>,
+    pub request_metadata: serde_json::Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UsageLogsResponse {
+    pub logs: Vec<UsageLogRecord>,
+    pub total: i64,
+    pub limit: u32,
+    pub offset: u32,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TokenUsageFilters {
     pub role: Option<String>,
@@ -133,4 +421,299 @@ pub struct TokenUsageStats {
 pub struct TokenUsageResponse {
     pub usage: Vec<TokenUsage>,
     pub stats: TokenUsageStats,
+}
+
+// ==================== Global AI Usage Dashboard (Root Only) ====================
+
+/// GET /api/admin/ai-usage/global - Global AI usage dashboard for root users
+pub async fn get_ai_usage_global(
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Query(filters): Query<DashboardFilters>,
+) -> Result<Json<GlobalAiUsageResponse>, (StatusCode, String)> {
+    // Get daily usage for charts (all organizations)
+    let daily_usage: Vec<DailyUsage> = sqlx::query_as(
+        r#"
+        SELECT
+            DATE(au.created_at) as date,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        WHERE ($1::DATE IS NULL OR au.created_at >= $1::DATE)
+            AND ($2::DATE IS NULL OR au.created_at <= $2::DATE + INTERVAL '1 day')
+        GROUP BY DATE(au.created_at)
+        ORDER BY date ASC
+        LIMIT 90
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch daily usage: {}", e)))?;
+
+    // Get usage by endpoint/feature
+    let by_endpoint: Vec<UsageByEndpoint> = sqlx::query_as(
+        r#"
+        SELECT
+            au.endpoint,
+            au.request_type,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        WHERE ($1::DATE IS NULL OR au.created_at >= $1::DATE)
+            AND ($2::DATE IS NULL OR au.created_at <= $2::DATE + INTERVAL '1 day')
+        GROUP BY au.endpoint, au.request_type
+        ORDER BY total_tokens DESC
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch endpoint usage: {}", e)))?;
+
+    // Get usage by organization
+    let by_organization: Vec<UsageByOrganization> = sqlx::query_as(
+        r#"
+        SELECT
+            o.id as org_id,
+            o.name as org_name,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests,
+            COUNT(DISTINCT au.user_id) as active_users
+        FROM ai_usage_logs au
+        JOIN organizations o ON au.organization_id = o.id
+        WHERE ($1::DATE IS NULL OR DATE(au.created_at) >= $1::DATE)
+            AND ($2::DATE IS NULL OR DATE(au.created_at) <= $2::DATE)
+        GROUP BY o.id, o.name
+        ORDER BY total_tokens DESC
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch org usage: {}", e)))?;
+
+    // Get top users across all organizations
+    let top_users: Vec<TopUserUsage> = sqlx::query_as(
+        r#"
+        SELECT
+            u.id as user_id,
+            u.email,
+            u.full_name,
+            u.role,
+            o.name as org_name,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.input_tokens), 0) as input_tokens,
+            COALESCE(SUM(au.output_tokens), 0) as output_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        JOIN users u ON au.user_id = u.id
+        JOIN organizations o ON au.organization_id = o.id
+        WHERE ($1::DATE IS NULL OR DATE(au.created_at) >= $1::DATE)
+            AND ($2::DATE IS NULL OR DATE(au.created_at) <= $2::DATE)
+        GROUP BY u.id, u.email, u.full_name, u.role, o.name
+        ORDER BY total_tokens DESC
+        LIMIT 20
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch top users: {}", e)))?;
+
+    // Get usage by request type (for pie chart)
+    let by_request_type: Vec<UsageByRequestType> = sqlx::query_as(
+        r#"
+        SELECT
+            au.request_type,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as requests
+        FROM ai_usage_logs au
+        WHERE ($1::DATE IS NULL OR DATE(au.created_at) >= $1::DATE)
+            AND ($2::DATE IS NULL OR DATE(au.created_at) <= $2::DATE)
+        GROUP BY au.request_type
+        ORDER BY total_tokens DESC
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch request type usage: {}", e)))?;
+
+    // Calculate summary stats
+    let total_tokens: i64 = daily_usage.iter().map(|d| d.total_tokens).sum();
+    let total_input: i64 = daily_usage.iter().map(|d| d.input_tokens).sum();
+    let total_output: i64 = daily_usage.iter().map(|d| d.output_tokens).sum();
+    let total_cost: f64 = daily_usage.iter().map(|d| d.cost_usd).sum();
+    let total_requests: i64 = daily_usage.iter().map(|d| d.requests).sum();
+
+    // Calculate savings estimate (vs OpenAI GPT-4 pricing)
+    // GPT-4: ~$0.03/1K input, ~$0.06/1K output
+    // Our local AI: ~$0.001/1K input, ~$0.003/1K output
+    let openai_equivalent_cost = (total_input as f64 * 0.00003) + (total_output as f64 * 0.00006);
+    let savings_vs_openai = openai_equivalent_cost - total_cost;
+    let savings_percentage = if openai_equivalent_cost > 0.0 {
+        (savings_vs_openai / openai_equivalent_cost) * 100.0
+    } else {
+        0.0
+    };
+
+    // Get total active users count
+    let total_active_users: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT au.user_id)
+        FROM ai_usage_logs au
+        WHERE ($1::DATE IS NULL OR DATE(au.created_at) >= $1::DATE)
+            AND ($2::DATE IS NULL OR DATE(au.created_at) <= $2::DATE)
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to count users: {}", e)))?;
+
+    // Calculate student-specific usage (chat interactions)
+    let student_chat_usage: Vec<StudentChatUsage> = sqlx::query_as(
+        r#"
+        SELECT
+            u.id as user_id,
+            u.email,
+            u.full_name,
+            o.name as org_name,
+            COALESCE(SUM(au.tokens_used), 0) as total_tokens,
+            COALESCE(SUM(au.estimated_cost_usd), 0)::FLOAT8 as cost_usd,
+            COUNT(au.id) as chat_requests,
+            MAX(au.created_at) as last_chat
+        FROM ai_usage_logs au
+        JOIN users u ON au.user_id = u.id
+        JOIN organizations o ON au.organization_id = o.id
+        WHERE au.request_type = 'chat'
+            AND u.role = 'student'
+            AND ($1::DATE IS NULL OR DATE(au.created_at) >= $1::DATE)
+            AND ($2::DATE IS NULL OR DATE(au.created_at) <= $2::DATE)
+        GROUP BY u.id, u.email, u.full_name, o.name
+        ORDER BY total_tokens DESC
+        LIMIT 50
+        "#
+    )
+    .bind(filters.start_date.clone())
+    .bind(filters.end_date.clone())
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch student chat usage: {}", e)))?;
+
+    // Calculate student chat totals
+    let total_student_chat_tokens: i64 = student_chat_usage.iter().map(|s| s.total_tokens).sum();
+    let total_student_chat_cost: f64 = student_chat_usage.iter().map(|s| s.cost_usd).sum();
+    let total_student_chat_requests: i64 = student_chat_usage.iter().map(|s| s.chat_requests).sum();
+
+    Ok(Json(GlobalAiUsageResponse {
+        summary: GlobalAiSummary {
+            total_tokens,
+            total_input,
+            total_output,
+            total_requests,
+            total_cost_usd: total_cost,
+            savings_vs_openai_usd: savings_vs_openai,
+            savings_percentage,
+            openai_equivalent_cost_usd: openai_equivalent_cost,
+            total_organizations: by_organization.len() as i64,
+            total_active_users,
+        },
+        student_chat_summary: Some(StudentChatSummary {
+            total_tokens: total_student_chat_tokens,
+            total_requests: total_student_chat_requests,
+            total_cost_usd: total_student_chat_cost,
+            active_students: student_chat_usage.len() as i64,
+        }),
+        daily_usage,
+        by_endpoint,
+        by_organization,
+        by_request_type,
+        top_users,
+        student_chat_usage,
+    }))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UsageByOrganization {
+    pub org_id: uuid::Uuid,
+    pub org_name: String,
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+    pub requests: i64,
+    pub active_users: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UsageByRequestType {
+    pub request_type: String,
+    pub total_tokens: i64,
+    pub cost_usd: f64,
+    pub requests: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct StudentChatUsage {
+    pub user_id: uuid::Uuid,
+    pub email: String,
+    pub full_name: String,
+    pub org_name: String,
+    pub total_tokens: i64,
+    pub cost_usd: f64,
+    pub chat_requests: i64,
+    pub last_chat: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StudentChatSummary {
+    pub total_tokens: i64,
+    pub total_requests: i64,
+    pub total_cost_usd: f64,
+    pub active_students: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GlobalAiSummary {
+    pub total_tokens: i64,
+    pub total_input: i64,
+    pub total_output: i64,
+    pub total_requests: i64,
+    pub total_cost_usd: f64,
+    pub savings_vs_openai_usd: f64,
+    pub savings_percentage: f64,
+    pub openai_equivalent_cost_usd: f64,
+    pub total_organizations: i64,
+    pub total_active_users: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GlobalAiUsageResponse {
+    pub summary: GlobalAiSummary,
+    pub student_chat_summary: Option<StudentChatSummary>,
+    pub daily_usage: Vec<DailyUsage>,
+    pub by_endpoint: Vec<UsageByEndpoint>,
+    pub by_organization: Vec<UsageByOrganization>,
+    pub by_request_type: Vec<UsageByRequestType>,
+    pub top_users: Vec<TopUserUsage>,
+    pub student_chat_usage: Vec<StudentChatUsage>,
 }

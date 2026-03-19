@@ -4133,6 +4133,26 @@ RULES:
 
     tracing::info!("Transaction committed successfully");
 
+    // Log AI usage for course generation
+    let input_tokens = count_tokens(&system_prompt) + count_tokens(&payload.prompt);
+    let output_tokens = count_tokens(&content_str);
+    let total_tokens = input_tokens + output_tokens;
+    
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(claims.sub)
+        .bind(target_org_id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/courses/generate")
+        .bind(&model)
+        .bind("course-generation")
+        .bind(&json!({ "prompt": payload.prompt, "course_title": course_title }))
+        .bind(&format!("{} - {}", system_prompt, payload.prompt))  // prompt
+        .bind(&content_str)  // response
+        .execute(&pool)
+        .await;
+
     log_action(
         &pool,
         target_org_id,
@@ -4140,7 +4160,7 @@ RULES:
         "AI_COURSE_GENERATED",
         "Course",
         course.id,
-        json!({ "prompt": payload.prompt }),
+        json!({ "prompt": payload.prompt, "tokens_used": total_tokens }),
     )
     .await;
 

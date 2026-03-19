@@ -14,6 +14,16 @@ use common::models::{
     LessonDependency,
 };
 use crate::external_db::MySqlPool;
+use serde_json::json;
+
+// Simple token counter (approximate: 1 token ≈ 4 characters in English, ~3-5 in Spanish)
+fn count_tokens(text: &str) -> i32 {
+    if text.is_empty() {
+        return 0;
+    }
+    // Spanish average: ~4 chars per token
+    (text.len() / 4) as i32 + 1
+}
 
 pub async fn get_me(
     claims: common::auth::Claims,
@@ -2772,6 +2782,30 @@ pub async fn chat_with_tutor(
         .as_str()
         .unwrap_or("Lo siento, tuve un problema procesando tu pregunta.")
         .to_string();
+
+    // Calculate and log token usage
+    let input_tokens = count_tokens(&system_prompt) + count_tokens(&payload.message);
+    let output_tokens = count_tokens(&tutor_response);
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/chat")
+        .bind(&model)
+        .bind("chat")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+            "session_id": session_id,
+            "has_rag": !kb_context.is_empty(),
+        }))
+        .bind(&format!("{} - {}", system_prompt, payload.message))  // prompt
+        .bind(&tutor_response)  // response
+        .execute(&pool)
+        .await;
 
     // Save assistant response
     let _ =

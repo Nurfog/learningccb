@@ -10,7 +10,8 @@ import {
     ClipboardList,
     ShieldCheck,
     ArrowLeft,
-    Activity
+    Activity,
+    TrendingUp
 } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { icon: Users, label: "Users", href: "/admin/users" },
         { icon: ClipboardList, label: "Audit Logs", href: "/admin/audit" },
         { icon: Activity, label: "System Tasks", href: "/admin/tasks" },
+        { icon: TrendingUp, label: "Control Global IA", href: "/admin/ai-usage-global" },
     ];
 
     return (

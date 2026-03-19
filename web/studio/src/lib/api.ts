@@ -233,6 +233,102 @@ export interface UploadResponse {
     favicon_url?: string;
 }
 
+// ==================== AI Usage Global ====================
+
+export interface GlobalAiSummary {
+    total_tokens: number;
+    total_input: number;
+    total_output: number;
+    total_requests: number;
+    total_cost_usd: number;
+    savings_vs_openai_usd: number;
+    savings_percentage: number;
+    openai_equivalent_cost_usd: number;
+    total_organizations: number;
+    total_active_users: number;
+}
+
+export interface StudentChatSummary {
+    total_tokens: number;
+    total_requests: number;
+    total_cost_usd: number;
+    active_students: number;
+}
+
+export interface DailyUsage {
+    date: string;
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    requests: number;
+}
+
+export interface UsageByEndpoint {
+    endpoint: string;
+    request_type: string;
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    requests: number;
+}
+
+export interface UsageByOrganization {
+    org_id: string;
+    org_name: string;
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    requests: number;
+    active_users: number;
+}
+
+export interface UsageByRequestType {
+    request_type: string;
+    total_tokens: number;
+    cost_usd: number;
+    requests: number;
+}
+
+export interface TopUserUsage {
+    user_id: string;
+    email: string;
+    full_name: string;
+    role: string;
+    org_name: string;
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    requests: number;
+}
+
+export interface StudentChatUsage {
+    user_id: string;
+    email: string;
+    full_name: string;
+    org_name: string;
+    total_tokens: number;
+    cost_usd: number;
+    chat_requests: number;
+    last_chat: string;
+}
+
+export interface GlobalAiUsageResponse {
+    summary: GlobalAiSummary;
+    student_chat_summary: StudentChatSummary | null;
+    daily_usage: DailyUsage[];
+    by_endpoint: UsageByEndpoint[];
+    by_organization: UsageByOrganization[];
+    by_request_type: UsageByRequestType[];
+    top_users: TopUserUsage[];
+    student_chat_usage: StudentChatUsage[];
+}
+
+// ==================== Grading ====================
+
 export interface GradingCategory {
     id: string;
     course_id: string;
@@ -926,6 +1022,10 @@ export const cmsApi = {
         apiFetch(`/test-templates/${templateId}/apply`, { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, grading_category_id: gradingCategoryId }) }, false),
     generateQuestionsWithRAG: (courseId?: number, topic?: string, numQuestions?: number): Promise<TestTemplateQuestion[]> =>
         apiFetch('/test-templates/generate-with-rag', { method: 'POST', body: JSON.stringify({ course_id: courseId, topic, num_questions: numQuestions }) }, false),
+
+    // Admin - AI Usage Global
+    getGlobalAiUsage: (startDate?: string, endDate?: string): Promise<GlobalAiUsageResponse> =>
+        apiFetch('/admin/ai-usage/global', { query: { start_date: startDate, end_date: endDate } }, false),
 };
 
 // ==================== Question Bank ====================
