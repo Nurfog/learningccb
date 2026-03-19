@@ -1,34 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import PageLayout from '@/components/PageLayout';
-import { TestTemplateManager, TestTemplateForm } from '@/components/TestTemplates';
-//import { Plus } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 export default function TestTemplatesPage() {
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const handleSuccess = () => {
-        setShowCreateForm(false);
-        setRefreshKey(prev => prev + 1);
-    };
-
     return (
         <PageLayout title="Plantillas de Pruebas">
-            <div key={refreshKey}>
-                <TestTemplateManager
-                    onSelectTemplate={() => setShowCreateForm(true)}
-                    onCreateTemplate={() => setShowCreateForm(true)}
-                />
+            <div className="flex flex-col items-center justify-center p-8">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                        <AlertTriangle className="w-8 h-8 text-yellow-600" />
+                        <h2 className="text-xl font-semibold text-yellow-800">
+                            Funcionalidad Temporalmente Desactivada
+                        </h2>
+                    </div>
+                    <p className="text-yellow-700 mb-4">
+                        Las plantillas de pruebas están temporalmente desactivadas mientras se realizan mejoras en el sistema.
+                    </p>
+                    <p className="text-yellow-600 text-sm">
+                        Esta funcionalidad estará disponible próximamente.
+                    </p>
+                </div>
             </div>
-
-            {showCreateForm && (
-                <TestTemplateForm
-                    onSuccess={handleSuccess}
-                    onCancel={() => setShowCreateForm(false)}
-                />
-            )}
         </PageLayout>
     );
 }

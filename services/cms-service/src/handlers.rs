@@ -1135,6 +1135,29 @@ pub async fn summarize_lesson(
         .unwrap_or("")
         .trim();
 
+    // Calculate and log token usage
+    let system_prompt = "You are an expert English Teacher. Summarize the following lesson content.";
+    let input_tokens = count_tokens(system_prompt) + count_tokens(&content_text);
+    let output_tokens = count_tokens(summary);
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/summarize")
+        .bind(&model)
+        .bind("summary")
+        .bind(&json!({
+            "lesson_id": id,
+        }))
+        .bind(&format!("{} - {}", system_prompt, content_text))  // prompt
+        .bind(summary)  // response
+        .execute(&pool)
+        .await;
+
     // 3. Update lesson
     let updated_lesson =
         sqlx::query_as::<_, Lesson>("UPDATE lessons SET summary = $1 WHERE id = $2 RETURNING *")
@@ -1274,8 +1297,8 @@ pub async fn generate_quiz(
     let output_tokens = count_tokens(&response_json.to_string());
     let total_tokens = input_tokens + output_tokens;
 
-    // Log AI usage
-    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9)")
+    // Log AI usage with prompt and response
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
         .bind(claims.sub)
         .bind(org_ctx.id)
         .bind(total_tokens)
@@ -1288,6 +1311,8 @@ pub async fn generate_quiz(
             "lesson_id": id,
             "quiz_type": quiz_req.quiz_type,
         }))
+        .bind(&system_prompt)  // prompt
+        .bind(&response_json.to_string())  // response
         .execute(&pool)
         .await;
 
@@ -1804,7 +1829,7 @@ pub async fn generate_mermaid_diagram(
     let transcription_str = lesson.transcription.as_ref().and_then(|v| v.as_str());
     let summary_str = lesson.summary.as_deref();
     let lesson_context = transcription_str.or(summary_str).unwrap_or("Conceptos generales de la lección.");
-    let user_hint = payload.prompt_hint.unwrap_or_else(|| "Extrae los conceptos y flujos principales de la lección.".to_string());
+    let user_hint = payload.prompt_hint.clone().unwrap_or_else(|| "Extrae los conceptos y flujos principales de la lección.".to_string());
 
     let system_prompt = format!(
         "Eres un experto arquitecto de información y especialista en diagramación usando Mermaid.js.\n\
@@ -1860,6 +1885,29 @@ pub async fn generate_mermaid_diagram(
         .strip_prefix("```mermaid\n").unwrap_or(ai_response)
         .strip_prefix("```\n").unwrap_or(ai_response)
         .strip_suffix("```").unwrap_or(ai_response).trim();
+
+    // Calculate and log token usage
+    let input_tokens = count_tokens(&system_prompt) + count_tokens("Genera el código Mermaid directamente.");
+    let output_tokens = count_tokens(cleaned_response);
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(_claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/generate-mermaid")
+        .bind(&model)
+        .bind("diagram-generation")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+            "hint": payload.prompt_hint,
+        }))
+        .bind(&system_prompt)  // prompt
+        .bind(cleaned_response)  // response
+        .execute(&pool)
+        .await;
 
     Ok(Json(serde_json::json!({
         "mermaid_code": cleaned_response,
@@ -2115,6 +2163,30 @@ pub async fn generate_hotspots(
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
+
+    // Calculate and log token usage
+    let full_prompt = format!("{} - {}", system_prompt, user_prompt);
+    let input_tokens = count_tokens(&full_prompt) + 500; // Estimate for image tokens
+    let output_tokens = count_tokens(&hotspots.to_string());
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(_claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/generate-hotspots")
+        .bind(&model)
+        .bind("hotspots-generation")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+            "image_url": payload.image_url,
+        }))
+        .bind(&full_prompt)  // prompt
+        .bind(&hotspots.to_string())  // response
+        .execute(&pool)
+        .await;
 
     Ok(Json(hotspots))
 }

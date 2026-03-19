@@ -135,9 +135,9 @@ fn calculate_course_type(plan_name: &str) -> String {
     }
 }
 
-fn calculate_course_type_from_duration(duracion: Option<i32>) -> String {
+fn calculate_course_type_from_duration(duracion: Option<f64>) -> String {
     match duracion {
-        Some(d) if d >= 70 => "intensive".to_string(),  // 80h or more = intensive
+        Some(d) if d as i64 >= 70 => "intensive".to_string(),  // 80h or more = intensive
         _ => "regular".to_string(),  // 40h or less = regular
     }
 }
@@ -396,7 +396,12 @@ pub async fn import_from_mysql(
     )
     .fetch_all(&mysql_pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch plans: {}", e)))?;
+    .map_err(|e| {
+        let error_msg = format!("Failed to fetch: {}", e);
+        tracing::error!("MySQL Error: {}", error_msg);
+        tracing::error!("Check column names in your MySQL database (plandeestudios, curso tables)");
+        (StatusCode::INTERNAL_SERVER_ERROR, error_msg)
+    })?;
 
     tracing::info!("Fetched {} study plans from MySQL", mysql_plans.len());
 
@@ -408,7 +413,7 @@ pub async fn import_from_mysql(
             c.NivelCurso AS nivel_curso,
             pe.idPlanDeEstudios AS id_plan_de_estudios,
             pe.Nombre AS nombre_plan,
-            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+            c.Duracion AS duracion
         FROM curso c
         JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
         WHERE c.Activo = 1
@@ -757,7 +762,7 @@ pub async fn list_mysql_courses(
             c.NivelCurso AS nivel_curso,
             pe.idPlanDeEstudios AS id_plan_de_estudios,
             pe.Nombre AS nombre_plan,
-            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+            c.Duracion AS duracion
         FROM curso c
         JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
         WHERE c.Activo = 1
@@ -783,8 +788,8 @@ pub async fn get_mysql_plans(
     let plans: Vec<MySqlPlanInfo> = sqlx::query_as(
         r#"
         SELECT
-            mysql_id as "idPlanDeEstudios",
-            name as "NombrePlan"
+            mysql_id as id_plan_de_estudios,
+            name as nombre_plan
         FROM mysql_study_plans
         WHERE organization_id = $1 AND is_active = true
         ORDER BY name
@@ -808,12 +813,12 @@ pub async fn get_mysql_courses_by_plan(
     let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
         r#"
         SELECT
-            c.mysql_id as "idCursos",
-            c.name as "NombreCurso",
-            c.level as "NivelCurso",
-            sp.mysql_id as "idPlanDeEstudios",
-            sp.name as "NombrePlan",
-            c.duracion as "Duracion"
+            c.mysql_id as id_cursos,
+            c.name as nombre_curso,
+            c.level as nivel_curso,
+            sp.mysql_id as id_plan_de_estudios,
+            sp.name as nombre_plan,
+            c.duracion as duracion
         FROM mysql_courses c
         JOIN mysql_study_plans sp ON c.study_plan_id = sp.id
         WHERE c.organization_id = $1
@@ -838,34 +843,18 @@ pub struct MySqlCoursesFilters {
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct MySqlPlanInfo {
-    #[sqlx(rename = "idPlanDeEstudios")]
-    #[serde(rename = "idPlanDeEstudios")]
     pub id_plan_de_estudios: i32,
-    #[sqlx(rename = "NombrePlan")]
-    #[serde(rename = "NombrePlan")]
     pub nombre_plan: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MySqlCourseInfo {
-    #[sqlx(rename = "idCursos")]
-    #[serde(rename = "idCursos")]
     pub id_cursos: i32,
-    #[sqlx(rename = "NombreCurso")]
-    #[serde(rename = "NombreCurso")]
     pub nombre_curso: String,
-    #[sqlx(rename = "NivelCurso")]
-    #[serde(rename = "NivelCurso", skip_serializing_if = "Option::is_none")]
     pub nivel_curso: Option<i32>,
-    #[sqlx(rename = "idPlanDeEstudios")]
-    #[serde(rename = "idPlanDeEstudios")]
     pub id_plan_de_estudios: i32,
-    #[sqlx(rename = "NombrePlan")]
-    #[serde(rename = "NombrePlan")]
     pub nombre_plan: String,
-    #[sqlx(rename = "Duracion")]
-    #[serde(rename = "Duracion", skip_serializing_if = "Option::is_none")]
-    pub duracion: Option<i32>,  // Duration in hours (40=regular, 80=intensive)
+    pub duracion: Option<f64>,  // Duration in hours (40=regular, 80=intensive) - MySQL float type
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -878,9 +867,18 @@ pub async fn import_all_from_mysql(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
-    Json(payload): Json<ImportAllFromMySQLPayload>,
+    body: String,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use serde_json::json;
+
+    // Parse optional JSON body
+    let import_metadata_only = if body.trim().is_empty() {
+        false
+    } else {
+        serde_json::from_str::<ImportAllFromMySQLPayload>(&body)
+            .map(|p| p.import_metadata_only.unwrap_or(false))
+            .unwrap_or(false)
+    };
 
     // Connect to MySQL
     let mysql_url = std::env::var("MYSQL_DATABASE_URL")
@@ -903,7 +901,12 @@ pub async fn import_all_from_mysql(
     )
     .fetch_all(&mysql_pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch plans: {}", e)))?;
+    .map_err(|e| {
+        let error_msg = format!("Failed to fetch: {}", e);
+        tracing::error!("MySQL Error: {}", error_msg);
+        tracing::error!("Check column names in your MySQL database (plandeestudios, curso tables)");
+        (StatusCode::INTERNAL_SERVER_ERROR, error_msg)
+    })?;
 
     tracing::info!("Fetched {} study plans from MySQL", mysql_plans.len());
 
@@ -915,7 +918,7 @@ pub async fn import_all_from_mysql(
             c.NivelCurso AS nivel_curso,
             pe.idPlanDeEstudios AS id_plan_de_estudios,
             pe.Nombre AS nombre_plan,
-            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+            c.Duracion AS duracion
         FROM curso c
         JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
         WHERE c.Activo = 1
@@ -936,7 +939,7 @@ pub async fn import_all_from_mysql(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save courses/plans: {}", e)))?;
 
     // If only metadata import is requested, return early
-    if payload.import_metadata_only.unwrap_or(false) {
+    if import_metadata_only {
         return Ok(Json(json!({
             "success": true,
             "message": "Metadatos importados exitosamente",
@@ -1305,7 +1308,7 @@ pub async fn import_course_from_mysql(
             c.NivelCurso AS nivel_curso,
             pe.idPlanDeEstudios AS id_plan_de_estudios,
             pe.Nombre AS nombre_plan,
-            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+            c.Duracion AS duracion
         FROM curso c
         JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
         WHERE c.idCursos = ? AND c.Activo = 1 AND pe.Activo = 1
