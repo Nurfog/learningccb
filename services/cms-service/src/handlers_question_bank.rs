@@ -836,7 +836,7 @@ pub struct MySqlCoursesFilters {
     pub plan_id: i32,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct MySqlPlanInfo {
     #[sqlx(rename = "idPlanDeEstudios")]
     #[serde(rename = "idPlanDeEstudios")]
@@ -846,12 +846,42 @@ pub struct MySqlPlanInfo {
     pub nombre_plan: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MySqlCourseInfo {
+    #[sqlx(rename = "idCursos")]
+    #[serde(rename = "idCursos")]
+    pub id_cursos: i32,
+    #[sqlx(rename = "NombreCurso")]
+    #[serde(rename = "NombreCurso")]
+    pub nombre_curso: String,
+    #[sqlx(rename = "NivelCurso")]
+    #[serde(rename = "NivelCurso", skip_serializing_if = "Option::is_none")]
+    pub nivel_curso: Option<i32>,
+    #[sqlx(rename = "idPlanDeEstudios")]
+    #[serde(rename = "idPlanDeEstudios")]
+    pub id_plan_de_estudios: i32,
+    #[sqlx(rename = "NombrePlan")]
+    #[serde(rename = "NombrePlan")]
+    pub nombre_plan: String,
+    #[sqlx(rename = "Duracion")]
+    #[serde(rename = "Duracion", skip_serializing_if = "Option::is_none")]
+    pub duracion: Option<i32>,  // Duration in hours (40=regular, 80=intensive)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportAllFromMySQLPayload {
+    pub import_metadata_only: Option<bool>,  // Only import metadata (courses/plans), not questions
+}
+
 /// POST /api/question-bank/import-mysql-all - Import ALL questions from MySQL (bulk import)
 pub async fn import_all_from_mysql(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
-) -> Result<Json<ImportResult>, (StatusCode, String)> {
+    Json(payload): Json<ImportAllFromMySQLPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use serde_json::json;
+
     // Connect to MySQL
     let mysql_url = std::env::var("MYSQL_DATABASE_URL")
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
@@ -901,9 +931,28 @@ pub async fn import_all_from_mysql(
 
     // Save plans and courses to PostgreSQL
     tracing::info!("Saving plans and courses to PostgreSQL...");
-    save_mysql_courses_and_plans(&pool, org_ctx.id, mysql_plans, mysql_courses)
+    save_mysql_courses_and_plans(&pool, org_ctx.id, mysql_plans.clone(), mysql_courses.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save courses/plans: {}", e)))?;
+
+    // If only metadata import is requested, return early
+    if payload.import_metadata_only.unwrap_or(false) {
+        return Ok(Json(json!({
+            "success": true,
+            "message": "Metadatos importados exitosamente",
+            "metadata": {
+                "study_plans_imported": mysql_plans.len(),
+                "courses_imported": mysql_courses.len(),
+                "courses": mysql_courses.iter().map(|c| json!({
+                    "id_cursos": c.id_cursos,
+                    "nombre_curso": c.nombre_curso,
+                    "nombre_plan": c.nombre_plan,
+                    "duracion": c.duracion,
+                    "nivel_curso": c.nivel_curso
+                })).collect::<Vec<_>>()
+            }
+        })));
+    }
 
     // Fetch ALL questions from MySQL with answers (using JSON aggregation for answers)
     let mysql_questions: Vec<MySqlQuestionFull> = sqlx::query_as(
@@ -948,14 +997,15 @@ pub async fn import_all_from_mysql(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
     
     mysql_pool.close().await;
-    
+
     if mysql_questions.is_empty() {
-        return Ok(Json(ImportResult {
-            imported: 0,
-            skipped: 0,
-            updated: 0,
-            error: Some("No questions found in MySQL".to_string()),
-        }));
+        return Ok(Json(json!({
+            "success": false,
+            "imported": 0,
+            "skipped": 0,
+            "updated": 0,
+            "error": "No questions found in MySQL"
+        })));
     }
     
     // Import questions into PostgreSQL
@@ -1051,13 +1101,17 @@ pub async fn import_all_from_mysql(
         skipped_count,
         updated_count
     );
-    
-    Ok(Json(ImportResult {
-        imported: imported_count,
-        skipped: skipped_count,
-        updated: updated_count,
-        error: None,
-    }))
+
+    Ok(Json(json!({
+        "success": true,
+        "imported": imported_count,
+        "skipped": skipped_count,
+        "updated": updated_count,
+        "metadata": {
+            "study_plans_imported": mysql_plans.len(),
+            "courses_imported": mysql_courses.len()
+        }
+    })))
 }
 
 #[derive(Debug, Serialize)]
@@ -1066,28 +1120,6 @@ pub struct ImportResult {
     pub skipped: i32,
     pub updated: i32,
     pub error: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
-pub struct MySqlCourseInfo {
-    #[sqlx(rename = "idCursos")]
-    #[serde(rename = "idCursos")]
-    pub id_cursos: i32,
-    #[sqlx(rename = "NombreCurso")]
-    #[serde(rename = "NombreCurso")]
-    pub nombre_curso: String,
-    #[sqlx(rename = "NivelCurso")]
-    #[serde(rename = "NivelCurso", skip_serializing_if = "Option::is_none")]
-    pub nivel_curso: Option<i32>,
-    #[sqlx(rename = "idPlanDeEstudios")]
-    #[serde(rename = "idPlanDeEstudios")]
-    pub id_plan_de_estudios: i32,
-    #[sqlx(rename = "NombrePlan")]
-    #[serde(rename = "NombrePlan")]
-    pub nombre_plan: String,
-    #[sqlx(rename = "Duracion")]
-    #[serde(rename = "Duracion", skip_serializing_if = "Option::is_none")]
-    pub duracion: Option<i32>,  // Duration in hours (40=regular, 80=intensive)
 }
 
 // Excel import - pendiente de fix
@@ -1225,4 +1257,234 @@ pub async fn ai_generate_question(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse question JSON: {}", e)))?;
 
     Ok(Json(ai_question))
+}
+
+// ==================== Import Courses from MySQL ====================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportCourseFromMySQLPayload {
+    pub mysql_course_id: i32,
+    pub title: Option<String>,        // Optional custom title (defaults to MySQL course name)
+    pub description: Option<String>,  // Optional description
+    pub pacing_mode: Option<String>,  // self_paced or instructor_led
+}
+
+#[derive(Debug, Serialize)]
+pub struct ImportCourseResult {
+    pub course_id: Uuid,
+    pub course_title: String,
+    pub mysql_course_id: i32,
+    pub modules_created: i32,
+    pub lessons_created: i32,
+    pub message: String,
+}
+
+/// POST /api/question-bank/import-course-mysql - Import a course from MySQL with basic structure
+pub async fn import_course_from_mysql(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportCourseFromMySQLPayload>,
+) -> Result<Json<ImportCourseResult>, (StatusCode, String)> {
+    use common::models::Course;
+
+    // Connect to MySQL
+    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
+
+    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+
+    // Fetch course info from MySQL
+    let mysql_course: MySqlCourseInfo = sqlx::query_as(
+        r#"
+        SELECT 
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS nombre_plan,
+            CAST(c.Duracion AS SIGNED INTEGER) AS duracion
+        FROM curso c
+        JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
+        WHERE c.idCursos = ? AND c.Activo = 1 AND pe.Activo = 1
+        "#
+    )
+    .bind(payload.mysql_course_id)
+    .fetch_one(&mysql_pool)
+    .await
+    .map_err(|e| {
+        if let sqlx::Error::RowNotFound = e {
+            (StatusCode::NOT_FOUND, format!("Course with ID {} not found in MySQL", payload.mysql_course_id))
+        } else {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch course from MySQL: {}", e))
+        }
+    })?;
+
+    tracing::info!("Importing course from MySQL: {} (ID: {})", mysql_course.nombre_curso, mysql_course.id_cursos);
+
+    // Start transaction
+    let mut tx = pool.begin().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start transaction: {}", e)))?;
+
+    // Determine course type and level for structure generation
+    let course_type = calculate_course_type_from_duration(mysql_course.duracion);
+    let level = calculate_course_level(mysql_course.nivel_curso);
+    
+    tracing::info!("Course type: {}, Level: {}", course_type, level);
+
+    // Create course in PostgreSQL
+    let course_title = payload.title.unwrap_or_else(|| format!("{} ({})", mysql_course.nombre_curso, mysql_course.nombre_plan));
+    let pacing_mode = payload.pacing_mode.unwrap_or_else(|| "self_paced".to_string());
+    let description = payload.description.unwrap_or_else(|| format!("Curso importado desde MySQL - Plan: {}", mysql_course.nombre_plan));
+
+    let new_course: Course = sqlx::query_as(
+        r#"
+        INSERT INTO courses (
+            organization_id, instructor_id, title, pacing_mode, description,
+            passing_percentage, certificate_template, imported_mysql_course_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(claims.sub)
+    .bind(&course_title)
+    .bind(&pacing_mode)
+    .bind(&description)
+    .bind(60.0)  // Default passing percentage
+    .bind(serde_json::json!({
+        "template": "default",
+        "show_logo": true,
+        "show_instructor": true
+    }))
+    .bind(mysql_course.id_cursos)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create course: {}", e)))?;
+
+    tracing::info!("Created course in PostgreSQL: {}", new_course.id);
+
+    // Generate basic course structure based on course type and level
+    let (modules_count, lessons_count) = generate_course_structure(
+        &mut tx,
+        new_course.id,
+        org_ctx.id,
+        &course_type,
+        &level,
+        &mysql_course.nombre_curso,
+    )
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    // Commit transaction
+    tx.commit().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to commit transaction: {}", e)))?;
+
+    tracing::info!(
+        "Successfully imported course {} with {} modules and {} lessons",
+        new_course.id,
+        modules_count,
+        lessons_count
+    );
+
+    Ok(Json(ImportCourseResult {
+        course_id: new_course.id,
+        course_title: new_course.title.clone(),
+        mysql_course_id: mysql_course.id_cursos,
+        modules_created: modules_count,
+        lessons_created: lessons_count,
+        message: format!("Curso '{}' importado exitosamente con {} módulos y {} lecciones",
+            new_course.title, modules_count, lessons_count),
+    }))
+}
+
+/// Generate basic course structure based on type and level
+async fn generate_course_structure<'a>(
+    tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
+    course_id: Uuid,
+    org_id: Uuid,
+    course_type: &str,
+    level: &str,
+    course_name: &str,
+) -> Result<(i32, i32), String> {
+    // Define module structure based on course type
+    // Regular (40h): 4 modules
+    // Intensive (80h): 8 modules
+    let modules_config = match course_type {
+        "intensive" => vec![
+            ("Fundamentos Básicos", 6),
+            ("Gramática Esencial", 6),
+            ("Vocabulario Intermedio", 6),
+            ("Comprensión Auditiva", 6),
+            ("Expresión Oral", 6),
+            ("Lectura y Escritura", 6),
+            ("Práctica Avanzada", 6),
+            ("Proyecto Final", 4),
+        ],
+        _ => vec![
+            ("Introducción y Fundamentos", 5),
+            ("Gramática Básica", 5),
+            ("Vocabulario Esencial", 5),
+            ("Práctica Integradora", 5),
+        ],
+    };
+
+    let mut total_modules = 0;
+    let mut total_lessons = 0;
+
+    for (module_idx, (module_name, lessons_count)) in modules_config.iter().enumerate() {
+        // Create module
+        let module: common::models::Module = sqlx::query_as(
+            r#"
+            INSERT INTO modules (course_id, organization_id, title, position)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *
+            "#
+        )
+        .bind(course_id)
+        .bind(org_id)
+        .bind(format!("Módulo {}: {}", module_idx + 1, module_name))
+        .bind(module_idx as i32)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|e| format!("Failed to create module {}: {}", module_idx + 1, e))?;
+
+        total_modules += 1;
+
+        // Create lessons for this module
+        for lesson_idx in 0..*lessons_count {
+            let lesson_position = (module_idx * lessons_count + lesson_idx) as i32;
+            let lesson_title = format!("Lección {}.{}", module_idx + 1, lesson_idx + 1);
+            
+            // Determine content type based on position (rotate through types)
+            let content_types = ["video", "document", "interactive", "quiz"];
+            let content_type = content_types[lesson_idx % content_types.len()];
+
+            sqlx::query(
+                r#"
+                INSERT INTO lessons (
+                    module_id, organization_id, title, content_type,
+                    content_url, position, is_graded, summary
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                "#
+            )
+            .bind(module.id)
+            .bind(org_id)
+            .bind(&lesson_title)
+            .bind(content_type)
+            .bind("")  // Empty content URL (to be filled by instructor)
+            .bind(lesson_position)
+            .bind(lesson_idx % 4 == 3)  // Every 4th lesson is graded (quiz)
+            .bind(format!("Contenido de la lección: {}", lesson_title))
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| format!("Failed to create lesson {}: {}", lesson_position, e))?;
+
+            total_lessons += 1;
+        }
+    }
+
+    Ok((total_modules, total_lessons))
 }

@@ -357,6 +357,10 @@ async fn main() {
             post(handlers_question_bank::import_all_from_mysql),
         )
         .route(
+            "/question-bank/import-course-mysql",
+            post(handlers_question_bank::import_course_from_mysql),
+        )
+        .route(
             "/question-bank/ai-generate",
             post(handlers_question_bank::ai_generate_question),
         )

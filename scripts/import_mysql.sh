@@ -30,8 +30,20 @@ fi
 
 echo "✅ Token obtenido: ${TOKEN:0:20}..."
 
-# Step 2: Import all from MySQL
-echo "📊 Importando cursos, planes y preguntas desde MySQL..."
+# Step 3: Get list of courses from MySQL
+echo ""
+echo "📋 Obteniendo lista de cursos desde MySQL..."
+COURSES_RESULT=$(curl -s -X POST "$CMS_API_URL/question-bank/import-mysql-all" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"import_metadata_only": true}')
+
+echo "📊 Metadatos de cursos importados:"
+echo "$COURSES_RESULT" | jq '.metadata // empty' 2>/dev/null || echo "$COURSES_RESULT"
+
+# Step 4: Import all questions from MySQL
+echo ""
+echo "📊 Importando preguntas desde MySQL..."
 RESULT=$(curl -s -X POST "$CMS_API_URL/question-bank/import-mysql-all" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN")
@@ -46,3 +58,46 @@ if [ "$IMPORTED" != "null" ] && [ "$IMPORTED" -gt 0 ]; then
 else
     echo "⚠️  Revisa el resultado para más detalles"
 fi
+
+# Step 5: Import courses with structure (optional - uncomment to enable)
+# echo ""
+# echo "📚 Importando cursos con estructura básica..."
+# 
+# # Get course list
+# COURSE_LIST=$(curl -s -X GET "$CMS_API_URL/question-bank/mysql-courses" \
+#   -H "Authorization: Bearer $TOKEN")
+# 
+# echo "📋 Cursos disponibles:"
+# echo "$COURSE_LIST" | jq '.[] | {id: .id_cursos, name: .nombre_curso, plan: .nombre_plan}'
+# 
+# # Import first course as example
+# FIRST_COURSE_ID=$(echo "$COURSE_LIST" | jq -r '.[0].id_cursos')
+# if [ "$FIRST_COURSE_ID" != "null" ] && [ -n "$FIRST_COURSE_ID" ]; then
+#     echo ""
+#     echo "📦 Importando curso de ejemplo (ID: $FIRST_COURSE_ID)..."
+#     COURSE_IMPORT=$(curl -s -X POST "$CMS_API_URL/question-bank/import-course-mysql" \
+#       -H "Content-Type: application/json" \
+#       -H "Authorization: Bearer $TOKEN" \
+#       -d "{\"mysql_course_id\": $FIRST_COURSE_ID}")
+#     
+#     echo "📋 Resultado:"
+#     echo "$COURSE_IMPORT" | jq .
+#     
+#     MESSAGE=$(echo "$COURSE_IMPORT" | jq -r '.message // "Error al importar"')
+#     echo "✅ $MESSAGE"
+# fi
+
+echo ""
+echo "=== Resumen ==="
+echo "✅ Metadatos de cursos y planes importados"
+echo "✅ Preguntas importadas desde MySQL"
+echo ""
+echo "💡 Para importar un curso completo con estructura básica, usa:"
+echo "   curl -X POST http://localhost:3001/question-bank/import-course-mysql \\"
+echo "     -H \"Content-Type: application/json\" \\"
+echo "     -H \"Authorization: Bearer \$TOKEN\" \\"
+echo "     -d '{\"mysql_course_id\": <ID_DEL_CURSO>}'"
+echo ""
+echo "📋 Para ver los cursos disponibles, usa:"
+echo "   curl -X GET http://localhost:3001/question-bank/mysql-courses \\"
+echo "     -H \"Authorization: Bearer \$TOKEN\""
