@@ -108,14 +108,15 @@ async fn main() {
             // Allow any origin for development (remove in production)
             "http://192.168.0.254".parse::<http::HeaderValue>().unwrap(),
         ])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH, Method::HEAD])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,
             header::HeaderName::from_static("x-requested-with"),
             header::HeaderName::from_static("x-organization-id"),
+            header::RANGE,
         ])
-        .expose_headers([header::CONTENT_LENGTH, header::CONTENT_TYPE]);
+        .expose_headers([header::CONTENT_LENGTH, header::CONTENT_TYPE, header::CONTENT_RANGE, header::ACCEPT_RANGES]);
 
     // Rate limiting: Deshabilitado temporalmente por problemas de compatibilidad con tower-governor
     // Para habilitar en producción, configurar con GovernorLayer y ajustar los límites apropiadamente
