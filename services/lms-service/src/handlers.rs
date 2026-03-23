@@ -2102,9 +2102,14 @@ pub async fn get_recommendations(
 
 pub async fn evaluate_audio_response(
     Org(_org_ctx): Org,
-    _claims: Claims,
+    claims: Claims,
     Json(payload): Json<AudioGradingPayload>,
 ) -> Result<Json<AudioGradingResponse>, (StatusCode, String)> {
+    // Check token limit before proceeding (estimate 1500 tokens for audio evaluation)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 1500).await {
+        return Err((StatusCode::TOO_MANY_REQUESTS, "Token limit exceeded".to_string()));
+    }
+    
     let client = reqwest::Client::new();
 
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
@@ -2496,6 +2501,11 @@ pub async fn chat_with_tutor(
     Path(lesson_id): Path<Uuid>,
     Json(payload): Json<ChatPayload>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
+    // Check token limit before proceeding (estimate 1000 tokens for chat)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 1000).await {
+        return Err((StatusCode::TOO_MANY_REQUESTS, "Monthly AI token limit exceeded. Please contact your administrator.".to_string()));
+    }
+    
     // 1. Fetch lesson context with access check (matches get_lesson_content)
     let is_preview = claims.token_type.as_deref() == Some("preview");
 

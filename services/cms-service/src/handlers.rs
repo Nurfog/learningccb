@@ -1074,6 +1074,11 @@ pub async fn summarize_lesson(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Lesson>, StatusCode> {
     tracing::info!("Received summarization request for lesson: {}", id);
+    
+    // Check token limit before proceeding (estimate 1500 tokens for summary)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 1500).await {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
     // 1. Fetch lesson
     let lesson =
         sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
@@ -1213,6 +1218,11 @@ pub async fn generate_quiz(
     Json(quiz_req): Json<QuizAIRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     tracing::info!("Received quiz generation request for lesson: {}", id);
+    
+    // Check token limit before proceeding (estimate 2000 tokens for quiz)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 2000).await {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
     // 1. Fetch lesson
     let lesson =
         sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
@@ -2086,11 +2096,16 @@ pub struct GenerateHotspotsPayload {
 
 pub async fn generate_hotspots(
     Org(org_ctx): Org,
-    _claims: common::auth::Claims,
+    claims: common::auth::Claims,
     State(pool): State<PgPool>,
     Path(lesson_id): Path<Uuid>,
     Json(payload): Json<GenerateHotspotsPayload>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Check token limit before proceeding (estimate 2000 tokens for hotspots)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 2000).await {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+    
     // 1. Resolve image path
     // imageUrl in frontend is like "/assets/filename.ext"
     // We need to map it to "uploads/filename.ext"
@@ -2267,7 +2282,7 @@ pub async fn generate_hotspots(
     let total_tokens = input_tokens + output_tokens;
 
     let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
-        .bind(_claims.sub)
+        .bind(claims.sub)
         .bind(org_ctx.id)
         .bind(total_tokens)
         .bind(input_tokens)
@@ -2294,11 +2309,16 @@ pub struct GenerateRolePlayPayload {
 
 pub async fn generate_role_play(
     Org(org_ctx): Org,
-    _claims: common::auth::Claims,
+    claims: common::auth::Claims,
     State(pool): State<PgPool>,
     Path(lesson_id): Path<Uuid>,
     Json(payload): Json<GenerateRolePlayPayload>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Check token limit before proceeding (estimate 2500 tokens for role-play)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 2500).await {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+    
     // 1. Fetch lesson context
     let lesson = sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
         .bind(lesson_id)
@@ -2396,7 +2416,7 @@ pub async fn generate_role_play(
     let total_tokens = input_tokens + output_tokens;
 
     let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
-        .bind(_claims.sub)
+        .bind(claims.sub)
         .bind(org_ctx.id)
         .bind(total_tokens)
         .bind(input_tokens)
@@ -4032,6 +4052,11 @@ pub async fn generate_course(
         "Starting AI course generation for prompt: {}",
         payload.prompt
     );
+    
+    // Check token limit before proceeding (estimate 5000 tokens for course generation)
+    if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 5000).await {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
 
     // 1. Determine target org
     let target_org_id = payload.target_organization_id.unwrap_or(org_ctx.id);
