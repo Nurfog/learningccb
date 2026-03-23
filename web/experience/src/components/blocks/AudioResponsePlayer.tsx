@@ -66,32 +66,72 @@ export default function AudioResponsePlayer({
     }, []);
 
     const startRecording = async () => {
+        // Check if browser supports MediaRecorder
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('MediaRecorder API not supported');
+            alert('Your browser does not support audio recording. Please use Chrome, Firefox, or Edge.');
+            return;
+        }
+
+        // Check if page is served over HTTPS or localhost
+        const isSecureContext = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+        if (!isSecureContext) {
+            console.error('getUserMedia requires secure context (HTTPS or localhost)');
+            alert('Audio recording requires HTTPS. Please access the site via HTTPS or localhost.');
+            return;
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
+            console.log('[AudioResponse] Requesting microphone access...');
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100
+                } 
+            });
+            console.log('[AudioResponse] Microphone access granted');
+            
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+            });
             mediaRecorderRef.current = mediaRecorder;
             audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     audioChunksRef.current.push(event.data);
+                    console.log('[AudioResponse] Data available, chunk size:', event.data.size);
                 }
             };
 
             mediaRecorder.onstop = () => {
+                console.log('[AudioResponse] Recording stopped, creating blob...');
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 setAudioBlob(audioBlob);
+                console.log('[AudioResponse] Blob created, size:', audioBlob.size, 'bytes');
                 stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.onerror = (event) => {
+                console.error('[AudioResponse] MediaRecorder error:', event);
+                alert('Recording error occurred. Please try again.');
             };
 
             mediaRecorder.start();
             setIsRecording(true);
             setRecordingTime(0);
+            console.log('[AudioResponse] Recording started');
 
             // Start speech recognition
             if (recognitionRef.current) {
                 setTranscript("");
-                recognitionRef.current.start();
+                try {
+                    recognitionRef.current.start();
+                    console.log('[AudioResponse] Speech recognition started');
+                } catch (err) {
+                    console.warn('[AudioResponse] Could not start speech recognition:', err);
+                }
             }
 
             // Start timer
@@ -99,14 +139,29 @@ export default function AudioResponsePlayer({
                 setRecordingTime(prev => {
                     const newTime = prev + 1;
                     if (timeLimit && newTime >= timeLimit) {
+                        console.log('[AudioResponse] Time limit reached, stopping...');
                         stopRecording();
                     }
                     return newTime;
                 });
             }, 1000);
-        } catch (error) {
-            console.error('Error accessing microphone:', error);
-            alert('Could not access microphone. Please check permissions.');
+        } catch (error: any) {
+            console.error('[AudioResponse] Error accessing microphone:', error);
+            let errorMessage = 'Could not access microphone. ';
+            
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMessage += 'Please allow microphone access and try again.';
+            } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                errorMessage += 'No microphone found. Please connect a microphone and try again.';
+            } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                errorMessage += 'Microphone is already in use by another application.';
+            } else if (error.name === 'OverconstrainedError') {
+                errorMessage += 'Microphone does not meet the required constraints.';
+            } else {
+                errorMessage += 'Please check permissions and try again.';
+            }
+            
+            alert(errorMessage);
         }
     };
 
@@ -177,6 +232,31 @@ export default function AudioResponsePlayer({
 
     return (
         <div className="space-y-6" id={id}>
+            {/* Browser Compatibility Check */}
+            {typeof window !== 'undefined' && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) && (
+                <div className="p-6 bg-red-500/10 border-2 border-red-500/20 rounded-2xl">
+                    <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-2">
+                        <X className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">Browser Not Supported</h3>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Your browser does not support audio recording. Please use Chrome, Firefox, Edge, or Safari.
+                    </p>
+                </div>
+            )}
+
+            {!window.isSecureContext && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && (
+                <div className="p-6 bg-yellow-500/10 border-2 border-yellow-500/20 rounded-2xl">
+                    <div className="flex items-center gap-3 text-yellow-600 dark:text-yellow-400 mb-2">
+                        <BrainCircuit className="w-6 h-6" />
+                        <h3 className="text-lg font-bold">HTTPS Required</h3>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Audio recording requires a secure connection (HTTPS). Please access this site via HTTPS or localhost.
+                    </p>
+                </div>
+            )}
+
             <div className="p-8 glass border-black/5 dark:border-white/5 rounded-3xl space-y-6 bg-black/[0.02] dark:bg-black/20">
                 <div className="flex items-start gap-4">
                     <div className="p-3 bg-purple-600/10 dark:bg-purple-500/20 rounded-xl">

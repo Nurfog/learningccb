@@ -48,6 +48,39 @@ pub async fn get_me(
         language: user.language,
     }))
 }
+
+/// Get course language configuration
+/// Returns whether the course uses auto-detection or fixed language
+pub async fn get_course_language_config(
+    State(pool): State<PgPool>,
+    Path(course_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    #[derive(sqlx::FromRow)]
+    struct CourseLanguageConfig {
+        language_setting: String,
+        fixed_language: Option<String>,
+    }
+
+    let config = sqlx::query_as::<_, CourseLanguageConfig>(
+        r#"SELECT language_setting, fixed_language FROM courses WHERE id = $1"#
+    )
+    .bind(course_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching course language config: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Some(cfg) = config {
+        Ok(Json(serde_json::json!({
+            "language_setting": cfg.language_setting,
+            "fixed_language": cfg.fixed_language
+        })))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::env;
@@ -764,8 +797,8 @@ pub async fn ingest_course(
 
         for lesson in &pub_module.lessons {
             sqlx::query(
-                "INSERT INTO lessons (id, module_id, title, content_type, content_url, transcription, metadata, position, created_at, is_graded, grading_category_id, max_attempts, allow_retry, organization_id, summary, due_date, important_date_type, transcription_status, is_previewable)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)"
+                "INSERT INTO lessons (id, module_id, title, content_type, content_url, transcription, metadata, position, created_at, is_graded, grading_category_id, max_attempts, allow_retry, organization_id, summary, due_date, important_date_type, transcription_status, is_previewable, content_blocks)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)"
             )
             .bind(lesson.id)
             .bind(pub_module.module.id)
@@ -786,6 +819,7 @@ pub async fn ingest_course(
             .bind(&lesson.important_date_type)
             .bind(&lesson.transcription_status)
             .bind(lesson.is_previewable)
+            .bind(&lesson.content_blocks)
             .execute(&mut *tx)
             .await
             .map_err(|e: sqlx::Error| {
@@ -1994,7 +2028,7 @@ pub async fn get_recommendations(
 
     let (url, auth_header, model) = if provider == "local" {
         let base_url = get_ai_url("OLLAMA_URL", "http://ollama:11434");
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (
             format!("{}/v1/chat/completions", base_url),
             "".to_string(),
@@ -2076,7 +2110,7 @@ pub async fn evaluate_audio_response(
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let (url, auth_header, model) = if provider == "local" {
         let base_url = get_ai_url("OLLAMA_URL", "http://ollama:11434");
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (
             format!("{}/v1/chat/completions", base_url),
             "".to_string(),
@@ -2249,7 +2283,7 @@ pub async fn evaluate_audio_file(
     let (url, auth_header, model) = if provider == "local" {
         let base_url =
             env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (
             format!("{}/v1/chat/completions", base_url),
             "".to_string(),
@@ -2559,7 +2593,7 @@ pub async fn chat_with_tutor(
 
     // 2. Setup AI request
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
-    let client = reqwest::Client::new();
+    let _client = reqwest::Client::new();
 
     // 2.1 Handle Session and Memory
     let session_id = if let Some(sid) = payload.session_id {
@@ -2710,7 +2744,7 @@ pub async fn chat_with_tutor(
     let (url, auth_header, model) = if provider == "local" {
         let base_url =
             env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (
             format!("{}/v1/chat/completions", base_url),
             "".to_string(),
@@ -2934,7 +2968,7 @@ pub async fn chat_role_play(
 
     let (url, auth_header, model) = if provider == "local" {
         let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
     } else {
         ("https://api.openai.com/v1/chat/completions".to_string(), 
@@ -3046,7 +3080,7 @@ pub async fn get_lesson_feedback(
     let (url, auth_header, model) = if provider == "local" {
         let base_url =
             env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://ollama:11434".to_string());
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3:8b".to_string());
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
         (
             format!("{}/v1/chat/completions", base_url),
             "".to_string(),

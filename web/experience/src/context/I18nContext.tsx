@@ -7,27 +7,71 @@ import pt from '../lib/locales/pt.json';
 
 const translations: Record<string, any> = { en, es, pt };
 
+// Idiomas soportados
+export const SUPPORTED_LANGUAGES = ['es', 'en', 'pt'] as const;
+export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
+
 interface I18nContextType {
     language: string;
     setLanguage: (lang: string) => void;
     t: (path: string) => string;
+    detectBrowserLanguage: () => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
+/**
+ * Detecta el idioma del navegador del usuario
+ */
+function detectBrowserLanguage(): string {
+    if (typeof navigator === 'undefined') return 'es';
+    
+    // Obtener idiomas del navegador (puede ser un array)
+    const browserLanguages = navigator.languages || [navigator.language || (navigator as any).userLanguage];
+    
+    // Buscar el primer idioma soportado
+    for (const browserLang of browserLanguages) {
+        // Idioma completo (ej: 'en-US')
+        if (SUPPORTED_LANGUAGES.includes(browserLang as SupportedLanguage)) {
+            return browserLang;
+        }
+        
+        // Solo código de idioma (ej: 'en' de 'en-US')
+        const langCode = browserLang.split('-')[0].toLowerCase();
+        if (SUPPORTED_LANGUAGES.includes(langCode as SupportedLanguage)) {
+            return langCode;
+        }
+    }
+    
+    // Fallback a español
+    return 'es';
+}
+
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-    const [language, setLanguageState] = useState('es'); // Default to Spanish for Experience as it's more localized by default
+    const [language, setLanguageState] = useState('es');
+    const [isInitialized, setIsInitialized] = useState(false);
 
     useEffect(() => {
+        // 1. Primero intentar cargar de localStorage
         const savedLang = localStorage.getItem('experience_language');
-        if (savedLang) {
+        
+        if (savedLang && SUPPORTED_LANGUAGES.includes(savedLang as SupportedLanguage)) {
             setLanguageState(savedLang);
+        } else {
+            // 2. Si no hay guardado, detectar del navegador
+            const detectedLang = detectBrowserLanguage();
+            setLanguageState(detectedLang);
+            localStorage.setItem('experience_language', detectedLang);
         }
+        
+        setIsInitialized(true);
     }, []);
 
     const setLanguage = (lang: string) => {
-        setLanguageState(lang);
-        localStorage.setItem('experience_language', lang);
+        if (SUPPORTED_LANGUAGES.includes(lang as SupportedLanguage)) {
+            setLanguageState(lang);
+            localStorage.setItem('experience_language', lang);
+        }
     };
 
     const t = (path: string): string => {
@@ -46,7 +90,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <I18nContext.Provider value={{ language, setLanguage, t }}>
+        <I18nContext.Provider value={{ language, setLanguage, t, detectBrowserLanguage }}>
             {children}
         </I18nContext.Provider>
     );
@@ -59,3 +103,5 @@ export function useTranslation() {
     }
     return context;
 }
+
+export { detectBrowserLanguage };

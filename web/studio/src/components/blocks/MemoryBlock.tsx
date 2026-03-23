@@ -16,26 +16,37 @@ interface MemoryBlockProps {
     onChange: (updates: { title?: string; pairs?: MatchingPair[] }) => void;
 }
 
+// Generate unique ID for pairs
+const generatePairId = () => {
+    return `pair_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
 export default function MemoryBlock({ id, title, pairs = [], editMode, onChange }: MemoryBlockProps) {
     const addPair = () => {
         const newPair: MatchingPair = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: generatePairId(),
             left: "",
             right: ""
         };
+        console.log('[MemoryBlock] Adding new pair:', newPair);
         onChange({ pairs: [...pairs, newPair] });
     };
 
     const updatePair = (index: number, updates: Partial<MatchingPair>) => {
         const newPairs = [...pairs];
         newPairs[index] = { ...newPairs[index], ...updates };
+        console.log('[MemoryBlock] Updating pair at index', index, ':', updates);
         onChange({ pairs: newPairs });
     };
 
     const removePair = (index: number) => {
+        console.log('[MemoryBlock] Removing pair at index', index);
         const newPairs = pairs.filter((_, i) => i !== index);
         onChange({ pairs: newPairs });
     };
+
+    // Debug: Log pairs on render
+    console.log('[MemoryBlock] Render with pairs:', pairs);
 
     if (!editMode) {
         return (

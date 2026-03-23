@@ -924,7 +924,7 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     let full_text = transcription_result["text"].as_str().unwrap_or("");
     if !full_text.is_empty() {
         tracing::info!("Triggering AI summary for lesson {}", lesson_id);
-        if let Ok(summary) = generate_summary_with_ollama(full_text).await {
+        if let Ok((summary, input_tokens, output_tokens)) = generate_summary_with_ollama(full_text, lesson_id, &pool).await {
             tracing::info!("Summary generated successfully for lesson {}", lesson_id);
             let _ = sqlx::query("UPDATE lessons SET summary = $1 WHERE id = $2")
                 .bind(summary)
@@ -937,7 +937,7 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     Ok(())
 }
 
-async fn generate_summary_with_ollama(text: &str) -> Result<String, String> {
+async fn generate_summary_with_ollama(text: &str, lesson_id: Uuid, pool: &PgPool) -> Result<(String, i32, i32), String> {
     let base_url = get_ai_url("OLLAMA_URL", "http://localhost:11434");
     let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llama3.2:3b".to_string());
     let client = reqwest::Client::new();
@@ -977,7 +977,31 @@ async fn generate_summary_with_ollama(text: &str) -> Result<String, String> {
         .trim()
         .to_string();
 
-    Ok(summary)
+    // Calculate token usage
+    let input_tokens = count_tokens(&prompt);
+    let output_tokens = count_tokens(&summary);
+
+    // Log token usage (use a system user ID for background tasks)
+    let total_tokens = input_tokens + output_tokens;
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(lesson_id)  // Use lesson_id as placeholder for user
+        .bind(lesson_id)  // Use lesson_id as placeholder for org
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/transcribe")
+        .bind(&model)
+        .bind("summary")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+            "task": "auto-summary-from-transcription",
+        }))
+        .bind(&prompt)
+        .bind(&summary)
+        .execute(pool)
+        .await;
+
+    Ok((summary, input_tokens, output_tokens))
 }
 
 pub async fn get_lesson_vtt(
@@ -2020,6 +2044,30 @@ pub async fn generate_code_lab(
         (StatusCode::INTERNAL_SERVER_ERROR, "AI returned invalid exercise JSON".into())
     })?;
 
+    // Calculate and log token usage
+    let full_prompt = format!("{} - {}", system_prompt, "Genera el ejercicio de código ahora.");
+    let input_tokens = count_tokens(&system_prompt) + count_tokens("Genera el ejercicio de código ahora.");
+    let output_tokens = count_tokens(cleaned);
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(_claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/generate-code-lab")
+        .bind(&model)
+        .bind("code-lab-generation")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+            "language": language,
+        }))
+        .bind(&full_prompt)  // prompt
+        .bind(cleaned)  // response
+        .execute(&pool)
+        .await;
+
     Ok(Json(serde_json::json!({
         "language": language,
         "title": exercise["title"],
@@ -2074,15 +2122,16 @@ pub async fn generate_hotspots(
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let client = reqwest::Client::new();
 
-    let (url, auth_header, model) = if provider == "local" {
+    let (url, auth_header, model, is_ollama) = if provider == "local" {
         let base_url = env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
-        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llava:latest".to_string()); // Default to llava for vision
-        (format!("{}/v1/chat/completions", base_url), "".to_string(), model)
+        let model = env::var("LOCAL_LLM_MODEL").unwrap_or_else(|_| "llava:latest".to_string());
+        (format!("{}/v1/chat/completions", base_url), "".to_string(), model, true)
     } else {
         (
             "https://api.openai.com/v1/chat/completions".to_string(),
             format!("Bearer {}", env::var("OPENAI_API_KEY").unwrap_or_default()),
             "gpt-4o".to_string(),
+            false,
         )
     };
 
@@ -2112,22 +2161,29 @@ pub async fn generate_hotspots(
         headers.insert("Authorization", auth_header.parse().unwrap());
     }
 
+    let mut request_body = json!({
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    { "type": "text", "text": format!("{}\n\n{}", system_prompt, user_prompt) },
+                    { "type": "image_url", "image_url": { "url": image_url_data } }
+                ]
+            }
+        ],
+        "response_format": { "type": "json_object" },
+        "temperature": 0.2
+    });
+
+    // Ollama requires stream: false for non-streaming responses
+    if is_ollama {
+        request_body["stream"] = json!(false);
+    }
+
     let response = client.post(&url)
         .headers(headers)
-        .json(&json!({
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        { "type": "text", "text": format!("{}\n\n{}", system_prompt, user_prompt) },
-                        { "type": "image_url", "image_url": { "url": image_url_data } }
-                    ]
-                }
-            ],
-            "response_format": { "type": "json_object" },
-            "temperature": 0.2
-        }))
+        .json(&request_body)
         .send()
         .await
         .map_err(|e| {
@@ -2136,33 +2192,73 @@ pub async fn generate_hotspots(
         })?;
 
     let ai_text = response.text().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Parse the raw response
     let ai_json: serde_json::Value = serde_json::from_str(&ai_text).map_err(|e| {
         tracing::error!("Failed to parse AI response: {}. Text: {}", e, ai_text);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // OpenAI and some local servers return { "choices": [ { "message": { "content": "..." } } ] }
+    // Extract the content from the response
+    // OpenAI format: { "choices": [ { "message": { "content": "..." } } ] }
+    // Ollama format (v1 API): same as OpenAI
     let content = ai_json["choices"][0]["message"]["content"].as_str()
+        .or_else(|| ai_json["message"]["content"].as_str()) // Fallback for direct Ollama format
         .ok_or_else(|| {
             tracing::error!("Unexpected AI response format: {:?}", ai_json);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     // Attempt to parse the content as JSON (it should be an array)
-    let hotspots: serde_json::Value = if let Ok(parsed) = serde_json::from_str(content) {
+    let mut hotspots: serde_json::Value = if let Ok(parsed) = serde_json::from_str(content) {
         parsed
     } else {
         // Fallback: try to find the array in the text if AI wrapped it in markdown or something
         if let Some(start) = content.find('[') {
             if let Some(end) = content.rfind(']') {
-                serde_json::from_str(&content[start..=end]).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                serde_json::from_str(&content[start..=end]).map_err(|e| {
+                    tracing::error!("Failed to parse hotspots array: {}. Content: {}", e, content);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
             } else {
+                tracing::error!("No JSON array found in AI response: {}", content);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         } else {
+            tracing::error!("AI response doesn't contain a JSON array: {}", content);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
+
+    // Handle case where AI returns an object with hotspots array inside
+    // e.g., { "hotspots": [...] } or { "items": [...] }
+    if !hotspots.is_array() && hotspots.is_object() {
+        if let Some(obj) = hotspots.as_object() {
+            // Try common keys where the array might be stored
+            for key in ["hotspots", "items", "data", "results", "points"] {
+                if let Some(val) = obj.get(key) {
+                    if val.is_array() {
+                        hotspots = val.clone();
+                        tracing::info!("Extracted hotspots array from '{}'", key);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Handle case where AI returns a single object instead of an array
+    // e.g., { "label": "...", "x": 50, "y": 50 } instead of [{ "label": "...", "x": 50, "y": 50 }]
+    if !hotspots.is_array() && hotspots.is_object() {
+        tracing::info!("AI returned a single object, wrapping in array");
+        hotspots = serde_json::Value::Array(vec![hotspots]);
+    }
+
+    // Ensure the result is an array
+    if !hotspots.is_array() {
+        tracing::error!("AI response is not an array: {:?}", hotspots);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     // Calculate and log token usage
     let full_prompt = format!("{} - {}", system_prompt, user_prompt);
@@ -2292,6 +2388,29 @@ pub async fn generate_role_play(
         tracing::error!("Failed to parse content as JSON: {}. Content: {}", e, content);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Calculate and log token usage
+    let full_prompt = format!("{} - {}", system_prompt, user_prompt);
+    let input_tokens = count_tokens(&system_prompt) + count_tokens(&user_prompt);
+    let output_tokens = count_tokens(content);
+    let total_tokens = input_tokens + output_tokens;
+
+    let _ = sqlx::query("SELECT log_ai_usage($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        .bind(_claims.sub)
+        .bind(org_ctx.id)
+        .bind(total_tokens)
+        .bind(input_tokens)
+        .bind(output_tokens)
+        .bind("/lessons/generate-role-play")
+        .bind(&model)
+        .bind("role-play-generation")
+        .bind(&json!({
+            "lesson_id": lesson_id,
+        }))
+        .bind(&full_prompt)  // prompt
+        .bind(content)  // response
+        .execute(&pool)
+        .await;
 
     Ok(Json(parsed_json))
 }

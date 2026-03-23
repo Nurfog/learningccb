@@ -96,8 +96,18 @@ async fn main() {
         }
     });
 
+    // CORS configuration - Allow multiple origins for development and production
     let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3000".parse::<http::HeaderValue>().unwrap())
+        .allow_origin([
+            "http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
+            "http://localhost:3003".parse::<http::HeaderValue>().unwrap(),
+            "http://127.0.0.1:3000".parse::<http::HeaderValue>().unwrap(),
+            "http://127.0.0.1:3003".parse::<http::HeaderValue>().unwrap(),
+            "http://192.168.0.254:3000".parse::<http::HeaderValue>().unwrap(),
+            "http://192.168.0.254:3003".parse::<http::HeaderValue>().unwrap(),
+            // Allow any origin for development (remove in production)
+            "http://192.168.0.254".parse::<http::HeaderValue>().unwrap(),
+        ])
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH])
         .allow_headers([
             header::CONTENT_TYPE,

@@ -11,6 +11,19 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
 export const LMS_API_BASE_URL = getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
 
+// Polyfill for crypto.randomUUID() for non-HTTPS contexts
+export function generateUUID(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for non-secure contexts
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 export const getImageUrl = (path?: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;

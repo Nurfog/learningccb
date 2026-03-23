@@ -8,7 +8,6 @@ use axum::{
 };
 use common::ai::{self, generate_embedding};
 use common::middleware::Org;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -76,7 +75,7 @@ pub async fn generate_knowledge_embeddings(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
-    let total = entries.len();
+    let _total = entries.len();
     let mut processed = 0;
     let mut failed = 0;
     
@@ -234,12 +233,12 @@ pub async fn semantic_search_knowledge(
     
     let mut param_idx = 3;
     
-    if let Some(course_id) = filters.course_id {
+    if let Some(_course_id) = filters.course_id {
         param_idx += 1;
         query.push_str(&format!(" AND course_id = ${}", param_idx));
     }
     
-    if let Some(lesson_id) = filters.lesson_id {
+    if let Some(_lesson_id) = filters.lesson_id {
         param_idx += 1;
         query.push_str(&format!(" AND lesson_id = ${}", param_idx));
     }

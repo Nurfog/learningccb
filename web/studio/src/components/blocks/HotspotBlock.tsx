@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import { Search, MapPin, Plus, Trash2, Image as ImageIcon, Crosshair, Wand2, Loader2 } from "lucide-react";
 import AssetPickerModal from "../AssetPickerModal";
-import { Asset, getImageUrl, cmsApi } from "@/lib/api";
+import { Asset, getImageUrl, cmsApi, generateUUID } from "@/lib/api";
 
 interface Hotspot {
     id: string;
@@ -46,12 +46,19 @@ export default function HotspotBlock({
         setIsGenerating(true);
         try {
             const data = await cmsApi.generateHotspots(lessonId, { image_url: imageUrl });
-            const newHotspots = data.map(h => ({
-                id: crypto.randomUUID(),
-                x: h.x,
-                y: h.y,
+            // Handle different response formats from AI
+            let hotspotsArray = Array.isArray(data) ? data : (data.hotspots || data.items || []);
+            
+            if (!Array.isArray(hotspotsArray)) {
+                throw new Error("La respuesta de la IA no es un array válido");
+            }
+            
+            const newHotspots = hotspotsArray.map((h: any) => ({
+                id: generateUUID(),
+                x: typeof h.x === 'number' ? h.x : 50,
+                y: typeof h.y === 'number' ? h.y : 50,
                 radius: 5,
-                label: h.label
+                label: h.label || 'Punto de interés'
             }));
             onChange({ hotspots: [...hotspots, ...newHotspots] });
         } catch (error) {
@@ -76,7 +83,7 @@ export default function HotspotBlock({
         const y = ((e.clientY - rect.top) / rect.height) * 100;
 
         const newHotspot: Hotspot = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             x,
             y,
             radius: 5,

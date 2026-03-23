@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, Rubric, RubricLevel, RubricCriterion, LessonDependency, getImageUrl } from '@/lib/api';
+import { cmsApi, Lesson, Block, GradingCategory, LibraryBlock, Rubric, RubricLevel, RubricCriterion, LessonDependency, getImageUrl, generateUUID } from '@/lib/api';
 import {
     Layout,
     CheckCircle2,
@@ -103,7 +103,9 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                 setImportantDateType(lessonData.important_date_type || "");
                 setIsPreviewable(lessonData.is_previewable || false);
 
-                if (lessonData.metadata?.blocks) {
+                if (lessonData.content_blocks && Array.isArray(lessonData.content_blocks)) {
+                    setBlocks(lessonData.content_blocks);
+                } else if (lessonData.metadata?.blocks) {
                     setBlocks(lessonData.metadata.blocks);
                 } else {
                     setBlocks([
@@ -195,7 +197,8 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             }
 
             const updated = await cmsApi.updateLesson(lesson.id, {
-                metadata: { ...lesson.metadata, blocks },
+                metadata: { ...lesson.metadata },
+                content_blocks: blocks,
                 content_url,
                 content_type, // Sync type to ensure backend triggers transcription
                 summary,
@@ -218,7 +221,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
 
     const addBlock = (type: Block['type']) => {
         const newBlock: Block = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             type,
             ...(type === 'description' && { content: "" }),
             ...(type === 'media' && { url: "", media_type: 'video' as const, config: { maxPlays: 0 } }),
