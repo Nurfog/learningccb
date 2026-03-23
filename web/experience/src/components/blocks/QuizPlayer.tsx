@@ -151,7 +151,7 @@ export default function QuizPlayer({
             };
 
             // Submit to LMS API
-            await lmsApi.submitLessonScore(courseId, lessonId, calculatedScore, answersMetadata);
+            await lmsApi.submitScore(userId, courseId, lessonId, calculatedScore, answersMetadata);
 
             setSubmitted(true);
             setAttempts(prev => prev + 1);

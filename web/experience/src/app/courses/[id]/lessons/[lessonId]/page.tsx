@@ -388,12 +388,12 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                     if (user) {
                                                                         try {
                                                                             // Submit the score for this specific quiz block
-                                                                            const res = await lmsApi.submitLessonScore(
+                                                                            const res = await lmsApi.submitScore(
                                                                                 user.id,
                                                                                 params.id,
                                                                                 params.lessonId,
                                                                                 score,
-                                                                                { 
+                                                                                {
                                                                                     quiz_answers: { [block.id]: answers },
                                                                                     quiz_type: block.quiz_data?.test_type || 'quiz',
                                                                                 }
