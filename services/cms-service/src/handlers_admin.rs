@@ -1,12 +1,13 @@
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use common::{auth::Claims, middleware::Org};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 // ==================== Token Usage Tracking ====================
 
@@ -716,4 +717,117 @@ pub struct GlobalAiUsageResponse {
     pub by_request_type: Vec<UsageByRequestType>,
     pub top_users: Vec<TopUserUsage>,
     pub student_chat_usage: Vec<StudentChatUsage>,
+}
+
+// ==================== User Token Limits ====================
+
+#[derive(Debug, Deserialize)]
+pub struct SetTokenLimitPayload {
+    pub monthly_token_limit: i32,
+    pub token_limit_reset_day: Option<i32>,
+}
+
+/// PUT /admin/users/{user_id}/token-limit - Set monthly token limit for user
+pub async fn set_user_token_limit(
+    _org: Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(user_id): Path<Uuid>,
+    Json(payload): Json<SetTokenLimitPayload>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Validate reset day (1-28 to avoid month-end issues)
+    let reset_day = payload.token_limit_reset_day.unwrap_or(1).clamp(1, 28);
+    
+    sqlx::query(
+        r#"
+        UPDATE users
+        SET monthly_token_limit = $1,
+            token_limit_reset_day = $2,
+            updated_at = NOW()
+        WHERE id = $3
+        "#
+    )
+    .bind(payload.monthly_token_limit)
+    .bind(reset_day)
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to set limit: {}", e)))?;
+    
+    Ok(StatusCode::OK)
+}
+
+/// GET /admin/users/{user_id}/token-usage - Get token usage for specific user
+pub async fn get_user_token_usage(
+    _org: Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<UserTokenUsageDetail>, (StatusCode, String)> {
+    // Get current month usage
+    let usage: UserTokenUsageDetail = sqlx::query_as(
+        r#"
+        SELECT
+            u.id as user_id,
+            u.email,
+            u.full_name,
+            u.monthly_token_limit,
+            u.token_limit_reset_day,
+            COALESCE(SUM(au.tokens_used), 0) as used_tokens,
+            COUNT(au.id) as total_requests,
+            COALESCE(SUM(au.estimated_cost_usd), 0) as total_cost_usd,
+            MAX(au.created_at) as last_used
+        FROM users u
+        LEFT JOIN ai_usage_logs au ON u.id = au.user_id
+            AND au.created_at >= DATE_TRUNC('month', NOW())
+        WHERE u.id = $1
+        GROUP BY u.id, u.email, u.full_name, u.monthly_token_limit, u.token_limit_reset_day
+        "#
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch usage: {}", e)))?;
+    
+    Ok(Json(usage))
+}
+
+/// GET /admin/users/{user_id}/token-limit/check - Check if user has available tokens
+pub async fn check_user_token_limit(
+    _org: Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<TokenLimitCheckResponse>, (StatusCode, String)> {
+    let result: TokenLimitCheckResponse = sqlx::query_as(
+        "SELECT * FROM check_token_limit($1, 0)"
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to check limit: {}", e)))?;
+    
+    Ok(Json(result))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UserTokenUsageDetail {
+    pub user_id: Uuid,
+    pub email: String,
+    pub full_name: String,
+    pub monthly_token_limit: i32,
+    pub token_limit_reset_day: i32,
+    pub used_tokens: i64,
+    pub total_requests: i64,
+    pub total_cost_usd: f64,
+    pub last_used: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TokenLimitCheckResponse {
+    pub has_available_tokens: bool,
+    pub monthly_limit: i32,
+    pub used_tokens: i64,
+    pub remaining_tokens: i64,
+    pub reset_date: DateTime<Utc>,
 }

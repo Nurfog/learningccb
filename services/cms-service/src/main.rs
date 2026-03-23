@@ -401,6 +401,18 @@ async fn main() {
             "/admin/ai-usage/global",
             get(handlers_admin::get_ai_usage_global),
         )
+        .route(
+            "/admin/users/{user_id}/token-limit",
+            put(handlers_admin::set_user_token_limit),
+        )
+        .route(
+            "/admin/users/{user_id}/token-usage",
+            get(handlers_admin::get_user_token_usage),
+        )
+        .route(
+            "/admin/users/{user_id}/token-limit/check",
+            get(handlers_admin::check_user_token_limit),
+        )
         .route_layer(middleware::from_fn(
             common::middleware::org_extractor_middleware,
         ));
