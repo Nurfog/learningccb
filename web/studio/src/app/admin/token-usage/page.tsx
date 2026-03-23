@@ -54,11 +54,31 @@ export default function AdminTokenTracking() {
 
     const loadTokenUsage = async () => {
         try {
+            const token = localStorage.getItem('studio_token');
+            console.log('[TokenUsage] Token from localStorage:', token ? 'Present (studio_token)' : 'Missing');
+            
+            if (!token) {
+                console.error('[TokenUsage] No authentication token found!');
+                alert('No authentication token found. Please login again.');
+                window.location.href = '/auth/login';
+                return;
+            }
+            
             const response = await fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/token-usage`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
             });
+
+            console.log('[TokenUsage] API Response status:', response.status);
+
+            if (response.status === 401) {
+                console.error('[TokenUsage] Unauthorized - Token may be expired');
+                alert('Session expired. Please login again.');
+                window.location.href = '/auth/login';
+                return;
+            }
 
             if (response.ok) {
                 const data = await response.json();
@@ -73,7 +93,7 @@ export default function AdminTokenTracking() {
                             `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${user.user_id}/token-limit/check`,
                             {
                                 headers: {
-                                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                    'Authorization': `Bearer ${localStorage.getItem('studio_token')}`,
                                 },
                             }
                         );
@@ -110,7 +130,7 @@ export default function AdminTokenTracking() {
                 {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Authorization': `Bearer ${localStorage.getItem('studio_token')}`,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -126,7 +146,7 @@ export default function AdminTokenTracking() {
                     `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${userId}/token-limit/check`,
                     {
                         headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            'Authorization': `Bearer ${localStorage.getItem('studio_token')}`,
                         },
                     }
                 );

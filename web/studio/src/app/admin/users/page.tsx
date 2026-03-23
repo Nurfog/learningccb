@@ -50,7 +50,7 @@ export default function UsersPage() {
                         `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${user.id}/token-limit/check`,
                         {
                             headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                'Authorization': `Bearer ${localStorage.getItem('studio_token')}`,
                             },
                         }
                     );
