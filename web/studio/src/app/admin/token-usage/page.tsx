@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, TrendingUp, Users, AlertTriangle, DollarSign, Activity } from 'lucide-react';
+import { ShieldCheck, TrendingUp, Users, AlertTriangle, DollarSign, Activity, Edit2, Save, X, Gauge } from 'lucide-react';
+import { cmsApi } from '@/lib/api';
 
 interface TokenUsage {
     user_id: string;
@@ -14,6 +15,8 @@ interface TokenUsage {
     ai_requests: number;
     last_used: string;
     estimated_cost_usd: number;
+    monthly_token_limit?: number;
+    token_limit_reset_day?: number;
 }
 
 interface TokenStats {
@@ -26,12 +29,24 @@ interface TokenStats {
     avg_tokens_per_user: number;
 }
 
+interface UserLimit {
+    user_id: string;
+    monthly_limit: number;
+    used_tokens: number;
+    remaining_tokens: number;
+    percentage_used: number;
+    reset_day: number;
+}
+
 export default function AdminTokenTracking() {
     const [usage, setUsage] = useState<TokenUsage[]>([]);
     const [stats, setStats] = useState<TokenStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [filterRole, setFilterRole] = useState<string>('');
-    const [sortBy, setSortBy] = useState<'total_tokens' | 'ai_requests' | 'estimated_cost_usd'>('total_tokens');
+    const [sortBy, setSortBy] = useState<'total_tokens' | 'ai_requests' | 'estimated_cost_usd' | 'percentage_used'>('total_tokens');
+    const [editingLimit, setEditingLimit] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState<number>(0);
+    const [userLimits, setUserLimits] = useState<Record<string, UserLimit>>({});
 
     useEffect(() => {
         loadTokenUsage();
@@ -49,6 +64,37 @@ export default function AdminTokenTracking() {
                 const data = await response.json();
                 setUsage(data.usage || []);
                 setStats(data.stats);
+                
+                // Load limits for each user
+                const limits: Record<string, UserLimit> = {};
+                for (const user of data.usage || []) {
+                    try {
+                        const limitResp = await fetch(
+                            `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${user.user_id}/token-limit/check`,
+                            {
+                                headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                },
+                            }
+                        );
+                        if (limitResp.ok) {
+                            const limitData = await limitResp.json();
+                            limits[user.user_id] = {
+                                user_id: user.user_id,
+                                monthly_limit: limitData.monthly_limit,
+                                used_tokens: limitData.used_tokens,
+                                remaining_tokens: limitData.remaining_tokens,
+                                percentage_used: limitData.monthly_limit > 0 
+                                    ? Math.round((limitData.used_tokens / limitData.monthly_limit) * 100)
+                                    : 0,
+                                reset_day: 1,
+                            };
+                        }
+                    } catch (err) {
+                        console.error(`Failed to load limit for user ${user.user_id}:`, err);
+                    }
+                }
+                setUserLimits(limits);
             }
         } catch (error) {
             console.error('Failed to load token usage:', error);
@@ -57,17 +103,84 @@ export default function AdminTokenTracking() {
         }
     };
 
+    const handleUpdateLimit = async (userId: string) => {
+        try {
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${userId}/token-limit`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        monthly_token_limit: editValue,
+                        token_limit_reset_day: 1,
+                    }),
+                }
+            );
+
+            if (response.ok) {
+                // Reload limits
+                const limitResp = await fetch(
+                    `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${userId}/token-limit/check`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        },
+                    }
+                );
+                if (limitResp.ok) {
+                    const limitData = await limitResp.json();
+                    setUserLimits(prev => ({
+                        ...prev,
+                        [userId]: {
+                            user_id: userId,
+                            monthly_limit: limitData.monthly_limit,
+                            used_tokens: limitData.used_tokens,
+                            remaining_tokens: limitData.remaining_tokens,
+                            percentage_used: limitData.monthly_limit > 0 
+                                ? Math.round((limitData.used_tokens / limitData.monthly_limit) * 100)
+                                : 0,
+                            reset_day: 1,
+                        },
+                    }));
+                }
+                setEditingLimit(null);
+            }
+        } catch (error) {
+            console.error('Failed to update limit:', error);
+            alert('Failed to update token limit');
+        }
+    };
+
+    const getLimitColor = (percentage: number) => {
+        if (percentage >= 100) return 'text-red-600 bg-red-50 dark:bg-red-900/20';
+        if (percentage >= 90) return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20';
+        if (percentage >= 80) return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20';
+        return 'text-green-600 bg-green-50 dark:bg-green-900/20';
+    };
+
+    const getProgressBarColor = (percentage: number) => {
+        if (percentage >= 100) return 'bg-red-600';
+        if (percentage >= 90) return 'bg-orange-600';
+        if (percentage >= 80) return 'bg-yellow-600';
+        return 'bg-green-600';
+    };
+
     const filteredUsage = usage
         .filter(u => !filterRole || u.role === filterRole)
-        .sort((a, b) => b[sortBy] - a[sortBy]);
+        .sort((a, b) => {
+            if (sortBy === 'percentage_used') {
+                const aPct = userLimits[a.user_id]?.percentage_used || 0;
+                const bPct = userLimits[b.user_id]?.percentage_used || 0;
+                return bPct - aPct;
+            }
+            return b[sortBy] - a[sortBy];
+        });
 
-    const formatNumber = (num: number) => {
-        return new Intl.NumberFormat('en-US').format(num);
-    };
-
-    const formatCurrency = (num: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
-    };
+    const formatNumber = (num: number) => new Intl.NumberFormat('en-US').format(num);
+    const formatCurrency = (num: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -82,7 +195,7 @@ export default function AdminTokenTracking() {
                                     Control Global - Token Usage
                                 </h1>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Monitoreo de tokens de IA y costos del sistema
+                                    Monitoreo de tokens de IA, límites mensuales y costos del sistema
                                 </p>
                             </div>
                         </div>
@@ -157,16 +270,29 @@ export default function AdminTokenTracking() {
                         </div>
 
                         {/* Alerts */}
-                        {usage.some(u => u.total_tokens > 1000000) && (
+                        {Object.values(userLimits).some(ul => ul.percentage_used >= 80) && (
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6 flex items-start gap-3">
                                 <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
                                 <div>
                                     <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 text-sm">
-                                        Usuarios con alto consumo detectado
+                                        Usuarios cerca del límite
                                     </h4>
                                     <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                                        {usage.filter(u => u.total_tokens > 1000000).length} usuario(s) han superado 1M de tokens.
-                                        Considere implementar límites de uso.
+                                        {Object.values(userLimits).filter(ul => ul.percentage_used >= 80 && ul.percentage_used < 100).length} usuario(s) han usado ≥80% de su límite mensual.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {Object.values(userLimits).some(ul => ul.percentage_used >= 100) && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="font-semibold text-red-900 dark:text-red-100 text-sm">
+                                        Límite excedido
+                                    </h4>
+                                    <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                                        {Object.values(userLimits).filter(ul => ul.percentage_used >= 100).length} usuario(s) han excedido su límite mensual.
                                     </p>
                                 </div>
                             </div>
@@ -174,7 +300,7 @@ export default function AdminTokenTracking() {
 
                         {/* Filters */}
                         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 flex-wrap">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                                         Filtrar por Rol
@@ -203,6 +329,7 @@ export default function AdminTokenTracking() {
                                         <option value="total_tokens">Total Tokens</option>
                                         <option value="ai_requests">Requests IA</option>
                                         <option value="estimated_cost_usd">Costo USD</option>
+                                        <option value="percentage_used">% Usado</option>
                                     </select>
                                 </div>
                             </div>
@@ -210,10 +337,14 @@ export default function AdminTokenTracking() {
 
                         {/* Usage Table */}
                         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-900 dark:text-white">
                                     Uso por Usuario
                                 </h3>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <Gauge className="w-4 h-4" />
+                                    <span>Límites mensuales configurables</span>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
@@ -225,11 +356,11 @@ export default function AdminTokenTracking() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Rol
                                             </th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                Input Tokens
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Límite Mensual
                                             </th>
-                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                Output Tokens
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                % Usado
                                             </th>
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Total Tokens
@@ -240,59 +371,119 @@ export default function AdminTokenTracking() {
                                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Costo USD
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                Última Actividad
-                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                        {filteredUsage.map((user) => (
-                                            <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div>
-                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                            {user.full_name}
+                                        {filteredUsage.map((user) => {
+                                            const limit = userLimits[user.user_id];
+                                            const percentage = limit?.percentage_used || 0;
+                                            const isUnlimited = limit?.monthly_limit === 0;
+
+                                            return (
+                                                <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                                {user.full_name}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {user.email}
+                                                            </div>
                                                         </div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                            {user.email}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 text-xs font-medium rounded capitalize ${
-                                                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                                                        user.role === 'instructor' ? 'bg-blue-100 text-blue-800' :
-                                                        'bg-green-100 text-green-800'
-                                                    }`}>
-                                                        {user.role}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
-                                                    {formatNumber(user.input_tokens)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
-                                                    {formatNumber(user.output_tokens)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <span className={`text-sm font-medium ${
-                                                        user.total_tokens > 1000000 ? 'text-red-600' :
-                                                        user.total_tokens > 500000 ? 'text-yellow-600' :
-                                                        'text-gray-900 dark:text-white'
-                                                    }`}>
-                                                        {formatNumber(user.total_tokens)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
-                                                    {formatNumber(user.ai_requests)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
-                                                    {formatCurrency(user.estimated_cost_usd)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                    {new Date(user.last_used).toLocaleDateString()}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2 py-1 text-xs font-medium rounded capitalize ${
+                                                            user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                                                            user.role === 'instructor' ? 'bg-blue-100 text-blue-800' :
+                                                            'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {user.role}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        {editingLimit === user.user_id ? (
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    value={editValue}
+                                                                    onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
+                                                                    className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white"
+                                                                    placeholder="0 = unlimited"
+                                                                    autoFocus
+                                                                />
+                                                                <button
+                                                                    onClick={() => handleUpdateLimit(user.user_id)}
+                                                                    className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                                                >
+                                                                    <Save className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingLimit(null)}
+                                                                    className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <span className={`text-sm font-medium ${
+                                                                    isUnlimited ? 'text-gray-400' :
+                                                                    percentage >= 100 ? 'text-red-600' :
+                                                                    percentage >= 80 ? 'text-yellow-600' :
+                                                                    'text-gray-900 dark:text-white'
+                                                                }`}>
+                                                                    {isUnlimited ? '∞' : formatNumber(limit?.monthly_limit || 0)}
+                                                                </span>
+                                                                {!isUnlimited && limit && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingLimit(user.user_id);
+                                                                            setEditValue(limit.monthly_limit);
+                                                                        }}
+                                                                        className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                        title="Edit limit"
+                                                                    >
+                                                                        <Edit2 className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        {isUnlimited ? (
+                                                            <span className="text-xs text-gray-400">Unlimited</span>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className={`text-xs font-bold px-2 py-1 rounded ${getLimitColor(percentage)}`}>
+                                                                    {percentage}%
+                                                                </span>
+                                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full ${getProgressBarColor(percentage)} transition-all duration-500`}
+                                                                        style={{ width: `${Math.min(percentage, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <span className={`text-sm font-medium ${
+                                                            user.total_tokens > 1000000 ? 'text-red-600' :
+                                                            user.total_tokens > 500000 ? 'text-yellow-600' :
+                                                            'text-gray-900 dark:text-white'
+                                                        }`}>
+                                                            {formatNumber(user.total_tokens)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
+                                                        {formatNumber(user.ai_requests)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
+                                                        {formatCurrency(user.estimated_cost_usd)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

@@ -3,15 +3,21 @@
 import { useState, useEffect } from 'react';
 import { cmsApi, User, Organization } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { UserCog, Mail, Search, Filter, ShieldCheck, Plus, X, UserPlus, Key, User as UserIcon, Building2 } from 'lucide-react';
+import { UserCog, Mail, Search, Filter, ShieldCheck, Plus, X, UserPlus, Key, User as UserIcon, Building2, Gauge } from 'lucide-react';
+
+interface UserWithLimit extends User {
+    monthly_token_limit?: number;
+    token_usage_percentage?: number;
+}
 
 export default function UsersPage() {
-    const [users, setUsers] = useState<User[]>([]);
+    const [users, setUsers] = useState<UserWithLimit[]>([]);
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
     const { user: currentUser } = useAuth();
+    const [tokenLimits, setTokenLimits] = useState<Record<string, {limit: number, percentage: number}>>({});
 
     // Create User States
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,7 +40,34 @@ export default function UsersPage() {
                 cmsApi.getOrganization()
             ]);
             setUsers(usersData);
-            setOrganizations([orgData]); // Single tenant - wrap in array for compatibility
+            setOrganizations([orgData]);
+            
+            // Load token limits for each user
+            const limits: Record<string, {limit: number, percentage: number}> = {};
+            for (const user of usersData) {
+                try {
+                    const resp = await fetch(
+                        `${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/users/${user.id}/token-limit/check`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            },
+                        }
+                    );
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        limits[user.id] = {
+                            limit: data.monthly_limit,
+                            percentage: data.monthly_limit > 0 
+                                ? Math.round((data.used_tokens / data.monthly_limit) * 100)
+                                : 0,
+                        };
+                    }
+                } catch (err) {
+                    console.error(`Failed to load limit for user ${user.id}:`, err);
+                }
+            }
+            setTokenLimits(limits);
         } catch (error) {
             console.error('Failed to load data', error);
         } finally {
@@ -70,6 +103,8 @@ export default function UsersPage() {
         const matchesRole = roleFilter === '' || u.role === roleFilter;
         return matchesSearch && matchesRole;
     });
+
+    const formatNumber = (num: number) => new Intl.NumberFormat('en-US').format(num);
 
     if (currentUser?.role !== 'admin') {
         return (
@@ -135,6 +170,7 @@ export default function UsersPage() {
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">User</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Role</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Organization</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Token Limit</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -187,6 +223,38 @@ export default function UsersPage() {
                                                 ))}
                                             </select>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        {tokenLimits[u.id] ? (
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                                    tokenLimits[u.id].percentage >= 100 ? 'text-red-600 bg-red-50 dark:bg-red-900/20' :
+                                                    tokenLimits[u.id].percentage >= 80 ? 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20' :
+                                                    tokenLimits[u.id].percentage >= 50 ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' :
+                                                    'text-green-600 bg-green-50 dark:bg-green-900/20'
+                                                }`}>
+                                                    {tokenLimits[u.id].limit === 0 ? '∞' : `${tokenLimits[u.id].percentage}%`}
+                                                </span>
+                                                {tokenLimits[u.id].limit > 0 && (
+                                                    <div className="w-20 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full ${
+                                                                tokenLimits[u.id].percentage >= 100 ? 'bg-red-600' :
+                                                                tokenLimits[u.id].percentage >= 80 ? 'bg-yellow-600' :
+                                                                tokenLimits[u.id].percentage >= 50 ? 'bg-blue-600' :
+                                                                'bg-green-600'
+                                                            }`}
+                                                            style={{ width: `${Math.min(tokenLimits[u.id].percentage, 100)}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+                                                <span className="text-[9px] text-gray-400">
+                                                    {tokenLimits[u.id].limit === 0 ? 'Unlimited' : formatNumber(tokenLimits[u.id].limit)}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-gray-400">-</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white opacity-0 group-hover:opacity-100 shadow-sm">

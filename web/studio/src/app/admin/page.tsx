@@ -9,8 +9,16 @@ import {
     Zap,
     Server,
     Clock,
-    ShieldAlert
+    ShieldAlert,
+    Gauge,
+    TrendingUp
 } from "lucide-react";
+
+interface TokenStats {
+    total_tokens: number;
+    total_requests: number;
+    total_cost_usd: number;
+}
 
 export default function AdminDashboard() {
     const [stats, setStats] = useState({
@@ -18,6 +26,7 @@ export default function AdminDashboard() {
         users: 0,
         courses: 0
     });
+    const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,9 +34,14 @@ export default function AdminDashboard() {
             try {
                 // In a real app we'd have a specific stats endpoint,
                 // but for now we'll calculate from lists
-                const [org, users] = await Promise.all([
+                const [org, users, tokenResp] = await Promise.all([
                     cmsApi.getOrganization(),
-                    cmsApi.getAllUsers()
+                    cmsApi.getAllUsers(),
+                    fetch(`${process.env.NEXT_PUBLIC_CMS_API_URL || 'http://localhost:3001'}/admin/token-usage`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        },
+                    })
                 ]);
 
                 setStats({
@@ -35,6 +49,16 @@ export default function AdminDashboard() {
                     users: users.length,
                     courses: 0 // We'd need a global courses count
                 });
+                
+                // Load token stats
+                if (tokenResp.ok) {
+                    const tokenData = await tokenResp.json();
+                    setTokenStats({
+                        total_tokens: tokenData.stats?.total_tokens || 0,
+                        total_requests: tokenData.stats?.total_requests || 0,
+                        total_cost_usd: tokenData.stats?.total_cost_usd || 0,
+                    });
+                }
             } catch (err) {
                 console.error("Failed to load admin stats", err);
             } finally {
@@ -79,7 +103,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stat Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {cards.map((card) => (
                     <div key={card.label} className="p-8 rounded-3xl bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 flex flex-col gap-4 shadow-sm dark:shadow-none">
                         <div className={`w-12 h-12 rounded-xl ${card.bg} flex items-center justify-center ${card.color}`}>
@@ -92,6 +116,25 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 ))}
+                
+                {/* AI Token Usage Card */}
+                <div className="p-8 rounded-3xl bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 flex flex-col gap-4 shadow-sm dark:shadow-none">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <Gauge size={24} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-gray-500 mb-1">AI Token Usage</div>
+                        <div className="text-4xl font-black text-slate-900 dark:text-white">
+                            {loading ? "..." : tokenStats ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(tokenStats.total_tokens) : 'N/A'}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-gray-500 mt-2">
+                            {tokenStats ? `${new Intl.NumberFormat('en-US').format(tokenStats.total_requests)} requests • $${tokenStats.total_cost_usd.toFixed(2)}` : 'Loading...'}
+                        </p>
+                    </div>
+                    <a href="/admin/token-usage" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 mt-2">
+                        View Details <TrendingUp className="w-3 h-3" />
+                    </a>
+                </div>
             </div>
 
             {/* System Health */}
