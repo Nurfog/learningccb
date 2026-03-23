@@ -310,9 +310,9 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                     maxAttempts={lesson.max_attempts}
                                 />
                             ) : (
-                                (lesson.metadata?.blocks || []).length > 0 ? (
+                                (lesson.content_blocks || []).length > 0 ? (
                                     <div className="space-y-24">
-                                        {lesson.metadata?.blocks?.map((block) => {
+                                        {(lesson.content_blocks || []).map((block, index) => {
                                             const renderBlock = () => {
                                                 switch (block.type) {
                                                     case 'description':
