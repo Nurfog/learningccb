@@ -1,8 +1,11 @@
-# CMS API routes - ONLY POST /auth/login
-# All other routes handled by Next.js rewrites
+# CMS API routes - redirect POST /auth/login to CMS
 
-# Auth login - POST goes to CMS API, GET stays on frontend
 location = /auth/login {
+    # POST requests go to CMS API (port 3001)
+    if ($cms_login) {
+        proxy_pass http://172.18.0.6:3001;
+    }
+    # GET requests stay on frontend (port 3000)
     proxy_pass http://172.18.0.6:3000;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
