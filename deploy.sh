@@ -204,6 +204,34 @@ read -p "Nombre de la organización [Norteamericano]: " ORG_NAME
 ORG_NAME=${ORG_NAME:-Norteamericano}
 
 echo ""
+echo "========================================"
+echo "   Configuración de Base de Datos"
+echo "========================================"
+echo ""
+echo "¿Qué deseas hacer con la base de datos?"
+echo "  1) Mantener datos existentes (recomendado para actualizaciones)"
+echo "  2) Reiniciar base de datos (BORRAR todos los datos)"
+echo ""
+read -p "Opción [1/2]: " DB_OPTION
+DB_OPTION=${DB_OPTION:-1}
+
+if [[ "$DB_OPTION" =~ ^[2]$ ]]; then
+    RESET_DATABASE="true"
+    echo ""
+    echo "⚠️  ADVERTENCIA: Se borrarán TODOS los datos de la base de datos"
+    read -p "¿Estás seguro de continuar? [y/N]: " CONFIRM_RESET
+    if [[ ! "$CONFIRM_RESET" =~ ^[Yy]$ ]]; then
+        echo "❌ Operación cancelada - manteniendo base de datos"
+        RESET_DATABASE="false"
+    else
+        echo "✅ Base de datos será reiniciada"
+    fi
+else
+    RESET_DATABASE="false"
+    echo "✅ Se mantendrán los datos existentes"
+fi
+
+echo ""
 echo "----------------------------------------"
 echo "Configuración SSL"
 echo "----------------------------------------"
@@ -218,33 +246,48 @@ USE_SSL=${USE_SSL:-N}
 if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
     echo ""
     echo "----------------------------------------"
-    echo "Configuración de Let's Encrypt"
+    echo "Configuración de Certificados SSL"
     echo "----------------------------------------"
     echo ""
-    echo "¿Usar servidor de STAGING (certificados de prueba)?"
-    echo "  - SI: Sin rate limits, pero el navegador muestra advertencias"
-    echo "  - NO: Certificados reales, pero con rate limits (5 por semana)"
+    echo "¿Ya tienes certificados SSL funcionando?"
+    echo "  - SI: Preservar certificados existentes (recomendado)"
+    echo "  - NO: Generar nuevos certificados"
     echo ""
-    read -p "¿Usar STAGING? [y/N]: " USE_STAGING
-    USE_STAGING=${USE_STAGING:-Y}
+    read -p "¿Preservar certificados? [y/N]: " PRESERVE_CERTS
+    PRESERVE_CERTS=${PRESERVE_CERTS:-Y}
     
-    if [[ "$USE_STAGING" =~ ^[Yy]$ ]]; then
-        LETSENCRYPT_STAGING="true"
-        PROTOCOL="http"
-        echo ""
-        echo "✅ Configuración: STAGING (HTTP por ahora)"
-        echo "   Los certificados de staging no son válidos para producción"
-        echo "   Las llamadas API usarán HTTP para evitar errores de SSL"
+    if [[ "$PRESERVE_CERTS" =~ ^[Yy]$ ]]; then
+        PRESERVE_SSL_CERTS="true"
+        echo "✅ Se preservarán los certificados SSL existentes"
     else
-        LETSENCRYPT_STAGING="false"
-        PROTOCOL="https"
+        PRESERVE_SSL_CERTS="false"
         echo ""
-        echo "✅ Configuración: PRODUCTION (HTTPS)"
-        echo "   Se usarán certificados reales de Let's Encrypt"
+        echo "¿Usar servidor de STAGING (certificados de prueba)?"
+        echo "  - SI: Sin rate limits, pero el navegador muestra advertencias"
+        echo "  - NO: Certificados reales, pero con rate limits (5 por semana)"
+        echo ""
+        read -p "¿Usar STAGING? [y/N]: " USE_STAGING
+        USE_STAGING=${USE_STAGING:-Y}
+
+        if [[ "$USE_STAGING" =~ ^[Yy]$ ]]; then
+            LETSENCRYPT_STAGING="true"
+            PROTOCOL="http"
+            echo ""
+            echo "✅ Configuración: STAGING (HTTP por ahora)"
+            echo "   Los certificados de staging no son válidos para producción"
+            echo "   Las llamadas API usarán HTTP para evitar errores de SSL"
+        else
+            LETSENCRYPT_STAGING="false"
+            PROTOCOL="https"
+            echo ""
+            echo "✅ Configuración: PRODUCTION (HTTPS)"
+            echo "   Se usarán certificados reales de Let's Encrypt"
+        fi
     fi
 else
     LETSENCRYPT_STAGING="false"
     PROTOCOL="http"
+    PRESERVE_SSL_CERTS="false"
     echo ""
     echo "✅ Configuración: HTTP (sin SSL)"
 fi
@@ -259,17 +302,31 @@ echo "   Email: $ADMIN_EMAIL"
 echo "   Organización: $ORG_NAME"
 echo "   Protocolo: $PROTOCOL"
 echo "   SSL Staging: $LETSENCRYPT_STAGING"
+echo "   Preservar SSL: $PRESERVE_SSL_CERTS"
+echo "   Reiniciar DB: $RESET_DATABASE"
 echo ""
 
 # Crear script remoto en un archivo temporal
-cat > /tmp/remote-deploy.sh << 'REMOTE_SCRIPT_CONTENT'
+cat > /tmp/remote-deploy.sh << REMOTE_SCRIPT_CONTENT
 set -e
+
+# Variables pasadas desde el script local
+LETSENCRYPT_STAGING=$LETSENCRYPT_STAGING
+RESET_DATABASE=$RESET_DATABASE
+PRESERVE_SSL_CERTS=$PRESERVE_SSL_CERTS
+PROTOCOL=$PROTOCOL
 
 cd /var/www/openccb
 
 echo "========================================"
 echo "   OpenCCB Remote Deployment"
 echo "========================================"
+echo ""
+echo "Configuración:"
+echo "  LETSENCRYPT_STAGING: \$LETSENCRYPT_STAGING"
+echo "  RESET_DATABASE: \$RESET_DATABASE"
+echo "  PRESERVE_SSL_CERTS: \$PRESERVE_SSL_CERTS"
+echo "  PROTOCOL: \$PROTOCOL"
 echo ""
 
 # ========================================
@@ -322,12 +379,24 @@ echo "DATABASE_URL=postgresql://user:${DB_PASS}@db:5432/openccb_cms" >> .env
 
 # Configurar Let's Encrypt - staging o production
 echo "   Configurando Let's Encrypt..."
-if [ "$LETSENCRYPT_STAGING" = "true" ]; then
-    echo "LETSENCRYPT_STAGING=true" >> .env
-    echo "   Usando STAGING - certificados de prueba"
+if [ "$PRESERVE_SSL_CERTS" = "true" ]; then
+    echo "   Preservando configuración SSL existente"
+    # No modificar LETSENCRYPT_STAGING - mantener el valor existente
+    if ! grep -q "^LETSENCRYPT_STAGING=" .env; then
+        echo "LETSENCRYPT_STAGING=false" >> .env
+    fi
 else
-    echo "LETSENCRYPT_STAGING=false" >> .env
-    echo "   Usando PRODUCTION - certificados reales"
+    if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+        # Remover valor existente si existe
+        sed -i "/^LETSENCRYPT_STAGING=/d" .env 2>/dev/null || true
+        echo "LETSENCRYPT_STAGING=true" >> .env
+        echo "   Usando STAGING - certificados de prueba"
+    else
+        # Remover valor existente si existe
+        sed -i "/^LETSENCRYPT_STAGING=/d" .env 2>/dev/null || true
+        echo "LETSENCRYPT_STAGING=false" >> .env
+        echo "   Usando PRODUCTION - certificados reales"
+    fi
 fi
 echo ""
 REMOTE_SCRIPT_CONTENT
@@ -437,6 +506,82 @@ echo "Eliminando contenedores antiguos..."
 $DOCKER_CMD rm openccb-studio 2>/dev/null || true
 $DOCKER_CMD rm openccb-experience 2>/dev/null || true
 
+# ========================================
+# GESTIÓN DE BASE DE DATOS
+# ========================================
+if [ "$RESET_DATABASE" = "true" ]; then
+    echo ""
+    echo "⚠️  REINICIANDO BASE DE DATOS ⚠️"
+    echo ""
+    
+    # Detener contenedores de nginx y ssl también para limpiar volúmenes
+    echo "Deteniendo todos los contenedores..."
+    run_docker_compose down
+    
+    # Eliminar volúmenes de base de datos
+    echo "Eliminando volúmenes de base de datos..."
+    $DOCKER_CMD volume rm openccb_postgres_data 2>/dev/null || true
+    
+    # Reiniciar contenedores
+    echo "Reiniciando contenedores..."
+    run_docker_compose up -d db
+    
+    echo "Esperando a que la base de datos este lista..."
+    sleep 10
+    
+    # Crear bases de datos desde cero
+    echo "Creando bases de datos..."
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "DROP DATABASE IF EXISTS openccb_cms;" 2>/dev/null || true
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "DROP DATABASE IF EXISTS openccb_lms;" 2>/dev/null || true
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   Error al crear openccb_cms"
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   Error al crear openccb_lms"
+    
+    echo "✅ Base de datos reiniciada correctamente"
+else
+    echo ""
+    echo "✅ Manteniendo base de datos existente"
+    echo ""
+    
+    # Iniciar base de datos
+    echo "Iniciando base de datos..."
+    run_docker_compose up -d db
+    echo "Esperando a que la base de datos este lista..."
+    sleep 10
+    
+    # Verificar si las bases de datos existen, si no, crearlas
+    echo "Verificando bases de datos..."
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   openccb_cms ya existe"
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   openccb_lms ya existe"
+fi
+
+# ========================================
+# GESTIÓN DE CERTIFICADOS SSL
+# ========================================
+if [ "$PRESERVE_SSL_CERTS" = "true" ]; then
+    echo ""
+    echo "✅ Preservando certificados SSL existentes"
+    echo "   Iniciando nginx-proxy y acme-companion sin regenerar certificados..."
+    
+    # Iniciar nginx-proxy y acme-companion (los certificados ya existen)
+    run_docker_compose up -d nginx-proxy acme-companion
+    echo "Esperando a que nginx-proxy este listo..."
+    sleep 10
+else
+    echo ""
+    echo "Iniciando nginx-proxy y acme-companion para SSL..."
+    
+    # Iniciar nginx-proxy y acme-companion
+    run_docker_compose up -d nginx-proxy acme-companion
+    echo "Esperando a que nginx-proxy este listo..."
+    sleep 10
+    
+    if [ "$LETSENCRYPT_STAGING" = "false" ]; then
+        echo "   Generando certificados SSL de producción..."
+    else
+        echo "   Generando certificados SSL de staging..."
+    fi
+fi
+
 # Limpiar caché de builder
 echo "Limpiando caché de Docker builder..."
 $DOCKER_CMD builder prune -f 2>/dev/null || true
@@ -444,23 +589,6 @@ $DOCKER_CMD builder prune -f 2>/dev/null || true
 # Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
 echo "Reconstruyendo contenedores con las URLs configuradas..."
 run_docker_compose build --no-cache studio experience
-
-# Iniciar nginx-proxy y acme-companion primero
-echo "Iniciando nginx-proxy y acme-companion - SSL..."
-run_docker_compose up -d nginx-proxy acme-companion
-echo "Esperando a que nginx-proxy este listo..."
-sleep 10
-
-# Iniciar base de datos
-echo "Iniciando base de datos..."
-run_docker_compose up -d db
-echo "Esperando a que la base de datos este lista..."
-sleep 10
-
-# Crear bases de datos
-echo "Creando bases de datos..."
-$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   openccb_cms ya existe"
-$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   openccb_lms ya existe"
 
 # Iniciar servicios
 echo "Iniciando servicios OpenCCB..."
@@ -583,13 +711,22 @@ echo "   Contraseña: $ADMIN_PASS"
 echo ""
 echo "Organizacion: $ORG_NAME"
 echo ""
-if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+
+if [ "$PRESERVE_SSL_CERTS" = "true" ]; then
+    echo "✅ Certificados SSL existentes preservados"
+    echo "   Los certificados ya están activos y funcionando"
+elif [ "$LETSENCRYPT_STAGING" = "true" ]; then
     echo "⚠️  Usando Let's Encrypt STAGING"
     echo "   Los certificados son de prueba - el navegador mostrara advertencias"
     echo "   Las APIs usan HTTP para evitar errores de SSL"
+    echo "   Certificados se generaran en ~1 hora"
+elif [ "$USE_SSL" = "y" ] || [ "$USE_SSL" = "Y" ]; then
+    echo "✅ Usando Let's Encrypt PRODUCTION"
+    echo "   Certificados reales se generaran en 2-5 minutos"
 else
-    echo "✅ Usando HTTP (produccion o pruebas)"
+    echo "✅ Usando HTTP (sin SSL)"
 fi
+
 echo ""
 echo "Credenciales de Base de Datos - GUARDAR EN LUGAR SEGURO:"
 echo "   DB_PASSWORD: $(grep "^DB_PASSWORD=" .env | cut -d"=" -f2)"
@@ -600,12 +737,6 @@ echo "   sudo docker compose ps"
 echo "   docker logs acme-companion --tail 50"
 echo "   docker logs openccb-studio --tail 20"
 echo "   sudo docker compose restart"
-echo ""
-if [ "$LETSENCRYPT_STAGING" = "true" ]; then
-    echo "Certificados SSL se generaran en 1 hora - STAGING"
-else
-    echo "Certificados SSL se generaran en 2-5 minutos - PRODUCTION"
-fi
 echo ""
 REMOTE_SCRIPT_CONTENT
 
