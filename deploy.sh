@@ -398,6 +398,27 @@ else
         echo "   Usando PRODUCTION - certificados reales"
     fi
 fi
+
+# Configurar URLs de la API para el frontend
+echo "   Configurando URLs de la API para el frontend..."
+if [ "$PROTOCOL" = "https" ]; then
+    CMS_URL="https://studio.norteamericano.com"
+    LMS_URL="https://learning.norteamericano.com"
+else
+    CMS_URL="http://studio.norteamericano.com"
+    LMS_URL="http://learning.norteamericano.com"
+fi
+
+# Remover valores existentes
+sed -i "/^NEXT_PUBLIC_CMS_API_URL=/d" .env 2>/dev/null || true
+sed -i "/^NEXT_PUBLIC_LMS_API_URL=/d" .env 2>/dev/null || true
+
+# Agregar URLs correctas (sin puertos - nginx proxy maneja el routing)
+echo "NEXT_PUBLIC_CMS_API_URL=$CMS_URL" >> .env
+echo "NEXT_PUBLIC_LMS_API_URL=$LMS_URL" >> .env
+echo "   URLs configuradas:"
+echo "     CMS: $CMS_URL"
+echo "     LMS: $LMS_URL"
 echo ""
 REMOTE_SCRIPT_CONTENT
 
@@ -604,11 +625,38 @@ sleep 15
 echo ""
 echo "Verificando variables de entorno en los contenedores..."
 echo ""
+
+# Verificar .env
+echo "Variables en .env:"
+grep "NEXT_PUBLIC_" .env 2>/dev/null || echo "   No se encontraron variables NEXT_PUBLIC"
+echo ""
+
+# Verificar en los contenedores
 echo "Studio:"
 $DOCKER_CMD exec openccb-studio env | grep NEXT_PUBLIC || echo "   No se pudo verificar"
 echo ""
 echo "Experience:"
 $DOCKER_CMD exec openccb-experience env | grep NEXT_PUBLIC || echo "   No se pudo verificar"
+echo ""
+
+# Verificar que las URLs no tengan puertos
+echo "Verificando que las URLs no tengan puertos..."
+CMS_ENV=$(grep "NEXT_PUBLIC_CMS_API_URL" .env 2>/dev/null | cut -d"=" -f2)
+LMS_ENV=$(grep "NEXT_PUBLIC_LMS_API_URL" .env 2>/dev/null | cut -d"=" -f2)
+
+if echo "$CMS_ENV" | grep -q ":[0-9]"; then
+    echo "   ⚠️  ADVERTENCIA: CMS_API_URL tiene puerto ($CMS_ENV)"
+    echo "      Esto causará errores CORS. Debe ser solo el dominio."
+else
+    echo "   ✅ CMS_API_URL correcta: $CMS_ENV"
+fi
+
+if echo "$LMS_ENV" | grep -q ":[0-9]"; then
+    echo "   ⚠️  ADVERTENCIA: LMS_API_URL tiene puerto ($LMS_ENV)"
+    echo "      Esto causará errores CORS. Debe ser solo el dominio."
+else
+    echo "   ✅ LMS_API_URL correcta: $LMS_ENV"
+fi
 echo ""
 
 # ========================================
