@@ -430,6 +430,8 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                                                                 keywords={block.keywords}
                                                                 timeLimit={block.timeLimit}
                                                                 isGraded={lesson.is_graded}
+                                                                lessonId={params.lessonId}
+                                                                blockId={block.id}
                                                                 onComplete={(score) => handleBlockComplete(block.id, score)}
                                                             />
                                                         );

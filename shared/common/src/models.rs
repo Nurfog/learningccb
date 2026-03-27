@@ -1446,3 +1446,121 @@ pub struct QuestionBankFilters {
     pub search: Option<String>,
     pub has_audio: Option<bool>,
 }
+
+// ==================== AUDIO RESPONSE MODELS ====================
+// For speaking practice exercises with AI + Teacher evaluation
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioResponseStatus {
+    Pending,
+    AiEvaluated,
+    TeacherEvaluated,
+    BothEvaluated,
+}
+
+impl std::fmt::Display for AudioResponseStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AudioResponseStatus::Pending => write!(f, "pending"),
+            AudioResponseStatus::AiEvaluated => write!(f, "ai_evaluated"),
+            AudioResponseStatus::TeacherEvaluated => write!(f, "teacher_evaluated"),
+            AudioResponseStatus::BothEvaluated => write!(f, "both_evaluated"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct AudioResponse {
+    pub id: Uuid,
+    pub organization_id: Uuid,
+    pub user_id: Uuid,
+    pub course_id: Uuid,
+    pub lesson_id: Uuid,
+    pub block_id: Uuid,
+    pub prompt: String,
+    pub transcript: Option<String>,
+    pub audio_url: Option<String>,
+    pub audio_data: Option<Vec<u8>>,
+    
+    // AI Evaluation
+    pub ai_score: Option<i32>,
+    pub ai_found_keywords: Option<Vec<String>>,
+    pub ai_feedback: Option<String>,
+    pub ai_evaluated_at: Option<DateTime<Utc>>,
+    
+    // Teacher Evaluation
+    pub teacher_score: Option<i32>,
+    pub teacher_feedback: Option<String>,
+    pub teacher_evaluated_at: Option<DateTime<Utc>>,
+    pub teacher_evaluated_by: Option<Uuid>,
+    
+    // Status and metadata
+    pub status: AudioResponseStatus,
+    pub attempt_number: i32,
+    pub duration_seconds: Option<i32>,
+    pub metadata: Option<serde_json::Value>,
+    
+    // Timestamps
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AudioResponseWithUser {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub student_name: String,
+    pub student_email: String,
+    pub course_id: Uuid,
+    pub course_title: String,
+    pub lesson_id: Uuid,
+    pub lesson_title: String,
+    pub block_id: Uuid,
+    pub prompt: String,
+    pub transcript: Option<String>,
+    pub ai_score: Option<i32>,
+    pub ai_feedback: Option<String>,
+    pub teacher_score: Option<i32>,
+    pub teacher_feedback: Option<String>,
+    pub status: AudioResponseStatus,
+    pub created_at: DateTime<Utc>,
+    pub attempt_number: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct AudioResponseStats {
+    pub organization_id: Uuid,
+    pub course_id: Uuid,
+    pub lesson_id: Uuid,
+    pub total_responses: i64,
+    pub ai_evaluated: i64,
+    pub teacher_evaluated: i64,
+    pub fully_evaluated: i64,
+    pub pending: i64,
+    pub avg_ai_score: Option<f32>,
+    pub avg_teacher_score: Option<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateAudioResponsePayload {
+    pub lesson_id: Uuid,
+    pub block_id: Uuid,
+    pub prompt: String,
+    pub transcript: Option<String>,
+    pub duration_seconds: Option<i32>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpdateAudioResponsePayload {
+    pub teacher_score: i32,
+    pub teacher_feedback: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AudioResponseEvaluation {
+    pub score: i32,
+    pub found_keywords: Vec<String>,
+    pub feedback: String,
+}

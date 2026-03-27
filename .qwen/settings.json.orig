@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm *)",
+      "Bash(sed *)",
+      "Bash(ls *)",
+      "Bash(true)",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(chmod *)",
+      "Bash(mkdir *)"
+    ]
+  }
+}

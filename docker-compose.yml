@@ -1,33 +1,85 @@
+# OpenCCB Docker Compose - Producción con SSL
+# Servidor: AWS EC2 us-east-2
+# Dominios: studio.norteamericano.com y learning.norteamericano.com
+# Usa nginx-proxy + acme-companion para SSL automático con Let's Encrypt
+
 services:
+  # ========================================
+  # NGINX Proxy + SSL (Let's Encrypt)
+  # ========================================
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:1.4
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs:ro
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - ./nginx/proxy.conf:/etc/nginx/conf.d/proxy.conf:ro
+    restart: always
+    networks:
+      - openccb-network
+
+  acme-companion:
+    image: nginxproxy/acme-companion:2.2
+    container_name: acme-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs:rw
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - ./nginx/certs-data:/etc/acme.sh:rw
+    environment:
+      - DEFAULT_EMAIL=admin@norteamericano.com
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+      - LETSENCRYPT_STAGING=${LETSENCRYPT_STAGING:-true}
+    depends_on:
+      - nginx-proxy
+    restart: always
+    networks:
+      - openccb-network
+
+  # ========================================
+  # Base de Datos
+  # ========================================
   db:
     image: pgvector/pgvector:pg16
+    container_name: openccb-db
     environment:
       POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: openccb
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - openccb-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ========================================
+  # Studio + CMS (HTTPS)
+  # ========================================
   studio:
     build:
       context: .
       dockerfile: web/studio/Dockerfile
-      network: host
       args:
-        NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL:-http://localhost:3001}
-    dns:
-      - 8.8.8.8
-    ports:
-      - "3000:3000"
-      - "3001:3001"
+        NEXT_PUBLIC_CMS_API_URL: http://studio.norteamericano.com
+        NEXT_PUBLIC_LMS_API_URL: http://learning.norteamericano.com
+    container_name: openccb-studio
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/openccb_cms
-      JWT_SECRET: ${JWT_SECRET:-openccb_secret_key_2025_production}
-      NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL:-http://localhost:3001}
-      RUST_LOG: debug
-      LMS_INTERNAL_URL: http://experience:3002
+      - VIRTUAL_HOST=studio.norteamericano.com
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=studio.norteamericano.com
+      - LMS_INTERNAL_URL=http://experience:3002
+      - NEXT_PUBLIC_LMS_API_URL=http://learning.norteamericano.com
     volumes:
       - uploads_data:/app/uploads
     env_file: .env
@@ -35,48 +87,49 @@ services:
       - "host.docker.internal:host-gateway"
       - "t-800:192.168.0.5"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - openccb-network
+    restart: always
 
+  # ========================================
+  # Experience + LMS
+  # ========================================
   experience:
     build:
       context: .
       dockerfile: web/experience/Dockerfile
-      network: host
       args:
-        NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL:-http://localhost:3002}
-        NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL:-http://localhost:3001}
-    dns:
-      - 8.8.8.8
-    ports:
-      - "3003:3003"
-      - "3002:3002"
+        NEXT_PUBLIC_LMS_API_URL: http://learning.norteamericano.com
+        NEXT_PUBLIC_CMS_API_URL: http://studio.norteamericano.com
+    container_name: openccb-experience
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/openccb_lms
-      JWT_SECRET: ${JWT_SECRET:-openccb_secret_key_2025_production}
-      RUST_LOG: debug
-      NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL:-http://localhost:3002}
-      NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL:-http://localhost:3001}
+      - VIRTUAL_HOST=learning.norteamericano.com
+      - VIRTUAL_PORT=3003
+      - LETSENCRYPT_HOST=learning.norteamericano.com
+      - NEXT_PUBLIC_CMS_API_URL=http://studio.norteamericano.com
     env_file: .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "t-800:192.168.0.5"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - openccb-network
+    restart: always
 
-  e2e:
-    build:
-      context: ./e2e
-    environment:
-      - STUDIO_URL=http://studio:3000
-      - EXPERIENCE_URL=http://experience:3003
-    depends_on:
-      - studio
-      - experience
-    volumes:
-      - ./e2e/tests:/e2e/tests
-      - ./e2e/playwright-report:/e2e/playwright-report
-    profiles: [ "test" ]
-
+# ========================================
+# Volúmenes y Redes
+# ========================================
 volumes:
   postgres_data:
   uploads_data:
+  certs:
+  vhost:
+  html:
+
+networks:
+  openccb-network:
+    driver: bridge

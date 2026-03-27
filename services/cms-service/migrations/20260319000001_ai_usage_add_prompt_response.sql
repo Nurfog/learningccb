@@ -1,7 +1,29 @@
--- AI Usage Logs: Update log_ai_usage function to include prompt and response
--- Note: prompt and response columns already exist from previous migration
+-- AI Usage Logs: Add prompt and response columns
+-- First, add columns if they don't exist
 
--- Update log_ai_usage function to accept prompt and response
+-- Add prompt column
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_usage_logs' AND column_name = 'prompt'
+    ) THEN
+        ALTER TABLE ai_usage_logs ADD COLUMN prompt TEXT;
+    END IF;
+END $$;
+
+-- Add response column
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_usage_logs' AND column_name = 'response'
+    ) THEN
+        ALTER TABLE ai_usage_logs ADD COLUMN response TEXT;
+    END IF;
+END $$;
+
+-- Update log_ai_usage function to include prompt and response
 CREATE OR REPLACE FUNCTION log_ai_usage(
     p_user_id UUID,
     p_org_id UUID,

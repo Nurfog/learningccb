@@ -11,7 +11,8 @@ import {
     ShieldCheck,
     ArrowLeft,
     Activity,
-    TrendingUp
+    TrendingUp,
+    Mic
 } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
         { icon: Building2, label: "Organizations", href: "/admin/organizations" },
         { icon: Users, label: "Users", href: "/admin/users" },
+        { icon: Mic, label: "Audio Evaluations", href: "/admin/audio-evaluations" },
         { icon: ClipboardList, label: "Audit Logs", href: "/admin/audit" },
         { icon: Activity, label: "System Tasks", href: "/admin/tasks" },
         { icon: TrendingUp, label: "Control Global IA", href: "/admin/ai-usage-global" },

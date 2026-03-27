@@ -11,6 +11,7 @@ mod handlers_test_templates;
 mod handlers_question_bank;
 mod handlers_admin;
 mod handlers_embeddings;
+mod handlers_sam;
 mod webhooks;
 
 use axum::{
@@ -97,17 +98,48 @@ async fn main() {
     });
 
     // CORS configuration - Allow multiple origins for development and production
+    // Using a predicate closure to support wildcard subdomains for norteamericano.cl
+    use tower_http::cors::AllowOrigin;
+    
     let cors = CorsLayer::new()
-        .allow_origin([
-            "http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://localhost:3003".parse::<http::HeaderValue>().unwrap(),
-            "http://127.0.0.1:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://127.0.0.1:3003".parse::<http::HeaderValue>().unwrap(),
-            "http://192.168.0.254:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://192.168.0.254:3003".parse::<http::HeaderValue>().unwrap(),
-            // Allow any origin for development (remove in production)
-            "http://192.168.0.254".parse::<http::HeaderValue>().unwrap(),
-        ])
+        .allow_origin(AllowOrigin::predicate(|origin: &http::HeaderValue, _request: &http::request::Parts| -> bool {
+            let origin_str = origin.to_str().unwrap_or("");
+            
+            // Development origins
+            let allowed_origins = [
+                "http://localhost:3000",
+                "http://localhost:3003",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3003",
+                "http://192.168.0.254:3000",
+                "http://192.168.0.254:3003",
+                "http://192.168.0.254",
+                // Production - Norteamericano domains (HTTPS)
+                "https://studio.norteamericano.cl",
+                "https://learning.norteamericano.cl",
+            ];
+            
+            // Check exact matches
+            if allowed_origins.contains(&origin_str) {
+                return true;
+            }
+            
+            // Check wildcard for subdomains: https://*.norteamericano.cl
+            if origin_str.starts_with("https://") && origin_str.ends_with(".norteamericano.cl") {
+                let subdomain = origin_str
+                    .strip_prefix("https://")
+                    .unwrap_or("")
+                    .strip_suffix(".norteamericano.cl")
+                    .unwrap_or("");
+                
+                // Allow any subdomain (e.g., api., cdn., admin., etc.)
+                if !subdomain.is_empty() && !subdomain.contains('/') {
+                    return true;
+                }
+            }
+            
+            false
+        }))
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH, Method::HEAD])
         .allow_headers([
             header::CONTENT_TYPE,
@@ -391,6 +423,27 @@ async fn main() {
         .route(
             "/question-bank/{id}/embedding/regenerate",
             post(handlers_embeddings::regenerate_question_embedding),
+        )
+        // SAM Integration routes
+        .route(
+            "/sam/sync-all",
+            post(handlers_sam::sync_all_sam),
+        )
+        .route(
+            "/sam/sync-students",
+            post(handlers_sam::sync_sam_students),
+        )
+        .route(
+            "/sam/sync-assignments",
+            post(handlers_sam::sync_sam_assignments),
+        )
+        .route(
+            "/sam/students",
+            get(handlers_sam::list_sam_students),
+        )
+        .route(
+            "/sam/students/{student_id}/courses",
+            get(handlers_sam::get_sam_student_courses),
         )
         // Admin routes
         .route(

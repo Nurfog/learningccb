@@ -66,17 +66,48 @@ async fn main() {
     });
 
     // CORS configuration - Allow multiple origins for development and production
+    // Using a predicate closure to support wildcard subdomains for norteamericano.cl
+    use tower_http::cors::AllowOrigin;
+    
     let cors = CorsLayer::new()
-        .allow_origin([
-            "http://localhost:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://localhost:3003".parse::<http::HeaderValue>().unwrap(),
-            "http://127.0.0.1:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://127.0.0.1:3003".parse::<http::HeaderValue>().unwrap(),
-            "http://192.168.0.254:3000".parse::<http::HeaderValue>().unwrap(),
-            "http://192.168.0.254:3003".parse::<http::HeaderValue>().unwrap(),
-            // Allow any origin for development (remove in production)
-            "http://192.168.0.254".parse::<http::HeaderValue>().unwrap(),
-        ])
+        .allow_origin(AllowOrigin::predicate(|origin: &http::HeaderValue, _request: &http::request::Parts| -> bool {
+            let origin_str = origin.to_str().unwrap_or("");
+            
+            // Development origins
+            let allowed_origins = [
+                "http://localhost:3000",
+                "http://localhost:3003",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3003",
+                "http://192.168.0.254:3000",
+                "http://192.168.0.254:3003",
+                "http://192.168.0.254",
+                // Production - Norteamericano domains (HTTPS)
+                "https://studio.norteamericano.cl",
+                "https://learning.norteamericano.cl",
+            ];
+            
+            // Check exact matches
+            if allowed_origins.contains(&origin_str) {
+                return true;
+            }
+            
+            // Check wildcard for subdomains: https://*.norteamericano.cl
+            if origin_str.starts_with("https://") && origin_str.ends_with(".norteamericano.cl") {
+                let subdomain = origin_str
+                    .strip_prefix("https://")
+                    .unwrap_or("")
+                    .strip_suffix(".norteamericano.cl")
+                    .unwrap_or("");
+                
+                // Allow any subdomain (e.g., api., cdn., admin., etc.)
+                if !subdomain.is_empty() && !subdomain.contains('/') {
+                    return true;
+                }
+            }
+            
+            false
+        }))
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS, Method::PATCH])
         .allow_headers([
             header::CONTENT_TYPE,
@@ -158,6 +189,12 @@ async fn main() {
         .route("/lessons/{id}/heatmap", get(handlers::get_lesson_heatmap))
         .route("/audio/evaluate", post(handlers::evaluate_audio_response))
         .route("/audio/evaluate-file", post(handlers::evaluate_audio_file))
+        // Audio Response Teacher Routes
+        .route("/audio-responses", get(handlers::get_audio_responses))
+        .route("/audio-responses/{id}", get(handlers::get_audio_response_detail))
+        .route("/audio-responses/{id}/audio", get(handlers::get_audio_response_audio))
+        .route("/audio-responses/{id}/evaluate", post(handlers::teacher_evaluate_audio))
+        .route("/courses/{id}/audio-responses/stats", get(handlers::get_audio_response_stats))
         .route("/lessons/{id}/chat", post(handlers::chat_with_tutor))
         .route("/lessons/{id}/chat-role-play", post(handlers::chat_role_play))
         .route("/lessons/{id}/code-hint", post(handlers::get_code_hint))

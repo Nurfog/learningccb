@@ -33,3 +33,7 @@ yarn-debug.log*
 yarn-error.log*
 # --- Project-specific Development Keys ---
 services/lms-service/dev_keys/
+
+# --- SSH Keys ---
+*.pem
+ubuntu.pem

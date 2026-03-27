@@ -604,17 +604,23 @@ export const lmsApi = {
             body: JSON.stringify({ transcript, prompt, keywords })
         });
     },
-    async evaluateAudioFile(file: Blob, prompt: string, keywords: string[]): Promise<AudioGradingResponse> {
+    async evaluateAudioFile(file: Blob, prompt: string, keywords: string[], lessonId: string, blockId: string, duration?: number): Promise<AudioGradingResponse> {
         const formData = new FormData();
         formData.append('file', file, 'recorded_audio.webm');
         formData.append('prompt', prompt);
         formData.append('keywords', JSON.stringify(keywords));
+        formData.append('lesson_id', lessonId);
+        formData.append('block_id', blockId);
+        if (duration) {
+            formData.append('duration', duration.toString());
+        }
 
         const token = getToken();
         return fetch(`${getLmsApiUrl()}/audio/evaluate-file`, {
             method: 'POST',
             headers: {
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                // Don't set Content-Type for FormData - browser sets it with boundary
             },
             body: formData
         }).then(async res => {

@@ -6,6 +6,7 @@ use axum::{
     Extension,
 };
 use bcrypt::{DEFAULT_COST, hash, verify};
+use chrono::{DateTime, Utc};
 use common::auth::{Claims, create_jwt};
 use common::middleware::Org;
 use common::models::{
@@ -15,6 +16,7 @@ use common::models::{
 };
 use crate::external_db::MySqlPool;
 use serde_json::json;
+use base64::Engine;
 
 // Simple token counter (approximate: 1 token ≈ 4 characters in English, ~3-5 in Spanish)
 fn count_tokens(text: &str) -> i32 {
@@ -2103,6 +2105,7 @@ pub async fn get_recommendations(
 pub async fn evaluate_audio_response(
     Org(_org_ctx): Org,
     claims: Claims,
+    State(pool): State<PgPool>,
     Json(payload): Json<AudioGradingPayload>,
 ) -> Result<Json<AudioGradingResponse>, (StatusCode, String)> {
     // Check token limit before proceeding (estimate 1500 tokens for audio evaluation)
@@ -2182,14 +2185,20 @@ pub async fn evaluate_audio_response(
 }
 
 pub async fn evaluate_audio_file(
-    Org(_org_ctx): Org,
-    _claims: Claims,
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
     mut multipart: Multipart,
 ) -> Result<Json<AudioGradingResponse>, (StatusCode, String)> {
+    let mut lesson_id_str = String::new();
+    let mut block_id_str = String::new();
     let mut prompt = String::new();
     let mut keywords_str = String::new();
     let mut audio_data = Vec::new();
     let mut filename = "audio.webm".to_string();
+    let mut duration_seconds: Option<i32> = None;
+
+    tracing::info!("Received audio evaluation request from user: {}", claims.sub);
 
     while let Some(field) = multipart
         .next_field()
@@ -2198,8 +2207,24 @@ pub async fn evaluate_audio_file(
     {
         let name = field.name().unwrap_or_default().to_string();
         match name.as_str() {
-            "prompt" => prompt = field.text().await.unwrap_or_default(),
+            "lesson_id" => {
+                lesson_id_str = field.text().await.unwrap_or_default();
+                tracing::info!("Received lesson_id: {}", lesson_id_str);
+            }
+            "block_id" => {
+                block_id_str = field.text().await.unwrap_or_default();
+                tracing::info!("Received block_id: {}", block_id_str);
+            }
+            "prompt" => {
+                prompt = field.text().await.unwrap_or_default();
+                tracing::info!("Received prompt: {}", prompt);
+            }
             "keywords" => keywords_str = field.text().await.unwrap_or_default(),
+            "duration" => {
+                if let Ok(d) = field.text().await.unwrap_or_default().parse() {
+                    duration_seconds = Some(d);
+                }
+            }
             "file" => {
                 filename = field.file_name().unwrap_or("audio.webm").to_string();
                 audio_data = field
@@ -2207,17 +2232,34 @@ pub async fn evaluate_audio_file(
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
                     .to_vec();
+                tracing::info!("Received audio file: {} bytes", audio_data.len());
             }
             _ => {}
         }
     }
 
     if audio_data.is_empty() {
+        tracing::error!("No audio data received");
         return Err((
             StatusCode::BAD_REQUEST,
             "No se proporcionó ningún archivo de audio".into(),
         ));
     }
+
+    // Parse lesson_id and block_id
+    let lesson_id = Uuid::parse_str(&lesson_id_str)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid lesson_id".into()))?;
+    let block_id = Uuid::parse_str(&block_id_str)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid block_id".into()))?;
+
+    // Get course_id from lesson (lessons has module_id, modules has course_id)
+    let course_id: Uuid = sqlx::query_scalar(
+        "SELECT m.course_id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE l.id = $1"
+    )
+    .bind(lesson_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| (StatusCode::NOT_FOUND, "Lesson not found".into()))?;
 
     // 1. Send to Whisper
     let whisper_url =
@@ -2227,7 +2269,7 @@ pub async fn evaluate_audio_file(
     let form = reqwest::multipart::Form::new()
         .part(
             "file",
-            reqwest::multipart::Part::bytes(audio_data).file_name(filename),
+            reqwest::multipart::Part::bytes(audio_data.clone()).file_name(filename),
         )
         .text("model", "whisper-1")
         .text("response_format", "json");
@@ -2355,7 +2397,370 @@ pub async fn evaluate_audio_file(
             })
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Mapping failed: {}", e)))?;
 
+    // 3. Save audio response to database
+    // Determine status based on evaluation
+    let status = "ai_evaluated";
+    
+    // Get attempt number (check if there's a previous response for this block)
+    let attempt_number: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(attempt_number), 0) + 1 FROM audio_responses WHERE user_id = $1 AND lesson_id = $2 AND block_id = $3"
+    )
+    .bind(claims.sub)
+    .bind(lesson_id)
+    .bind(block_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(1);
+
+    // Store audio as base64 for now (can be moved to object storage later)
+    let audio_base64 = base64::engine::general_purpose::STANDARD.encode(&audio_data);
+
+    let _ = sqlx::query(
+        r#"INSERT INTO audio_responses 
+        (organization_id, user_id, course_id, lesson_id, block_id, prompt, transcript, audio_data, 
+         ai_score, ai_found_keywords, ai_feedback, ai_evaluated_at, 
+         status, attempt_number, duration_seconds)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12, $13, $14)"#
+    )
+    .bind(org_ctx.id)
+    .bind(claims.sub)
+    .bind(course_id)
+    .bind(lesson_id)
+    .bind(block_id)
+    .bind(&prompt)
+    .bind(&transcript)
+    .bind(&audio_base64)
+    .bind(grading.score)
+    .bind(&grading.found_keywords)
+    .bind(&grading.feedback)
+    .bind(status)
+    .bind(attempt_number)
+    .bind(duration_seconds)
+    .execute(&pool)
+    .await;
+
     Ok(Json(grading))
+}
+
+// ==================== AUDIO RESPONSE TEACHER ENDPOINTS ====================
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AudioResponseListItem {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub student_name: String,
+    pub student_email: String,
+    pub course_id: Uuid,
+    pub course_title: String,
+    pub lesson_id: Uuid,
+    pub lesson_title: String,
+    pub block_id: Uuid,
+    pub prompt: String,
+    pub transcript: Option<String>,
+    pub ai_score: Option<i32>,
+    pub ai_found_keywords: Option<Vec<String>>,
+    pub ai_feedback: Option<String>,
+    pub teacher_score: Option<i32>,
+    pub teacher_feedback: Option<String>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub attempt_number: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AudioResponseFilters {
+    pub course_id: Option<Uuid>,
+    pub lesson_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub user_id: Option<Uuid>,
+}
+
+/// Get all audio responses for teachers
+/// Filters: course_id, lesson_id, status (pending, ai_evaluated, teacher_evaluated, both_evaluated), user_id
+pub async fn get_audio_responses(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Query(filters): Query<AudioResponseFilters>,
+) -> Result<Json<Vec<AudioResponseListItem>>, StatusCode> {
+    // Only instructors and admins can access
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Use static query with optional filters
+    let responses = sqlx::query_as::<_, AudioResponseListItem>(
+        r#"
+        SELECT 
+            ar.id,
+            ar.user_id,
+            u.full_name as student_name,
+            u.email as student_email,
+            ar.course_id,
+            c.title as course_title,
+            ar.lesson_id,
+            l.title as lesson_title,
+            ar.block_id,
+            ar.prompt,
+            ar.transcript,
+            ar.ai_score,
+            ar.ai_found_keywords,
+            ar.ai_feedback,
+            ar.teacher_score,
+            ar.teacher_feedback,
+            ar.status::text,
+            ar.created_at,
+            ar.attempt_number
+        FROM audio_responses ar
+        JOIN users u ON ar.user_id = u.id
+        JOIN courses c ON ar.course_id = c.id
+        JOIN lessons l ON ar.lesson_id = l.id
+        WHERE ar.organization_id = $1
+        AND ($2::uuid IS NULL OR ar.course_id = $2)
+        AND ($3::uuid IS NULL OR ar.lesson_id = $3)
+        AND ($4::text IS NULL OR ar.status::text = $4)
+        AND ($5::uuid IS NULL OR ar.user_id = $5)
+        ORDER BY ar.created_at DESC
+        "#
+    )
+    .bind(org_ctx.id)
+    .bind(filters.course_id)
+    .bind(filters.lesson_id)
+    .bind(filters.status)
+    .bind(filters.user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching audio responses: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(responses))
+}
+
+/// Get single audio response with full details including audio data
+pub async fn get_audio_response_detail(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(response_id): Path<Uuid>,
+) -> Result<Json<AudioResponseListItem>, StatusCode> {
+    // Only instructors and admins can access
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let response = sqlx::query_as::<_, AudioResponseListItem>(
+        r#"
+        SELECT 
+            ar.id,
+            ar.user_id,
+            u.full_name as student_name,
+            u.email as student_email,
+            ar.course_id,
+            c.title as course_title,
+            ar.lesson_id,
+            l.title as lesson_title,
+            ar.block_id,
+            ar.prompt,
+            ar.transcript,
+            ar.ai_score,
+            ar.ai_found_keywords,
+            ar.ai_feedback,
+            ar.teacher_score,
+            ar.teacher_feedback,
+            ar.status::text,
+            ar.created_at,
+            ar.attempt_number
+        FROM audio_responses ar
+        JOIN users u ON ar.user_id = u.id
+        JOIN courses c ON ar.course_id = c.id
+        JOIN lessons l ON ar.lesson_id = l.id
+        WHERE ar.id = $1 AND ar.organization_id = $2
+        "#
+    )
+    .bind(response_id)
+    .bind(org_ctx.id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching audio response: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match response {
+        Some(r) => Ok(Json(r)),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Get audio data as base64 for playback
+pub async fn get_audio_response_audio(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+    Path(response_id): Path<Uuid>,
+) -> Result<impl IntoResponse, StatusCode> {
+    // Only instructors, admins, and the owner can access
+    let audio_data: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT audio_data FROM audio_responses WHERE id = $1 AND organization_id = $2"
+    )
+    .bind(response_id)
+    .bind(org_ctx.id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching audio data: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match audio_data {
+        Some(data) => {
+            // Decode from base64
+            let audio_bytes = base64::engine::general_purpose::STANDARD.decode(&data)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+            Ok(axum::response::Response::builder()
+                .header(axum::http::header::CONTENT_TYPE, "audio/webm")
+                .header(axum::http::header::CONTENT_DISPOSITION, "inline")
+                .body(axum::body::Body::from(audio_bytes))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                .into_response())
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Teacher evaluates an audio response
+pub async fn teacher_evaluate_audio(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(response_id): Path<Uuid>,
+    Json(payload): Json<common::models::UpdateAudioResponsePayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Only instructors and admins can evaluate
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Validate score
+    if payload.teacher_score < 0 || payload.teacher_score > 100 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Get current response to determine new status
+    let current_status: String = sqlx::query_scalar(
+        "SELECT status::text FROM audio_responses WHERE id = $1 AND organization_id = $2"
+    )
+    .bind(response_id)
+    .bind(org_ctx.id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching audio response: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or_else(|| "pending".to_string());
+
+    // Determine new status
+    let new_status = if current_status == "ai_evaluated" {
+        "both_evaluated"
+    } else {
+        "teacher_evaluated"
+    };
+
+    // Update the response
+    let updated = sqlx::query(
+        r#"
+        UPDATE audio_responses 
+        SET 
+            teacher_score = $1,
+            teacher_feedback = $2,
+            teacher_evaluated_at = NOW(),
+            teacher_evaluated_by = $3,
+            status = $4,
+            updated_at = NOW()
+        WHERE id = $5 AND organization_id = $6
+        RETURNING id
+        "#
+    )
+    .bind(payload.teacher_score)
+    .bind(&payload.teacher_feedback)
+    .bind(claims.sub)
+    .bind(new_status)
+    .bind(response_id)
+    .bind(org_ctx.id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error updating audio response: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match updated {
+        Some(_) => Ok(Json(json!({
+            "success": true,
+            "message": "Evaluación guardada exitosamente"
+        }))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Get audio response statistics for a course
+pub async fn get_audio_response_stats(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(course_id): Path<Uuid>,
+) -> Result<Json<common::models::AudioResponseStats>, StatusCode> {
+    // Only instructors and admins can access
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let stats = sqlx::query_as::<_, common::models::AudioResponseStats>(
+        r#"
+        SELECT 
+            organization_id,
+            course_id,
+            lesson_id,
+            COUNT(*) as total_responses,
+            COUNT(*) FILTER (WHERE ai_score IS NOT NULL) as ai_evaluated,
+            COUNT(*) FILTER (WHERE teacher_score IS NOT NULL) as teacher_evaluated,
+            COUNT(*) FILTER (WHERE status = 'both_evaluated') as fully_evaluated,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending,
+            AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL) as avg_ai_score,
+            AVG(teacher_score) FILTER (WHERE teacher_score IS NOT NULL) as avg_teacher_score
+        FROM audio_responses
+        WHERE course_id = $1 AND organization_id = $2
+        GROUP BY organization_id, course_id, lesson_id
+        "#
+    )
+    .bind(course_id)
+    .bind(org_ctx.id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Error fetching audio response stats: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match stats {
+        Some(s) => Ok(Json(s)),
+        None => Ok(Json(common::models::AudioResponseStats {
+            organization_id: org_ctx.id,
+            course_id,
+            lesson_id: Uuid::nil(),
+            total_responses: 0,
+            ai_evaluated: 0,
+            teacher_evaluated: 0,
+            fully_evaluated: 0,
+            pending: 0,
+            avg_ai_score: None,
+            avg_teacher_score: None,
+        })),
+    }
 }
 
 #[derive(Deserialize)]

@@ -10,6 +10,8 @@ interface AudioResponsePlayerProps {
     keywords?: string[];
     timeLimit?: number;
     isGraded?: boolean;
+    lessonId?: string;
+    blockId?: string;
     onComplete?: (score: number, transcript: string) => void;
 }
 
@@ -19,6 +21,8 @@ export default function AudioResponsePlayer({
     keywords = [],
     timeLimit,
     isGraded = false,
+    lessonId,
+    blockId,
     onComplete
 }: AudioResponsePlayerProps) {
     const [isRecording, setIsRecording] = useState(false);
@@ -195,9 +199,22 @@ export default function AudioResponsePlayer({
             return;
         }
 
+        if (!lessonId || !blockId) {
+            console.error("Missing lessonId or blockId");
+            alert("Error: Missing lesson or block information");
+            return;
+        }
+
         setIsTranscribing(true);
         try {
-            const result = await lmsApi.evaluateAudioFile(audioBlob, prompt, keywords);
+            const result = await lmsApi.evaluateAudioFile(
+                audioBlob, 
+                prompt, 
+                keywords, 
+                lessonId, 
+                blockId,
+                recordingTime
+            );
             setEvaluation({
                 score: result.score,
                 foundKeywords: result.found_keywords,

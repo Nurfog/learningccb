@@ -1,11 +1,17 @@
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
+    // Si hay una variable de entorno definida, usarla siempre
+    if (envVar && envVar.trim() !== '') {
+        return envVar;
+    }
+    
+    // Fallback para desarrollo local
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
-        // Detect if we are on a custom domain or IP
         const protocol = window.location.protocol;
         return `${protocol}//${hostname}:${defaultPort}`;
     }
-    return envVar || `http://localhost:${defaultPort}`;
+    
+    return `http://localhost:${defaultPort}`;
 };
 
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
@@ -763,7 +769,6 @@ export const cmsApi = {
     },
     getSSOConfig: (): Promise<OrganizationSSOConfig> => apiFetch('/organization/sso'),
     updateSSOConfig: (payload: Partial<OrganizationSSOConfig>): Promise<void> => apiFetch('/organization/sso', { method: 'PUT', body: JSON.stringify(payload) }),
-    getOrganization: (): Promise<Organization> => apiFetch('/organization'),
 
     // Auth
     register: (payload: AuthPayload): Promise<AuthResponse> => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
@@ -1209,6 +1214,37 @@ export const lmsApi = {
 
     getMyBadges: (): Promise<Badge[]> =>
         apiFetch(`/my/badges`, {}, true),
+
+    // Audio Responses
+    getAudioResponses: (filters?: AudioResponseFilters): Promise<AudioResponse[]> => {
+        const query: Record<string, string> = {};
+        if (filters?.course_id) query.course_id = filters.course_id;
+        if (filters?.lesson_id) query.lesson_id = filters.lesson_id;
+        if (filters?.status) query.status = filters.status;
+        if (filters?.user_id) query.user_id = filters.user_id;
+        return apiFetch('/audio-responses', { method: 'GET', query }, true);
+    },
+    getAudioResponseDetail: (id: string): Promise<AudioResponse> =>
+        apiFetch(`/audio-responses/${id}`, { method: 'GET' }, true),
+    getAudioResponseAudio: (id: string): Promise<Blob> => {
+        const token = getToken();
+        return fetch(`${LMS_API_BASE_URL}/audio-responses/${id}/audio`, {
+            method: 'GET',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        }).then(async res => {
+            if (!res.ok) throw new Error('Failed to fetch audio');
+            return res.blob();
+        });
+    },
+    evaluateAudioResponse: (id: string, teacherScore: number, teacherFeedback?: string): Promise<{ success: boolean; message: string }> =>
+        apiFetch(`/audio-responses/${id}/evaluate`, {
+            method: 'POST',
+            body: JSON.stringify({ teacher_score: teacherScore, teacher_feedback: teacherFeedback })
+        }, true),
+    getCourseAudioResponseStats: (courseId: string): Promise<AudioResponseStats> =>
+        apiFetch(`/courses/${courseId}/audio-responses/stats`, { method: 'GET' }, true),
 };
 
 export interface Meeting {
@@ -1384,4 +1420,98 @@ export interface TestTemplateFilters {
     test_type?: TestType;
     tags?: string;
     search?: string;
+}
+
+// ==================== AUDIO RESPONSE INTERFACES ====================
+
+export interface AudioResponse {
+    id: string;
+    user_id: string;
+    student_name: string;
+    student_email: string;
+    course_id: string;
+    course_title: string;
+    lesson_id: string;
+    lesson_title: string;
+    block_id: string;
+    prompt: string;
+    transcript: string | null;
+    ai_score: number | null;
+    ai_found_keywords: string[] | null;
+    ai_feedback: string | null;
+    teacher_score: number | null;
+    teacher_feedback: string | null;
+    status: 'pending' | 'ai_evaluated' | 'teacher_evaluated' | 'both_evaluated';
+    created_at: string;
+    attempt_number: number;
+}
+
+export interface AudioResponseStats {
+    organization_id: string;
+    course_id: string;
+    lesson_id: string;
+    total_responses: number;
+    ai_evaluated: number;
+    teacher_evaluated: number;
+    fully_evaluated: number;
+    pending: number;
+    avg_ai_score: number | null;
+    avg_teacher_score: number | null;
+}
+
+export interface AudioResponseFilters {
+    course_id?: string;
+    lesson_id?: string;
+    status?: string;
+    user_id?: string;
+}
+
+// ==================== AUDIO RESPONSE API ====================
+
+export async function getAudioResponses(filters?: AudioResponseFilters): Promise<AudioResponse[]> {
+    const query: Record<string, string> = {};
+    if (filters?.course_id) query.course_id = filters.course_id;
+    if (filters?.lesson_id) query.lesson_id = filters.lesson_id;
+    if (filters?.status) query.status = filters.status;
+    if (filters?.user_id) query.user_id = filters.user_id;
+
+    return apiFetch('/audio-responses', { method: 'GET', query }, true);
+}
+
+export async function getAudioResponseDetail(id: string): Promise<AudioResponse> {
+    return apiFetch(`/audio-responses/${id}`, { method: 'GET' }, true);
+}
+
+export async function getAudioResponseAudio(id: string): Promise<Blob> {
+    const token = getToken();
+    const response = await fetch(`${LMS_API_BASE_URL}/audio-responses/${id}/audio`, {
+        method: 'GET',
+        headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to fetch audio');
+    }
+    
+    return response.blob();
+}
+
+export async function evaluateAudioResponse(
+    id: string, 
+    teacherScore: number, 
+    teacherFeedback?: string
+): Promise<{ success: boolean; message: string }> {
+    return apiFetch(`/audio-responses/${id}/evaluate`, {
+        method: 'POST',
+        body: JSON.stringify({
+            teacher_score: teacherScore,
+            teacher_feedback: teacherFeedback
+        })
+    }, true);
+}
+
+export async function getCourseAudioResponseStats(courseId: string): Promise<AudioResponseStats> {
+    return apiFetch(`/courses/${courseId}/audio-responses/stats`, { method: 'GET' }, true);
 }

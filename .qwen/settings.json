@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm *)",
+      "Bash(sed *)",
+      "Bash(ls *)",
+      "Bash(true)",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(chmod *)",
+      "Bash(mkdir *)",
+      "Bash(ssh *)",
+      "Bash(git fetch *)",
+      "Bash(git add *)"
+    ]
+  },
+  "$version": 3
+}

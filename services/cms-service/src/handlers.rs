@@ -339,15 +339,42 @@ pub async fn get_courses(
     let is_super_admin = claims.role == "admin"
         && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
-    let courses = if is_super_admin {
+    // Check if user is a SAM student
+    let is_sam_student: bool = sqlx::query_scalar(
+        "SELECT COALESCE(is_sam_student, false) FROM users WHERE id = $1"
+    )
+    .bind(claims.sub)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(false);
+
+    let courses: Vec<Course> = if is_super_admin {
+        // Super admin sees all courses
         sqlx::query_as::<_, Course>("SELECT * FROM courses")
             .fetch_all(&pool)
             .await
-    } else {
+    } else if claims.role == "admin" || claims.role == "instructor" {
+        // Admins and instructors see all courses in their organization
         sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE organization_id = $1")
             .bind(org_ctx.id)
             .fetch_all(&pool)
             .await
+    } else if is_sam_student {
+        // SAM students only see courses they are enrolled in via SAM
+        sqlx::query_as::<_, Course>(
+            "SELECT c.* FROM courses c
+             INNER JOIN sam_course_assignments sca ON c.id = sca.course_id
+             WHERE sca.sam_student_id = (SELECT sam_student_id FROM users WHERE id = $1)
+             AND sca.is_active = TRUE
+             AND c.organization_id = $2"
+        )
+        .bind(claims.sub)
+        .bind(org_ctx.id)
+        .fetch_all(&pool)
+        .await
+    } else {
+        // Non-SAM students see NO courses (empty list)
+        return Ok(Json(Vec::new()));
     }
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

@@ -4,24 +4,43 @@
 # This script automates the setup of OpenCCB:
 # 1. Prerequisite checks (Rust, Node.js, Docker, sqlx-cli)
 # 2. Hardware detection (NVIDIA GPU vs CPU)
-# 3. Environment configuration (.env)
+# 3. Environment configuration (.env) - Dev/Prod support
 # 4. Database creation and migrations (CMS, LMS, AI Bridge)
 # 5. System initialization (Admin account and Organization)
-# Version: 2.0 - PGVector & Semantic Search Support
+# 6. Optional: Production deployment with SSH sync
+# Version: 3.0 - Dev/Prod + Deployment Support
 
 set -e
 
+# ============================================================================
+# CONFIGURACIÓN DE PRODUCCIÓN
+# ============================================================================
+PEM_PATH="ubuntu.pem"
+REMOTE_USER="ubuntu"
+REMOTE_HOST="ec2-18-224-137-67.us-east-2.compute.amazonaws.com"
+REMOTE_PATH="/var/www/openccb"
+# ============================================================================
+# CONFIGURACIÓN SAM (Sistema de Administración Académica)
+# ============================================================================
+# URL de conexión a la base de datos SAM externa
+# Formato: postgresql://usuario:contraseña@host:puerto/sige_sam_v3
+SAM_DATABASE_URL=""
+# ============================================================================
+
 echo "===================================================="
-echo "      🚀 Bienvenido al Instalador de OpenCCB v2.0"
-echo "    (Con Búsqueda Semántica PGVector)"
+echo "      🚀 Bienvenido al Instalador de OpenCCB v3.0"
+echo "    (Con Búsqueda Semántica PGVector + Deploy)"
 echo "===================================================="
 echo ""
 
 # Parse arguments
 FAST_MODE="false"
+DEPLOY_MODE="false"
 for arg in "$@"; do
     if [ "$arg" == "--fast" ]; then
         FAST_MODE="true"
+    elif [ "$arg" == "--deploy" ]; then
+        DEPLOY_MODE="true"
     fi
 done
 
@@ -113,67 +132,70 @@ ENV_CHOICE=$(echo "$ENV_CHOICE" | tr '[:upper:]' '[:lower:]')
 ENV_CHOICE=${ENV_CHOICE:-prod}
 update_env "ENVIRONMENT" "$ENV_CHOICE"
 
-# 6. Configuración de IA Remota
+# 6. Configuración de IA Remota (Automática según entorno)
 echo ""
 echo "🔍 Configurando Servicios de IA Remota ($ENV_CHOICE)..."
 
+# Configuración automática según entorno
 if [ "$ENV_CHOICE" == "dev" ]; then
     DEFAULT_OLLAMA="http://t-800:11434"
     DEFAULT_WHISPER="http://t-800:9000"
+    DEFAULT_IMAGE="http://t-800:8080"
+    echo "   ✅ Entorno de DESARROLLO detectado"
 else
     DEFAULT_OLLAMA="http://t-800.norteamericano.cl:11434"
     DEFAULT_WHISPER="http://t-800.norteamericano.cl:9000"
+    DEFAULT_IMAGE="http://t-800.norteamericano.cl:8080"
+    echo "   ✅ Entorno de PRODUCCIÓN detectado"
 fi
 
-read -p "Ingrese la URL de Ollama Remoto [$DEFAULT_OLLAMA]: " REMOTE_OLLAMA_URL
-REMOTE_OLLAMA_URL=${REMOTE_OLLAMA_URL:-$DEFAULT_OLLAMA}
-read -p "Ingrese la URL de Whisper Remoto [$DEFAULT_WHISPER]: " REMOTE_WHISPER_URL
-REMOTE_WHISPER_URL=${REMOTE_WHISPER_URL:-$DEFAULT_WHISPER}
-read -p "Ingrese la URL del Image Bridge Remoto [http://t-800:8080]: " REMOTE_IMAGE_URL
-REMOTE_IMAGE_URL=${REMOTE_IMAGE_URL:-"http://t-800:8080"}
-read -p "Ingrese el nombre del Modelo (en el servidor remoto) [llama3.2:3b]: " LLM_MODEL
-LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
-read -p "Ingrese el nombre del Modelo de Embeddings [nomic-embed-text]: " EMBEDDING_MODEL
-EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
+# Configurar con valores por defecto (sin preguntar)
+REMOTE_OLLAMA_URL="$DEFAULT_OLLAMA"
+REMOTE_WHISPER_URL="$DEFAULT_WHISPER"
+REMOTE_IMAGE_URL="$DEFAULT_IMAGE"
+LLM_MODEL="llama3.2:3b"
+EMBEDDING_MODEL="nomic-embed-text"
+
+echo "   🤖 Ollama: $REMOTE_OLLAMA_URL"
+echo "   🎤 Whisper: $REMOTE_WHISPER_URL"
+echo "   🖼️  Image Bridge: $REMOTE_IMAGE_URL"
+echo "   🧠 Modelo LLM: $LLM_MODEL"
+echo "   📊 Embeddings: $EMBEDDING_MODEL"
 
 update_env "AI_PROVIDER" "local"
 update_env "LOCAL_LLM_MODEL" "$LLM_MODEL"
 update_env "LOCAL_VIDEO_BRIDGE_URL" "$REMOTE_IMAGE_URL"
-update_env "EMBEDDING_MODEL" "nomic-embed-text"
+update_env "EMBEDDING_MODEL" "$EMBEDDING_MODEL"
+update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
+update_env "DEV_WHISPER_URL" "$REMOTE_WHISPER_URL"
+update_env "PROD_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
+update_env "PROD_WHISPER_URL" "$REMOTE_WHISPER_URL"
+update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
+update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
 
-if [ "$ENV_CHOICE" == "dev" ]; then
-    update_env "DEV_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
-    update_env "DEV_WHISPER_URL" "$REMOTE_WHISPER_URL"
-    # Portavilidad: set base URLs too
-    update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
-    update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
-else
-    update_env "PROD_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
-    update_env "PROD_WHISPER_URL" "$REMOTE_WHISPER_URL"
-    # Portavilidad: set base URLs too
-    update_env "LOCAL_OLLAMA_URL" "$REMOTE_OLLAMA_URL"
-    update_env "LOCAL_WHISPER_URL" "$REMOTE_WHISPER_URL"
-fi
-
-# 6.5 Configuración de Base de Datos Externa (para bridges remotos)
+# Configuración SAM (opcional)
 echo ""
-echo "🔌 Configuración de Base de Datos para Bridge Remoto"
-echo "Si el equipo t-800 necesita reportar progreso, debe conocer la IP de este servidor."
-SERVER_IP=$(ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -v '127.0.0.1' | head -n 1)
-DEFAULT_BRIDGE_DB="postgresql://user:${DB_PASS:-password}@${SERVER_IP}:5432/openccb_cms?sslmode=disable"
-read -p "Ingrese la URL de la DB que verá el Bridge Remoto [$DEFAULT_BRIDGE_DB]: " BRIDGE_DB_URL
-BRIDGE_DB_URL=${BRIDGE_DB_URL:-$DEFAULT_BRIDGE_DB}
-update_env "BRIDGE_DATABASE_URL" "$BRIDGE_DB_URL"
-
-# AI setup is now purely remote. Skipping local container configuration.
+echo "🔌 Configuración de Integración SAM"
+read -p "¿Desea configurar la conexión a la base de datos SAM? [y/N]: " CONFIGURE_SAM
+if [[ "$CONFIGURE_SAM" =~ ^[Yy]$ ]]; then
+    read -p "Ingrese SAM_DATABASE_URL []: " SAM_DB_URL
+    SAM_DB_URL=${SAM_DB_URL:-""}
+    if [ -n "$SAM_DB_URL" ]; then
+        update_env "SAM_DATABASE_URL" "$SAM_DB_URL"
+        echo "   ✅ SAM_DATABASE_URL configurada"
+    fi
+else
+    echo "   ℹ️  SAM no configurado. Puede configurarlo luego en .env"
+fi
 
 # Solicitar credenciales de DB si no están configuradas
 if ! grep -q "DATABASE_URL=" .env || [[ $(grep "DATABASE_URL=" .env | cut -d'=' -f2) == "" ]]; then
     read -p "Ingrese la Contraseña de la Base de Datos [password]: " DB_PASS
     DB_PASS=${DB_PASS:-password}
-    update_env "DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb?sslmode=disable"
-    update_env "CMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb_cms?sslmode=disable"
-    update_env "LMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5433/openccb_lms?sslmode=disable"
+    # Usar puerto 5434 (5432 y 5433 ya están en uso)
+    update_env "DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5434/openccb?sslmode=disable"
+    update_env "CMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5434/openccb_cms?sslmode=disable"
+    update_env "LMS_DATABASE_URL" "postgresql://user:${DB_PASS}@localhost:5434/openccb_lms?sslmode=disable"
     update_env "JWT_SECRET" "supersecretsecret"
     update_env "NEXT_PUBLIC_CMS_API_URL" "http://localhost:3001"
     update_env "NEXT_PUBLIC_LMS_API_URL" "http://localhost:3003"
@@ -190,43 +212,57 @@ echo "🌐 Usando servicios de IA remotos en $REMOTE_OLLAMA_URL y $REMOTE_WHISPE
 
 # 6. Inicialización de la Base de Datos
 echo ""
-read -p "¿Desea una instalación LIMPIA? (Esto ELIMINARÁ todos los datos existentes) [y/N]: " CLEAN_INSTALL
-if [[ "$CLEAN_INSTALL" =~ ^[Yy]$ ]]; then
-    echo "🐘 Reseteando la base de datos para una instalación limpia..."
-    docker compose down -v || true
-fi
-
-echo "🐘 Iniciando base de datos con Docker..."
-docker compose up -d db
-
-echo "⏳ Esperando a que la base de datos esté lista (contenedor)..."
-RETRIES=30
-until docker exec openccb-db-1 pg_isready -U user &> /dev/null || [ $RETRIES -eq 0 ]; do
-  echo -n "."
-  sleep 1
-  RETRIES=$((RETRIES-1))
-done
+echo "🔌 Configuración de Base de Datos"
+echo "   Puerto: 5433 (PostgreSQL existente)"
 echo ""
 
-echo "⏳ Esperando al puerto de la base de datos (host)..."
-RETRIES=10
-until curl -s localhost:5432 &> /dev/null || [ $RETRIES -eq 0 ]; do
-  echo -n "+"
-  sleep 1
-  RETRIES=$((RETRIES-1))
-done
-echo ""
+# Preguntar si PostgreSQL ya está corriendo (producción)
+read -p "¿PostgreSQL ya está corriendo en un contenedor? [y/N]: " DB_EXISTS
+DB_EXISTS=${DB_EXISTS:-N}
 
-if [ $RETRIES -eq 0 ]; then
-    echo "⚠️  Tiempo de espera agotado para el puerto del host, pero continuando..."
+if [[ ! "$DB_EXISTS" =~ ^[Yy]$ ]]; then
+    read -p "¿Desea una instalación LIMPIA? (Esto ELIMINARÁ todos los datos existentes) [y/N]: " CLEAN_INSTALL
+    if [[ "$CLEAN_INSTALL" =~ ^[Yy]$ ]]; then
+        echo "🐘 Reseteando la base de datos para una instalación limpia..."
+        docker compose down -v || true
+    fi
+
+    echo "🐘 Iniciando base de datos con Docker..."
+    docker compose up -d db
+
+    echo "⏳ Esperando a que la base de datos esté lista (contenedor)..."
+    RETRIES=30
+    until docker exec openccb-db-1 pg_isready -U user &> /dev/null || [ $RETRIES -eq 0 ]; do
+      echo -n "."
+      sleep 1
+      RETRIES=$((RETRIES-1))
+    done
+    echo ""
+
+    echo "⏳ Esperando al puerto de la base de datos (host)..."
+    RETRIES=10
+    until curl -s localhost:5433 &> /dev/null || [ $RETRIES -eq 0 ]; do
+      echo -n "+"
+      sleep 1
+      RETRIES=$((RETRIES-1))
+    done
+    echo ""
+
+    if [ $RETRIES -eq 0 ]; then
+        echo "⚠️  Tiempo de espera agotado para el puerto del host, pero continuando..."
+    fi
+
+    # Extra buffer for PostgreSQL initialization
+    sleep 2
+
+    echo "🏗️  Creando bases de datos CMS y LMS..."
+    docker exec openccb-db-1 psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" || true
+    docker exec openccb-db-1 psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" || true
+else
+    echo "✅ PostgreSQL ya está corriendo. Saltando inicio del contenedor."
+    echo "   Verificando conexión al puerto 5433..."
+    sleep 2
 fi
-
-# Extra buffer for PostgreSQL initialization
-sleep 2
-
-echo "🏗️  Creando bases de datos CMS y LMS..."
-docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_cms;" || true
-docker exec openccb-db-1 psql -U user -d openccb -c "CREATE DATABASE openccb_lms;" || true
 
 CMS_URL=$(grep "CMS_DATABASE_URL=" .env | cut -d'=' -f2-)
 LMS_URL=$(grep "LMS_DATABASE_URL=" .env | cut -d'=' -f2-)
@@ -388,3 +424,29 @@ echo ""
 echo "   # Detectar preguntas duplicadas"
 echo "   curl -G \"http://localhost:3001/question-bank/similar/{id}?threshold=0.95\""
 echo "===================================================="
+
+# ============================================================================
+# MODO DESPLIEGUE (PRODUCCIÓN)
+# ============================================================================
+if [ "$DEPLOY_MODE" == "true" ]; then
+    echo ""
+    echo "===================================================="
+    echo "        🚀 Modo de Despliegue Activado"
+    echo "===================================================="
+    echo ""
+    echo "ℹ️  El despliegue remoto se maneja mediante deploy.sh"
+    echo ""
+    echo "📋 Ejecutando: ./deploy.sh"
+    echo ""
+    
+    # Verificar que existe deploy.sh
+    if [ ! -f "$SCRIPT_DIR/deploy.sh" ]; then
+        echo "❌ ERROR: No se encontró deploy.sh"
+        echo ""
+        echo "Asegúrate de que deploy.sh esté en el mismo directorio que install.sh"
+        exit 1
+    fi
+    
+    # Ejecutar deploy.sh
+    exec "$SCRIPT_DIR/deploy.sh"
+fi

@@ -619,6 +619,59 @@ OpenCCB está diseñado como un módulo premium single-tenant. Todas las operaci
 - **Global Asset Manager**: Interfaz avanzada para la administración masiva de archivos con previsualización inteligente y filtros por curso o tipo.
 - **Premium Course Summaries**: Presentación de cursos con diseño de alta fidelidad y desgloses de objetivos de aprendizaje.
 
+
+---
+
+## 📚 Documentación
+
+### Guías Principales
+
+| Archivo | Descripción |
+|---------|-------------|
+| **README.md** | Este archivo - Visión general y características |
+| **roadmap.md** | Hoja de ruta completa del proyecto (Fases 1-21) |
+| **ManualDeConfiguracion.md** | Guía completa de instalación, configuración y troubleshooting |
+
+### Comandos Rápidos
+
+```bash
+# Instalación estándar (detecta dev/prod automáticamente)
+./install.sh
+
+# Instalación rápida (omite chequeos)
+./install.sh --fast
+
+# Despliegue a producción (sincroniza con servidor remoto)
+./install.sh --deploy
+
+# Iniciar servicios
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Health checks
+curl http://localhost:3001/health
+curl http://localhost:3002/health
+```
+
+### URLs de Acceso
+
+| Servicio | Puerto | URL |
+|----------|--------|-----|
+| **Studio (CMS)** | 3000 | http://localhost:3000 |
+| **Experience (LMS)** | 3003 | http://localhost:3003 |
+| **CMS API** | 3001 | http://localhost:3001 |
+| **LMS API** | 3002 | http://localhost:3002 |
+
+### Credenciales por Defecto
+
+Después de ejecutar `./install.sh`:
+
+- **Email**: `admin@norteamericano.cl`
+- **Contraseña**: `Admin123!`
+
+---
 ## �️ Próximos Pasos (Roadmap 2024-2025)
 
 OpenCCB evoluciona constantemente. Estos son los pilares de nuestro desarrollo futuro:
