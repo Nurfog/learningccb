@@ -71,15 +71,15 @@ services:
       context: .
       dockerfile: web/studio/Dockerfile
       args:
-        NEXT_PUBLIC_CMS_API_URL: https://studio.norteamericano.com
-        NEXT_PUBLIC_LMS_API_URL: https://learning.norteamericano.com
+        NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL}
+        NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL}
     container_name: openccb-studio
     environment:
       - VIRTUAL_HOST=studio.norteamericano.com
       - VIRTUAL_PORT=3000
       - LETSENCRYPT_HOST=studio.norteamericano.com
       - LMS_INTERNAL_URL=http://experience:3002
-      - NEXT_PUBLIC_LMS_API_URL=https://learning.norteamericano.com
+      - NEXT_PUBLIC_LMS_API_URL=${NEXT_PUBLIC_LMS_API_URL}
     volumes:
       - uploads_data:/app/uploads
     env_file: .env
@@ -101,14 +101,14 @@ services:
       context: .
       dockerfile: web/experience/Dockerfile
       args:
-        NEXT_PUBLIC_LMS_API_URL: https://learning.norteamericano.com
-        NEXT_PUBLIC_CMS_API_URL: https://studio.norteamericano.com
+        NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL}
+        NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL}
     container_name: openccb-experience
     environment:
       - VIRTUAL_HOST=learning.norteamericano.com
       - VIRTUAL_PORT=3003
       - LETSENCRYPT_HOST=learning.norteamericano.com
-      - NEXT_PUBLIC_CMS_API_URL=https://studio.norteamericano.com
+      - NEXT_PUBLIC_CMS_API_URL=${NEXT_PUBLIC_CMS_API_URL}
     env_file: .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
