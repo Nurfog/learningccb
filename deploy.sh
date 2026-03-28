@@ -21,6 +21,8 @@ REMOTE_HOST="ec2-18-224-137-67.us-east-2.compute.amazonaws.com"
 REMOTE_PATH="/var/www/openccb"
 # Cambiar a "false" para usar Let's Encrypt production (solo después de rate limits)
 LETSENCRYPT_STAGING="true"
+# Repositorio de Git
+GIT_REPO="https://github.com/Nurfog/learningccb.git"
 # ============================================================================
 
 # Si PEM_PATH es relativo, convertirlo a absoluto
@@ -785,6 +787,41 @@ echo "   sudo docker compose ps"
 echo "   docker logs acme-companion --tail 50"
 echo "   docker logs openccb-studio --tail 20"
 echo "   sudo docker compose restart"
+echo ""
+
+# Verificación de conectividad con Ollama
+echo ""
+echo "========================================"
+echo "   Verificando Conectividad IA"
+echo "========================================"
+echo ""
+echo "Probando conexión con Ollama (t-800.norteamericano.cl:11434)..."
+
+OLLAMA_TEST=$(ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "curl -s --connect-timeout 5 http://t-800.norteamericano.cl:11434/api/tags 2>&1 | head -1" 2>/dev/null)
+
+if [ -n "$OLLAMA_TEST" ] && echo "$OLLAMA_TEST" | grep -q "models"; then
+    echo "✅ Ollama accesible desde AWS EC2"
+    echo "   Modelos disponibles:"
+    ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "curl -s http://t-800.norteamericano.cl:11434/api/tags 2>&1 | grep -o '\"name\":\"[^\"]*\"' | head -5" || true
+else
+    echo "⚠️  Ollama NO es accesible desde AWS EC2"
+    echo ""
+    echo "Posibles causas:"
+    echo "   1. Firewall WAN In del UniFi bloquea el puerto 11434"
+    echo "   2. Port forwarding no configurado en el router"
+    echo "   3. Firewall de Ubuntu en t-800 bloquea conexiones"
+    echo "   4. Ollama no está escuchando en 0.0.0.0"
+    echo ""
+    echo "Para verificar manualmente:"
+    echo "   ssh -i \"$PEM_PATH\" $REMOTE_USER@$REMOTE_HOST"
+    echo "   curl -v http://t-800.norteamericano.cl:11434/api/tags"
+    echo ""
+    echo "Configuración requerida en UniFi USG Pro 4:"
+    echo "   1. Port Forwarding: 11434 -> 192.168.0.5:11434"
+    echo "   2. Firewall WAN In Rule: Accept TCP 11434 from Any"
+    echo ""
+    echo "Ver documentación: CONFIGURACION_RED.md"
+fi
 echo ""
 REMOTE_SCRIPT_CONTENT
 
