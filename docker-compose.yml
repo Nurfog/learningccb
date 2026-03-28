@@ -19,7 +19,7 @@ services:
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
       - ./nginx/proxy.conf:/etc/nginx/conf.d/proxy.conf:ro
-      - ./nginx/studio-api-location.conf:/etc/nginx/vhost.d/studio.norteamericano.com_location:ro
+      - ./nginx/studio.norteamericano.com:/etc/nginx/vhost.d/studio.norteamericano.com:ro
     restart: always
     networks:
       - openccb-network
