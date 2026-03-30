@@ -66,7 +66,11 @@ El script preguntará:
 3. Contraseña (oculta)
 4. Nombre de la organización
 5. ¿Usar SSL? [y/N]
+   - **y**: Usará HTTPS (con o sin staging)
+   - **N**: Usará HTTP (recomendado para staging)
 6. ¿Usar STAGING? [y/N] (solo si elegiste SSL)
+   - **y**: Certificados de prueba (sin rate limits)
+   - **N**: Certificados reales (con rate limits)
 
 ### Conexión al servidor:
 
@@ -77,40 +81,55 @@ cd /var/www/openccb
 
 ---
 
-## ⚠️ Problemas Conocidos (Para Resolver)
+## ⚠️ Problemas Conocidos y Soluciones
 
-### 1. Variables NEXT_PUBLIC en Studio
+### 1. Login Pegado / Error de Conexión API
 
-**Problema**: El contenedor `openccb-studio` no está recibiendo ambas variables `NEXT_PUBLIC`:
-- ✅ `NEXT_PUBLIC_LMS_API_URL=http://learning.norteamericano.com`
-- ❌ `NEXT_PUBLIC_CMS_API_URL` - **FALTA**
+**Problema**: El botón de login se queda procesando infinitamente.
+
+**Causa**: Las URLs de la API incluyen el puerto `:3001` incorrectamente.
 
 **Solución Aplicada**:
-1. Actualizado `web/studio/Dockerfile` para aceptar ambos ARG
-2. Actualizado `docker-compose.yml` para pasar ambos argumentos
-3. Actualizado `deploy.sh` para verificar y reconstruir con `--no-cache`
+- Actualizado `web/studio/src/lib/api.ts` para hardcodear las URLs de producción
+- El código ahora detecta el hostname y usa la URL sin puerto
 
-**Comandos para Verificar**:
+**Comandos para Solucionar**:
 ```bash
-# En el servidor
-sudo docker exec openccb-studio env | grep NEXT_PUBLIC
-
-# Debería mostrar:
-# NEXT_PUBLIC_CMS_API_URL=http://studio.norteamericano.com
-# NEXT_PUBLIC_LMS_API_URL=http://learning.norteamericano.com
-```
-
-**Si persiste el problema**:
-```bash
-# Reconstruir manualmente
+# Conectarse al servidor
+ssh -i "ubuntu.pem" ubuntu@ec2-18-224-137-67.us-east-2.compute.amazonaws.com
 cd /var/www/openccb
+
+# Detener todo
 sudo docker compose down
+
+# Eliminar imágenes cacheadas
 sudo docker rmi openccb-studio 2>/dev/null || true
-sudo docker builder prune -f
+sudo docker images | grep openccb | awk '{print $3}' | xargs sudo docker rmi -f 2>/dev/null || true
+
+# Limpiar caché de Docker
+sudo docker builder prune -af
+sudo docker system prune -af
+
+# Reconstruir DESDE CERO (CRÍTICO usar --no-cache)
 sudo docker compose build --no-cache studio
-sudo docker compose up -d studio
-sudo docker exec openccb-studio env | grep NEXT_PUBLIC
+
+# Iniciar todo
+sudo docker compose up -d
+
+# Esperar 1 minuto
+sleep 60
+
+# Verificar
+sudo docker compose ps
+docker logs openccb-studio --tail 20
 ```
+
+**Verificación en el Navegador**:
+1. Abrir ventana de incógnito (Ctrl+Shift+N)
+2. Ir a `http://studio.norteamericano.com`
+3. Abrir consola (F12) → Pestaña Network
+4. Intentar loguearse
+5. Verificar que la URL sea: `http://studio.norteamericano.com/auth/login` (SIN puerto)
 
 ### 2. Rate Limit de Let's Encrypt
 
@@ -129,13 +148,16 @@ sudo docker exec openccb-studio env | grep NEXT_PUBLIC
 ### 1. `deploy.sh`
 - ✅ Pregunta datos del administrador
 - ✅ Pregunta sobre SSL y Staging
-- ✅ Actualiza docker-compose.yml según elección
+- ✅ Actualiza docker-compose.yml según elección (HTTP/HTTPS)
 - ✅ Reconstruye contenedores con `--no-cache`
-- ✅ Verifica variables de entorno
+- ✅ Verifica variables de entorno en los contenedores
+- ✅ Muestra URLs correctas según protocolo elegido
 
 ### 2. `docker-compose.yml`
 - ✅ URLs en HTTP por defecto
-- ✅ Ambos argumentos de build para studio
+- ✅ Ambos argumentos de build para studio:
+  - `NEXT_PUBLIC_CMS_API_URL: http://studio.norteamericano.com`
+  - `NEXT_PUBLIC_LMS_API_URL: http://learning.norteamericano.com`
 - ✅ Variables de entorno correctas
 
 ### 3. `web/studio/Dockerfile`
@@ -143,7 +165,9 @@ sudo docker exec openccb-studio env | grep NEXT_PUBLIC
 - ✅ Agrega `ENV NEXT_PUBLIC_LMS_API_URL`
 
 ### 4. `web/studio/src/lib/api.ts`
-- ✅ Corrige función `getApiBaseUrl` para priorizar variable de entorno
+- ✅ Corrige función `getApiBaseUrl` para producción
+- ✅ Hardcodea URLs para `studio.norteamericano.com` y `learning.norteamericano.com`
+- ✅ Elimina el puerto de las URLs en producción
 
 ---
 
@@ -186,6 +210,10 @@ sudo docker exec openccb-studio env | grep NEXT_PUBLIC
 
 # Experience
 sudo docker exec openccb-experience env | grep NEXT_PUBLIC
+
+# Debería mostrar:
+# NEXT_PUBLIC_CMS_API_URL=http://studio.norteamericano.com
+# NEXT_PUBLIC_LMS_API_URL=http://learning.norteamericano.com
 ```
 
 ### Reconstruir contenedores
@@ -199,6 +227,15 @@ sudo docker compose build --no-cache studio
 sudo docker compose up -d studio
 ```
 
+### Limpiar caché de Docker
+```bash
+# Limpiar builder
+sudo docker builder prune -af
+
+# Limpiar sistema
+sudo docker system prune -af
+```
+
 ### Verificar certificados SSL
 ```bash
 docker logs acme-companion --tail 50
@@ -206,30 +243,37 @@ docker logs acme-companion --tail 50
 
 ---
 
-## 🎯 Próximos Pasos (Para Continuar Mañana)
+## 🎯 Próximos Pasos
 
-### 1. Verificar Variables NEXT_PUBLIC
+### 1. Reconstruir Studio con --no-cache
 ```bash
 ssh -i "ubuntu.pem" ubuntu@ec2-18-224-137-67.us-east-2.compute.amazonaws.com
 cd /var/www/openccb
 
-# Verificar
-sudo docker exec openccb-studio env | grep NEXT_PUBLIC
-
-# Si falta CMS_API_URL, reconstruir:
 sudo docker compose down
 sudo docker rmi openccb-studio 2>/dev/null || true
-sudo docker builder prune -f
+sudo docker builder prune -af
 sudo docker compose build --no-cache studio
-sudo docker compose up -d studio
+sudo docker compose up -d
+sleep 60
+sudo docker compose ps
 ```
 
 ### 2. Probar Login
-- Acceder a `http://studio.norteamericano.com`
-- Intentar loguearse con las credenciales del admin
-- Verificar que no haya errores de conexión
+- Abrir ventana de incógnito
+- Ir a `http://studio.norteamericano.com`
+- Ver consola (F12) → Network
+- Verificar URL: `http://studio.norteamericano.com/auth/login`
+- Intentar loguearse
 
-### 3. Cambiar a HTTPS (Después del Rate Limit)
+### 3. Verificar Funcionalidades
+- [ ] Login de administrador
+- [ ] Creación de cursos
+- [ ] Subida de archivos
+- [ ] Integración con LMS
+- [ ] Certificados SSL generados
+
+### 4. Cambiar a HTTPS (Después del Rate Limit)
 ```bash
 # Después del 2026-03-27
 ./deploy.sh
@@ -237,28 +281,20 @@ sudo docker compose up -d studio
 # Responder "n" a "¿Usar STAGING?"
 ```
 
-### 4. Verificar Funcionalidades
-- [ ] Login de administrador
-- [ ] Creación de cursos
-- [ ] Subida de archivos
-- [ ] Integración con LMS
-- [ ] Certificados SSL generados
-
----
-
-## 📝 Notas Importantes
-
-1. **HTTP vs HTTPS**: Actualmente se usa HTTP porque los certificados de staging no son válidos para las llamadas API entre dominios.
-
-2. **Rate Limit**: Let's Encrypt permite 5 certificados por semana por dominio. El límite se reinicia el 2026-03-27.
-
-3. **Variables de Entorno**: Es crítico que ambos `NEXT_PUBLIC_*` estén presentes en el contenedor de Studio para que las llamadas API funcionen correctamente.
-
-4. **Reconstrucción**: Siempre usar `--no-cache` al reconstruir para asegurar que los cambios en las variables de entorno se apliquen.
-
 ---
 
 ## 🔧 Solución de Problemas Comunes
+
+### Login se queda procesando
+```bash
+# Verificar URL en consola del navegador
+# Debe ser: http://studio.norteamericano.com/auth/login
+# NO debe tener :3001
+
+# Si tiene puerto, reconstruir con --no-cache
+sudo docker compose build --no-cache studio
+sudo docker compose up -d
+```
 
 ### Error 502 Bad Gateway
 ```bash
@@ -278,8 +314,8 @@ sudo docker compose restart
 # Ver docker-compose.yml
 cat docker-compose.yml | grep -A 10 "studio:"
 
-# Verificar argumentos
-sudo docker compose config | grep NEXT_PUBLIC
+# Verificar en contenedor
+sudo docker exec openccb-studio env | grep NEXT_PUBLIC
 
 # Reconstruir
 sudo docker compose build --no-cache studio
@@ -300,6 +336,22 @@ sudo netstat -tlnp | grep :80
 
 ---
 
+## 📝 Notas Importantes
+
+1. **HTTP vs HTTPS**: Actualmente se usa HTTP porque:
+   - Los certificados de staging no son válidos para producción
+   - Las llamadas API entre dominios requieren HTTP o certificados válidos
+
+2. **Rate Limit**: Let's Encrypt permite 5 certificados por semana por dominio. El límite se reinicia el 2026-03-27.
+
+3. **--no-cache es CRÍTICO**: Siempre usar `--no-cache` al reconstruir Studio para que los cambios en el código se apliquen. Docker usa caché por defecto.
+
+4. **Ventana de Incógnito**: Después de reconstruir, siempre probar en ventana de incógnito para evitar caché del navegador.
+
+5. **URLs Hardcodeadas**: El código ahora tiene las URLs de producción hardcodeadas para `studio.norteamericano.com` y `learning.norteamericano.com`. Esto evita problemas con variables de entorno.
+
+---
+
 ## 📞 Contacto y Soporte
 
 **Documentación**:
@@ -311,9 +363,10 @@ sudo netstat -tlnp | grep :80
 - `/var/www/openccb/.env` - Variables de entorno
 - `/var/www/openccb/docker-compose.yml` - Servicios Docker
 - `web/studio/Dockerfile` - Build de Studio
+- `web/studio/src/lib/api.ts` - Configuración de APIs
 - `deploy.sh` - Script de despliegue
 
 ---
 
-**Última Actualización**: 26 de Marzo de 2026
-**Estado**: Pendiente verificar variables NEXT_PUBLIC en Studio
+**Última Actualización**: 26 de Marzo de 2026  
+**Estado**: ✅ Solución aplicada - Pendiente reconstruir con --no-cache y probar login

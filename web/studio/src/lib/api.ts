@@ -1,17 +1,27 @@
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
-    // Si hay una variable de entorno definida, usarla siempre
-    if (envVar && envVar.trim() !== '') {
-        return envVar;
-    }
-    
-    // Fallback para desarrollo local
+    // Producción - dominios específicos
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
+        
+        // Forzar URLs correctas para producción (sin puerto)
+        if (hostname === 'studio.norteamericano.com') {
+            return `${protocol}//studio.norteamericano.com`;
+        }
+        if (hostname === 'learning.norteamericano.com') {
+            return `${protocol}//learning.norteamericano.com`;
+        }
+        
+        // Usar variable de entorno si está definida
+        if (envVar && envVar.trim() !== '') {
+            return envVar;
+        }
+        
+        // Desarrollo local
         return `${protocol}//${hostname}:${defaultPort}`;
     }
     
-    return `http://localhost:${defaultPort}`;
+    return envVar || `http://localhost:${defaultPort}`;
 };
 
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
@@ -800,7 +810,7 @@ export const cmsApi = {
     getLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}`),
     updateLesson: (id: string, payload: Partial<Lesson>): Promise<Lesson> => apiFetch(`/lessons/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     summarizeLesson: (id: string): Promise<Lesson> => apiFetch(`/lessons/${id}/summarize`, { method: 'POST' }),
-    async generateQuiz(lessonId: string, payload: { prompt_hint?: string, quiz_type?: string }): Promise<any> {
+    async generateQuiz(lessonId: string, payload: { prompt_hint?: string, quiz_type?: string }): Promise<{ questions: QuizQuestion[] }> {
         return apiFetch(`/lessons/${lessonId}/generate-quiz`, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -1019,7 +1029,7 @@ export const cmsApi = {
 
     // Test Templates
     listTestTemplates: (filters?: TestTemplateFilters): Promise<TestTemplate[]> =>
-        apiFetch('/test-templates', { method: 'GET', query: filters as any }, false),
+        apiFetch('/test-templates', { method: 'GET', query: filters as Record<string, string | number | boolean | undefined | null> }, false),
     getTestTemplate: (templateId: string): Promise<TestTemplateWithQuestions> =>
         apiFetch(`/test-templates/${templateId}`, {}, false),
     createTestTemplate: (payload: CreateTestTemplatePayload): Promise<TestTemplate> =>
@@ -1055,13 +1065,13 @@ export interface QuestionBank {
     organization_id: string;
     question_text: string;
     question_type: QuestionBankType;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     explanation?: string;
     audio_url?: string;
     audio_text?: string;
     audio_status?: 'pending' | 'generating' | 'ready' | 'failed';
-    audio_metadata?: any;
+    audio_metadata?: unknown;
     media_url?: string;
     media_type?: string;
     points: number;
@@ -1069,7 +1079,7 @@ export interface QuestionBank {
     tags?: string[];
     skill_assessed?: 'reading' | 'listening' | 'speaking' | 'writing';
     source?: 'manual' | 'ai-generated' | 'imported-mysql' | 'imported-csv';
-    source_metadata?: any;
+    source_metadata?: unknown;
     usage_count?: number;
     last_used_at?: string;
     is_active: boolean;
@@ -1091,8 +1101,8 @@ export interface QuestionBankFilters {
 export interface CreateQuestionBankPayload {
     question_text: string;
     question_type: QuestionBankType;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     explanation?: string;
     points?: number;
     difficulty?: string;
@@ -1107,8 +1117,8 @@ export interface CreateQuestionBankPayload {
 export interface UpdateQuestionBankPayload {
     question_text?: string;
     question_type?: QuestionBankType;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     explanation?: string;
     points?: number;
     difficulty?: string;
@@ -1122,7 +1132,7 @@ export interface UpdateQuestionBankPayload {
 
 export const questionBankApi = {
     list: (filters?: QuestionBankFilters): Promise<QuestionBank[]> =>
-        apiFetch('/question-bank', { method: 'GET', query: filters as any }, false),
+        apiFetch('/question-bank', { method: 'GET', query: filters as Record<string, string | number | boolean | undefined | null> }, false),
     get: (id: string): Promise<QuestionBank> =>
         apiFetch(`/question-bank/${id}`, {}, false),
     create: (payload: CreateQuestionBankPayload): Promise<QuestionBank> =>
@@ -1265,7 +1275,7 @@ export interface Badge {
     name: string;
     description: string;
     icon_url: string;
-    criteria: any;
+    criteria: unknown;
     created_at: string;
 }
 
@@ -1320,7 +1330,7 @@ export interface TestTemplate {
     passing_score: number;
     total_points: number;
     instructions?: string;
-    template_data: any;
+    template_data: unknown;
     tags?: string[];
     is_active: boolean;
     usage_count: number;
@@ -1337,7 +1347,7 @@ export interface TestTemplateSection {
     section_order: number;
     points: number;
     instructions?: string;
-    section_data?: any;
+    section_data?: unknown;
     created_at: string;
 }
 
@@ -1348,11 +1358,11 @@ export interface TestTemplateQuestion {
     question_order: number;
     question_type: QuestionType;
     question_text: string;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     explanation?: string;
     points: number;
-    metadata?: any;
+    metadata?: unknown;
     created_at: string;
 }
 
@@ -1373,7 +1383,7 @@ export interface CreateTestTemplatePayload {
     passing_score: number;
     total_points: number;
     instructions?: string;
-    template_data: any;
+    template_data: unknown;
     tags?: string[];
 }
 
@@ -1388,7 +1398,7 @@ export interface UpdateTestTemplatePayload {
     passing_score?: number;
     total_points?: number;
     instructions?: string;
-    template_data?: any;
+    template_data?: unknown;
     tags?: string[];
     is_active?: boolean;
 }
@@ -1398,11 +1408,11 @@ export interface CreateQuestionPayload {
     question_order: number;
     question_type: string;
     question_text: string;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     explanation?: string;
     points: number;
-    metadata?: any;
+    metadata?: unknown;
 }
 
 export interface CreateSectionPayload {
@@ -1411,7 +1421,7 @@ export interface CreateSectionPayload {
     section_order: number;
     points: number;
     instructions?: string;
-    section_data?: any;
+    section_data?: unknown;
 }
 
 export interface TestTemplateFilters {

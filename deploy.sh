@@ -111,6 +111,9 @@ mkdir -p "$PROD_DIR/nginx"
 if [ -f "nginx/proxy.conf" ]; then
     cp nginx/proxy.conf "$PROD_DIR/nginx/"
 fi
+if [ -f "nginx/studio.conf" ]; then
+    cp nginx/studio.conf "$PROD_DIR/nginx/"
+fi
 
 echo "   ✅ Archivos esenciales copiados"
 
