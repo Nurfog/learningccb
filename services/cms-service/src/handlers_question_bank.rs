@@ -12,6 +12,52 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+async fn connect_mysql_pool(env_var: &str) -> Result<sqlx::MySqlPool, (StatusCode, String)> {
+    use sqlx::mysql::MySqlPoolOptions;
+
+    let mysql_url = std::env::var(env_var)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, format!("{} not configured", env_var)))?;
+
+    let mut last_error = String::new();
+
+    for attempt in 1..=3 {
+        let result = MySqlPoolOptions::new()
+            // Keep per-request pools small to avoid exhausting remote MySQL.
+            .max_connections(2)
+            .min_connections(0)
+            .acquire_timeout(std::time::Duration::from_secs(15))
+            .idle_timeout(std::time::Duration::from_secs(30))
+            .max_lifetime(std::time::Duration::from_secs(300))
+            .connect(&mysql_url)
+            .await;
+
+        match result {
+            Ok(pool) => return Ok(pool),
+            Err(e) => {
+                last_error = e.to_string();
+                tracing::warn!(
+                    "MySQL connection attempt {}/3 failed for {}: {}",
+                    attempt,
+                    env_var,
+                    last_error
+                );
+
+                if attempt < 3 {
+                    tokio::time::sleep(std::time::Duration::from_secs(2 * attempt)).await;
+                }
+            }
+        }
+    }
+
+    Err((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!(
+            "Failed to connect to MySQL after 3 attempts: {}",
+            last_error
+        ),
+    ))
+}
+
 // ==================== MySQL Study Plans & Courses ====================
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
@@ -376,12 +422,7 @@ pub async fn import_from_mysql(
     use serde_json::json;
     
     // Connect to MySQL
-    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
-    
-    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+    let mysql_pool = connect_mysql_pool("MYSQL_DATABASE_URL").await?;
 
     // Fetch all study plans and courses from MySQL to sync them
     let mysql_plans: Vec<MySqlPlanInfo> = sqlx::query_as(
@@ -746,12 +787,7 @@ pub async fn list_mysql_courses(
     State(_pool): State<PgPool>,
 ) -> Result<Json<Vec<MySqlCourseInfo>>, (StatusCode, String)> {
     // Connect to MySQL
-    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
-    
-    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+    let mysql_pool = connect_mysql_pool("MYSQL_DATABASE_URL").await?;
     
     // Fetch courses with their plan names
     let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
@@ -881,12 +917,7 @@ pub async fn import_all_from_mysql(
     };
 
     // Connect to MySQL
-    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
-
-    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+    let mysql_pool = connect_mysql_pool("MYSQL_DATABASE_URL").await?;
 
     // Fetch all study plans and courses from MySQL to sync them
     let mysql_plans: Vec<MySqlPlanInfo> = sqlx::query_as(
@@ -1292,12 +1323,7 @@ pub async fn import_course_from_mysql(
     use common::models::Course;
 
     // Connect to MySQL
-    let mysql_url = std::env::var("MYSQL_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "MYSQL_DATABASE_URL not configured".to_string()))?;
-
-    let mysql_pool = sqlx::MySqlPool::connect(&mysql_url)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to MySQL: {}", e)))?;
+    let mysql_pool = connect_mysql_pool("MYSQL_DATABASE_URL").await?;
 
     // Fetch course info from MySQL
     let mysql_course: MySqlCourseInfo = sqlx::query_as(
@@ -1529,22 +1555,7 @@ pub async fn import_from_sam_diagnostico(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use serde_json::json;
 
-    let sam_diag_url = std::env::var("SAM_DIAGNOSTICO_DATABASE_URL")
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "SAM_DIAGNOSTICO_DATABASE_URL not configured".to_string(),
-            )
-        })?;
-
-    let mysql_pool = sqlx::MySqlPool::connect(&sam_diag_url)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to connect to SAM_diagnostico: {}", e),
-            )
-        })?;
+    let mysql_pool = connect_mysql_pool("SAM_DIAGNOSTICO_DATABASE_URL").await?;
 
     // Determinar qué tablas procesar según la audiencia solicitada
     let tables: Vec<(&str, &str)> = match payload.audience.as_deref() {
@@ -1571,14 +1582,14 @@ pub async fn import_from_sam_diagnostico(
                 idTest                                                          AS id_test,
                 idCurso                                                         AS id_curso,
                 idPregunta                                                      AS id_pregunta,
-                MAX(preguntaNombre)                                             AS pregunta_nombre,
-                MAX(tipoPregunta)                                               AS tipo_pregunta,
+                CAST(MAX(preguntaNombre) AS CHAR CHARACTER SET utf8mb4)        AS pregunta_nombre,
+                CAST(MAX(tipoPregunta) AS CHAR CHARACTER SET utf8mb4)          AS tipo_pregunta,
                 GROUP_CONCAT(
-                    respuestaNombre
+                    CAST(respuestaNombre AS CHAR CHARACTER SET utf8mb4)
                     ORDER BY idOpcion
                     SEPARATOR '|||'
                 )                                                               AS opciones,
-                MAX(CASE WHEN valorRespuesta = 1 THEN respuestaNombre ELSE NULL END)
+                CAST(MAX(CASE WHEN valorRespuesta = 1 THEN respuestaNombre ELSE NULL END) AS CHAR CHARACTER SET utf8mb4)
                                                                                 AS respuesta_correcta
             FROM {}
             WHERE 1=1
@@ -1683,7 +1694,7 @@ pub async fn import_from_sam_diagnostico(
                     options, correct_answer, source, source_metadata,
                     audio_status, is_active
                 )
-                VALUES ($1, $2, $3, 'multiple_choice', $4, $5, 'sam-diagnostico', $6, 'pending', true)
+                VALUES ($1, $2, $3, 'multiple-choice', $4, $5, 'sam-diagnostico', $6, 'pending', true)
                 "#
             )
             .bind(org_ctx.id)

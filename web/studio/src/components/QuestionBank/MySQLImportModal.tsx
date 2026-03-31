@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Download, Database, Check, AlertCircle, Upload, FileSpreadsheet } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import ExcelImportModal from './ExcelImportModal';
@@ -17,7 +17,7 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
     const [error, setError] = useState<string | null>(null);
 
     const handleImportAll = async () => {
-        if (!confirm('¿Estás seguro de importar TODAS las preguntas de MySQL? Esto puede tomar varios minutos.')) {
+        if (!confirm('¿Estás seguro de importar preguntas desde SAM Diagnóstico (adultos, kids y teens)? Esto puede tomar varios minutos.')) {
             return;
         }
 
@@ -25,18 +25,18 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
             setImporting(true);
             setError(null);
 
-            const result = await apiFetch('/question-bank/import-mysql-all', {
+            const result = await apiFetch('/question-bank/import-sam-diagnostico', {
                 method: 'POST',
+                body: JSON.stringify({}),
             });
 
             setImportResult(result);
 
-            setTimeout(() => {
-                onSuccess?.();
-            }, 1500);
+            // Refresh parent data but keep modal open so the user can inspect counts/errors.
+            onSuccess?.();
         } catch (error: any) {
-            console.error('Import all failed:', error);
-            setError(error.message || 'Error al importar todas las preguntas');
+            console.error('SAM diagnostico import failed:', error);
+            setError(error.message || 'Error al importar preguntas desde SAM Diagnóstico');
         } finally {
             setImporting(false);
         }
@@ -77,18 +77,18 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
 
                 {/* Content */}
                 <div className="p-6 space-y-4">
-                    {/* MySQL Import */}
+                    {/* SAM Diagnostico Import */}
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                         <div className="flex items-start gap-3 mb-3">
                             <Database className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                             <div>
                                 <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm mb-2">
-                                    Importar desde MySQL
+                                    Importar desde SAM Diagnostico
                                 </h4>
                                 <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                                    <li>• Todas las preguntas del banco de diagnóstico</li>
-                                    <li>• Sin duplicados automáticos</li>
-                                    <li>• Mapeo automático de tipos</li>
+                                    <li>• Origen: tablas SAM diagnostico (adultos, kids y teens)</li>
+                                    <li>• Sin duplicados (usa sam_id en source_metadata)</li>
+                                    <li>• Mapeo directo al banco de preguntas de OpenCCB</li>
                                 </ul>
                             </div>
                         </div>
@@ -97,7 +97,7 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
                             disabled={importing}
                             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                         >
-                            {importing ? 'Importando...' : 'Importar Todo desde MySQL'}
+                            {importing ? 'Importando...' : 'Importar Todo desde SAM Diagnostico'}
                         </button>
                     </div>
 
@@ -155,6 +155,12 @@ export default function MySQLImportModal({ onSuccess, onCancel }: MySQLImportMod
                                     </div>
                                 )}
                             </div>
+                            {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                                <div className="mt-3 rounded border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-900 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-200">
+                                    <p className="font-semibold mb-1">Errores reportados por el backend: {importResult.errors.length}</p>
+                                    <p>Primer error: {String(importResult.errors[0])}</p>
+                                </div>
+                            )}
                         </div>
                     )}
 

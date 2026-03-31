@@ -17,9 +17,6 @@ RUN cargo build --release -p cms-service
 FROM node:20-alpine AS node-builder
 WORKDIR /app
 
-# Configure DNS for Google Fonts access during build
-RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf
-
 COPY web/studio/package*.json ./
 RUN npm ci
 COPY web/studio/ .
