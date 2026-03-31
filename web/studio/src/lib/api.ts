@@ -1,27 +1,28 @@
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
-    // Producción - dominios específicos
+    // Prefer explicit environment configuration when available. This allows production
+    // deployments to use a dedicated API prefix like `/cms-api` and avoids collisions
+    // between Next.js pages (e.g. `/courses`) and backend endpoints with the same path.
+    if (envVar && envVar.trim() !== '') {
+        return envVar;
+    }
+
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
-        
-        // Forzar URLs correctas para producción (sin puerto)
+
+        // Producción - dominios específicos (fallback sin prefijo)
         if (hostname === 'studio.norteamericano.com') {
             return `${protocol}//studio.norteamericano.com`;
         }
         if (hostname === 'learning.norteamericano.com') {
             return `${protocol}//learning.norteamericano.com`;
         }
-        
-        // Usar variable de entorno si está definida
-        if (envVar && envVar.trim() !== '') {
-            return envVar;
-        }
-        
+
         // Desarrollo local
         return `${protocol}//${hostname}:${defaultPort}`;
     }
-    
-    return envVar || `http://localhost:${defaultPort}`;
+
+    return `http://localhost:${defaultPort}`;
 };
 
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);

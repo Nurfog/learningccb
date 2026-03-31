@@ -1,10 +1,13 @@
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
+    if (envVar && envVar.trim() !== '') {
+        return envVar;
+    }
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
         return `${protocol}//${hostname}:${defaultPort}`;
     }
-    return envVar || `http://localhost:${defaultPort}`;
+    return `http://localhost:${defaultPort}`;
 };
 
 export const getLmsApiUrl = () => getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
