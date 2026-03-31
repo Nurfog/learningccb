@@ -3966,7 +3966,7 @@ pub struct AddTeamMemberPayload {
 }
 
 pub async fn add_team_member(
-    Org(_org_ctx): Org,
+    Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
@@ -3997,10 +3997,11 @@ pub async fn add_team_member(
         .map_err(|_| (StatusCode::NOT_FOUND, "User not found".into()))?;
 
     let instructor = sqlx::query_as::<_, CourseInstructor>(
-        "INSERT INTO course_instructors (course_id, user_id, role) 
-         VALUES ($1, $2, $3) 
-         RETURNING *, (SELECT email FROM users WHERE id = $2) as email, (SELECT full_name FROM users WHERE id = $2) as full_name"
+        "INSERT INTO course_instructors (organization_id, course_id, user_id, role) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *, (SELECT email FROM users WHERE id = $3) as email, (SELECT full_name FROM users WHERE id = $3) as full_name"
     )
+        .bind(org_ctx.id)
     .bind(id)
     .bind(user.id)
     .bind(&payload.role)

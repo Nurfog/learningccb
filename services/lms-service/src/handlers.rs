@@ -764,10 +764,11 @@ pub async fn ingest_course(
     if let Some(instructors) = payload.instructors {
         for instructor in instructors {
             sqlx::query(
-                "INSERT INTO course_instructors (id, course_id, user_id, role, created_at)
-                 VALUES ($1, $2, $3, $4, $5)"
+                "INSERT INTO course_instructors (id, organization_id, course_id, user_id, role, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6)"
             )
             .bind(instructor.id)
+            .bind(org_id)
             .bind(payload.course.id)
             .bind(instructor.user_id)
             .bind(&instructor.role)
