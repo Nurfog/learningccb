@@ -263,6 +263,8 @@ if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
     
     if [[ "$PRESERVE_CERTS" =~ ^[Yy]$ ]]; then
         PRESERVE_SSL_CERTS="true"
+        LETSENCRYPT_STAGING="false"
+        PROTOCOL="https"
         echo "✅ Se preservarán los certificados SSL existentes"
     else
         PRESERVE_SSL_CERTS="false"
@@ -349,38 +351,38 @@ if [ ! -f ".env" ]; then
 fi
 
 # Generar DB_PASSWORD seguro
-if ! grep -q "^DB_PASSWORD=" .env || grep -q "CHANGE_ME" .env || grep -q "^DB_PASSWORD=password$" .env; then
+if ! grep -q "^DB_PASSWORD=" .env || grep -q "^DB_PASSWORD=$" .env || grep -q "CHANGE_ME" .env || grep -q "^DB_PASSWORD=password$" .env; then
     echo "   Generando DB_PASSWORD segura..."
-    DB_PASS=$(openssl rand -base64 32 | tr -dc "a-zA-Z0-9" | head -c 32)
+    DB_PASS=\$(openssl rand -base64 32 | tr -dc "a-zA-Z0-9" | head -c 32)
     if grep -q "^DB_PASSWORD=" .env; then
-        sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" .env
+        sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=\$DB_PASS/" .env
     else
-        echo "DB_PASSWORD=$DB_PASS" >> .env
+        echo "DB_PASSWORD=\$DB_PASS" >> .env
     fi
 fi
 
 # Generar JWT_SECRET seguro
-if ! grep -q "^JWT_SECRET=" .env || grep -q "CHANGE_ME" .env || grep -q "secret.*2025" .env || grep -q "^JWT_SECRET=supersecret" .env; then
+if ! grep -q "^JWT_SECRET=" .env || grep -q "^JWT_SECRET=$" .env || grep -q "CHANGE_ME" .env || grep -q "secret.*2025" .env || grep -q "^JWT_SECRET=supersecret" .env; then
     echo "   Generando JWT_SECRET seguro..."
-    JWT_SEC=$(openssl rand -base64 48 | tr -dc "a-zA-Z0-9" | head -c 64)
+    JWT_SEC=\$(openssl rand -base64 48 | tr -dc "a-zA-Z0-9" | head -c 64)
     if grep -q "^JWT_SECRET=" .env; then
-        sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_SEC/" .env
+        sed -i "s/^JWT_SECRET=.*/JWT_SECRET=\$JWT_SEC/" .env
     else
-        echo "JWT_SECRET=$JWT_SEC" >> .env
+        echo "JWT_SECRET=\$JWT_SEC" >> .env
     fi
 fi
 
 # CORREGIR DATABASE_URL para produccion - db:5432
 echo "   Configurando DATABASE_URL para Docker..."
-DB_PASS=$(grep "^DB_PASSWORD=" .env | cut -d"=" -f2)
+DB_PASS=\$(grep "^DB_PASSWORD=" .env | cut -d"=" -f2-)
 
 sed -i "/^CMS_DATABASE_URL=/d" .env 2>/dev/null || true
 sed -i "/^LMS_DATABASE_URL=/d" .env 2>/dev/null || true
 sed -i "/^DATABASE_URL=/d" .env 2>/dev/null || true
 
-echo "CMS_DATABASE_URL=postgresql://user:${DB_PASS}@db:5432/openccb_cms" >> .env
-echo "LMS_DATABASE_URL=postgresql://user:${DB_PASS}@db:5432/openccb_lms" >> .env
-echo "DATABASE_URL=postgresql://user:${DB_PASS}@db:5432/openccb_cms" >> .env
+echo "CMS_DATABASE_URL=postgresql://user:\${DB_PASS}@db:5432/openccb_cms" >> .env
+echo "LMS_DATABASE_URL=postgresql://user:\${DB_PASS}@db:5432/openccb_lms" >> .env
+echo "DATABASE_URL=postgresql://user:\${DB_PASS}@db:5432/openccb_cms" >> .env
 
 # Configurar Let's Encrypt - staging o production
 echo "   Configurando Let's Encrypt..."
@@ -419,11 +421,11 @@ sed -i "/^NEXT_PUBLIC_CMS_API_URL=/d" .env 2>/dev/null || true
 sed -i "/^NEXT_PUBLIC_LMS_API_URL=/d" .env 2>/dev/null || true
 
 # Agregar URLs correctas (sin puertos - nginx proxy maneja el routing)
-echo "NEXT_PUBLIC_CMS_API_URL=$CMS_URL" >> .env
-echo "NEXT_PUBLIC_LMS_API_URL=$LMS_URL" >> .env
+echo "NEXT_PUBLIC_CMS_API_URL=\$CMS_URL" >> .env
+echo "NEXT_PUBLIC_LMS_API_URL=\$LMS_URL" >> .env
 echo "   URLs configuradas:"
-echo "     CMS: $CMS_URL"
-echo "     LMS: $LMS_URL"
+echo "     CMS: \$CMS_URL"
+echo "     LMS: \$LMS_URL"
 echo ""
 REMOTE_SCRIPT_CONTENT
 
@@ -531,54 +533,44 @@ run_docker_compose down || true
 echo "Eliminando contenedores antiguos..."
 $DOCKER_CMD rm openccb-studio 2>/dev/null || true
 $DOCKER_CMD rm openccb-experience 2>/dev/null || true
+$DOCKER_CMD rm openccb-db 2>/dev/null || true
 
-# ========================================
-# GESTIÓN DE BASE DE DATOS
-# ========================================
-if [ "$RESET_DATABASE" = "true" ]; then
-    echo ""
-    echo "⚠️  REINICIANDO BASE DE DATOS ⚠️"
-    echo ""
-    
-    # Detener contenedores de nginx y ssl también para limpiar volúmenes
-    echo "Deteniendo todos los contenedores..."
-    run_docker_compose down
-    
-    # Eliminar volúmenes de base de datos
-    echo "Eliminando volúmenes de base de datos..."
-    $DOCKER_CMD volume rm openccb_postgres_data 2>/dev/null || true
-    
-    # Reiniciar contenedores
-    echo "Reiniciando contenedores..."
-    run_docker_compose up -d db
-    
-    echo "Esperando a que la base de datos este lista..."
-    sleep 10
-    
-    # Crear bases de datos desde cero
-    echo "Creando bases de datos..."
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "DROP DATABASE IF EXISTS openccb_cms;" 2>/dev/null || true
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "DROP DATABASE IF EXISTS openccb_lms;" 2>/dev/null || true
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   Error al crear openccb_cms"
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   Error al crear openccb_lms"
-    
-    echo "✅ Base de datos reiniciada correctamente"
-else
-    echo ""
-    echo "✅ Manteniendo base de datos existente"
-    echo ""
-    
-    # Iniciar base de datos
-    echo "Iniciando base de datos..."
-    run_docker_compose up -d db
-    echo "Esperando a que la base de datos este lista..."
-    sleep 10
-    
-    # Verificar si las bases de datos existen, si no, crearlas
-    echo "Verificando bases de datos..."
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   openccb_cms ya existe"
-    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   openccb_lms ya existe"
-fi
+# Eliminar volúmenes de base de datos para empezar desde cero
+echo "Eliminando volúmenes de base de datos (datos nuevos)..."
+$DOCKER_CMD volume rm openccb_postgres_data 2>/dev/null || true
+
+# Limpiar caché de builder
+echo "Limpiando caché de Docker builder..."
+$DOCKER_CMD builder prune -f 2>/dev/null || true
+
+# Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
+echo "Reconstruyendo contenedores con las URLs configuradas..."
+run_docker_compose build --no-cache studio experience db
+
+# Iniciar nginx-proxy y acme-companion primero
+echo "Iniciando nginx-proxy y acme-companion - SSL..."
+run_docker_compose up -d nginx-proxy acme-companion
+echo "Esperando a que nginx-proxy este listo..."
+sleep 10
+
+# Iniciar base de datos (crea nuevas bases desde cero)
+echo "Iniciando base de datos (datos nuevos)..."
+run_docker_compose up -d db
+echo "Esperando a que la base de datos este lista..."
+sleep 15
+
+# Crear bases de datos
+echo "Creando bases de datos..."
+$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   openccb_cms ya existe"
+$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   openccb_lms ya existe"
+
+# Iniciar servicios
+echo "Iniciando servicios OpenCCB..."
+run_docker_compose up -d studio experience
+
+echo ""
+echo "Esperando a que los servicios esten listos..."
+sleep 15
 
 # ========================================
 # GESTIÓN DE CERTIFICADOS SSL
@@ -623,6 +615,47 @@ run_docker_compose up -d studio experience
 echo ""
 echo "Esperando a que los servicios esten listos..."
 sleep 15
+
+# ========================================
+# VALIDAR / REPARAR SSL
+# ========================================
+if [ "\$PROTOCOL" = "https" ] || [ "\$PRESERVE_SSL_CERTS" = "true" ]; then
+    echo ""
+    echo "Verificando certificados SSL..."
+
+    repair_ssl_for_domain() {
+        local domain="\$1"
+        local crt="/etc/nginx/certs/\${domain}.crt"
+        local key="/etc/nginx/certs/\${domain}.key"
+
+        if \$DOCKER_CMD exec nginx-proxy sh -lc "test -f '\$crt' && test -f '\$key' && openssl x509 -in '\$crt' -noout -pubkey 2>/dev/null | openssl sha256 >/tmp/cert.hash && openssl pkey -in '\$key' -pubout 2>/dev/null | openssl sha256 >/tmp/key.hash && cmp -s /tmp/cert.hash /tmp/key.hash" >/dev/null 2>&1; then
+            echo "   ✅ Certificado válido: \$domain"
+            return 0
+        fi
+
+        echo "   ⚠️  Certificado inconsistente o faltante para \$domain"
+        echo "   Generando certificado temporal autofirmado para evitar error 500..."
+
+        \$DOCKER_CMD exec acme-companion sh -lc "rm -f '\$crt' '\$key' && openssl req -x509 -nodes -newkey rsa:2048 -keyout '\$key' -out '\$crt' -days 30 -subj '/CN=\$domain' >/dev/null 2>&1" >/dev/null 2>&1 || true
+
+        if \$DOCKER_CMD exec nginx-proxy sh -lc "test -f '\$crt' && test -f '\$key' && openssl x509 -in '\$crt' -noout -pubkey 2>/dev/null | openssl sha256 >/tmp/cert.hash && openssl pkey -in '\$key' -pubout 2>/dev/null | openssl sha256 >/tmp/key.hash && cmp -s /tmp/cert.hash /tmp/key.hash" >/dev/null 2>&1; then
+            echo "   ✅ Certificado temporal listo: \$domain"
+        else
+            echo "   ❌ No se pudo reparar SSL para \$domain"
+        fi
+    }
+
+    repair_ssl_for_domain "studio.norteamericano.com"
+    repair_ssl_for_domain "learning.norteamericano.com"
+
+    if \$DOCKER_CMD exec nginx-proxy nginx -t >/tmp/nginx_ssl_check.log 2>&1; then
+        \$DOCKER_CMD exec nginx-proxy nginx -s reload >/dev/null 2>&1 || true
+        echo "   ✅ Nginx SSL validado correctamente"
+    else
+        echo "   ⚠️  Nginx reportó problemas SSL:"
+        cat /tmp/nginx_ssl_check.log || true
+    fi
+fi
 
 # ========================================
 # VERIFICAR VARIABLES DE ENTORNO
@@ -846,6 +879,13 @@ if [ $SCRIPT_EXIT -eq 0 ]; then
     echo "        Despliegue Completado Exitosamente"
     echo "===================================================="
     echo ""
+    
+    # Descargar .env del servidor al local
+    echo "📥 Descargando .env del servidor..."
+    scp -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/.env" "./.env.production"
+    echo "   ✅ .env guardado como .env.production"
+    echo ""
+    
     echo "Accede a tu plataforma:"
     echo "   Studio - CMS:     $PROTOCOL://studio.norteamericano.com"
     echo "   Experience - LMS: $PROTOCOL://learning.norteamericano.com"

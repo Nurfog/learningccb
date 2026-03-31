@@ -16,6 +16,10 @@ RUN cargo build --release -p lms-service
 # Build stage for Next.js Experience
 FROM node:20-alpine AS node-builder
 WORKDIR /app
+
+# Configure DNS for Google Fonts access during build
+RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
 COPY web/experience/package*.json ./
 RUN npm ci
 COPY web/experience/ .
