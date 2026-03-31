@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { QuestionBank } from '@/lib/api';
 import { Edit2, Trash2, Volume2, Sparkles, Globe } from 'lucide-react';
 
 interface QuestionBankCardProps {
-    question: QuestionBank;
+    question: any;
     onEdit: () => void;
     onDelete: () => void;
 }
 
-export default function QuestionBankCard({ question, onEdit, onDelete }: QuestionBankCardProps) {
+export default function QuestionBankCard({ question, onEdit, onDelete }: QuestionBankCardProps): React.JSX.Element {
     const [isPlaying, setIsPlaying] = useState(false);
     const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+    const safeQuestionText: React.ReactNode =
+        typeof question.question_text === 'string' ? question.question_text : '';
 
     const getQuestionTypeLabel = (type: string) => {
         const labels: Record<string, string> = {
@@ -114,7 +115,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
 
             {/* Question Text */}
             <p className="text-gray-900 dark:text-white font-medium mb-3 line-clamp-3">
-                {String(question.question_text)}
+                {safeQuestionText as any}
             </p>
 
             {/* Audio Player */}
