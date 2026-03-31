@@ -25,7 +25,12 @@ const nextConfig = {
         ],
     },
     async rewrites() {
-        return [
+        // Using `fallback` ensures Next.js pages (including dynamic routes like
+        // /courses/[id]) are matched BEFORE these proxy rewrites. Without this,
+        // `afterFiles` rewrites (the default for arrays) would intercept RSC
+        // prefetch requests to dynamic pages and proxy them to Rust instead.
+        return {
+          fallback: [
             {
                 source: '/assets/:path*',
                 destination: 'http://localhost:3001/assets/:path*',
@@ -143,7 +148,8 @@ const nextConfig = {
                 source: '/health',
                 destination: 'http://localhost:3001/health',
             },
-        ];
+          ],
+        };
     },
 };
 

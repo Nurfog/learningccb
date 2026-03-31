@@ -10,7 +10,7 @@ export default function AuthHeader() {
         <div className="flex items-center gap-4">
             {user?.role === 'admin' && (
                 <>
-                    <Link href="/admin/organizations" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Organizations">
+                    <Link href="/admin" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Organizations">
                         <Building2 size={16} /> <span className="hidden md:inline">Org</span>
                     </Link>
                     <Link href="/admin/audit" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Audit Logs">

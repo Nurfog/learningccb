@@ -10,7 +10,12 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
     return `http://localhost:${defaultPort}`;
 };
 
-export const getLmsApiUrl = () => getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
+export const getLmsApiUrl = () => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'learning.norteamericano.com') {
+        return `${window.location.protocol}//learning.norteamericano.com/lms-api`;
+    }
+    return getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
+};
 export const getCmsApiUrl = () => getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
 
 export const getImageUrl = (path?: string) => {

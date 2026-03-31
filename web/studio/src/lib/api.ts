@@ -26,7 +26,14 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
 };
 
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
-export const LMS_API_BASE_URL = getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
+const getLmsBaseUrl = (envVar?: string) => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'studio.norteamericano.com') {
+        return `${window.location.protocol}//studio.norteamericano.com/lms-api`;
+    }
+    return getApiBaseUrl("3002", envVar);
+};
+
+export const LMS_API_BASE_URL = getLmsBaseUrl(process.env.NEXT_PUBLIC_LMS_API_URL);
 
 // Polyfill for crypto.randomUUID() for non-HTTPS contexts
 export function generateUUID(): string {
