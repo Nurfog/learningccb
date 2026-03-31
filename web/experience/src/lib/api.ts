@@ -16,7 +16,12 @@ export const getLmsApiUrl = () => {
     }
     return getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
 };
-export const getCmsApiUrl = () => getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
+export const getCmsApiUrl = () => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'learning.norteamericano.com') {
+        return `${window.location.protocol}//learning.norteamericano.com/cms-api`;
+    }
+    return getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
+};
 
 export const getImageUrl = (path?: string) => {
     if (!path) return '';
