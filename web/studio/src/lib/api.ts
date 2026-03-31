@@ -1,3 +1,6 @@
+const STUDIO_DOMAIN = process.env.NEXT_PUBLIC_STUDIO_DOMAIN || 'studio.norteamericano.com';
+const LEARNING_DOMAIN = process.env.NEXT_PUBLIC_LEARNING_DOMAIN || 'learning.norteamericano.com';
+
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
     // Prefer explicit environment configuration when available. This allows production
     // deployments to use a dedicated API prefix like `/cms-api` and avoids collisions
@@ -11,11 +14,11 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
         const protocol = window.location.protocol;
 
         // Producción - dominios específicos (fallback sin prefijo)
-        if (hostname === 'studio.norteamericano.com') {
-            return `${protocol}//studio.norteamericano.com`;
+        if (hostname === STUDIO_DOMAIN) {
+            return `${protocol}//${STUDIO_DOMAIN}`;
         }
-        if (hostname === 'learning.norteamericano.com') {
-            return `${protocol}//learning.norteamericano.com`;
+        if (hostname === LEARNING_DOMAIN) {
+            return `${protocol}//${LEARNING_DOMAIN}`;
         }
 
         // Desarrollo local
@@ -27,8 +30,8 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
 
 export const API_BASE_URL = getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
 const getLmsBaseUrl = (envVar?: string) => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'studio.norteamericano.com') {
-        return `${window.location.protocol}//studio.norteamericano.com/lms-api`;
+    if (typeof window !== 'undefined' && window.location.hostname === STUDIO_DOMAIN) {
+        return `${window.location.protocol}//${STUDIO_DOMAIN}/lms-api`;
     }
     return getApiBaseUrl("3002", envVar);
 };
@@ -1433,8 +1436,7 @@ export interface CreateSectionPayload {
 }
 
 export interface TestTemplateFilters {
-    level?: CourseLevel;
-    course_type?: CourseType;
+    mysql_course_id?: number;
     test_type?: TestType;
     tags?: string;
     search?: string;

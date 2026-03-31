@@ -19,7 +19,7 @@ const nextConfig = {
             },
             {
                 protocol: 'https',
-                hostname: 'studio.norteamericano.com',
+                hostname: process.env.NEXT_PUBLIC_STUDIO_DOMAIN || 'studio.norteamericano.com',
                 pathname: '/assets/**',
             },
         ],

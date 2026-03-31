@@ -223,7 +223,7 @@ export default function StudioLoginPage() {
                     <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10 text-center transition-colors">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Are you a student?{" "}
-                            <a href="https://learning.norteamericano.com/auth/login" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition-colors">
+                            <a href={`https://${process.env.NEXT_PUBLIC_LEARNING_DOMAIN || 'learning.norteamericano.com'}/auth/login`} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold transition-colors">
                                 Go to Student Portal
                             </a>
                         </p>

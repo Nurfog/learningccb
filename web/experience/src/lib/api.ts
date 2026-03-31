@@ -1,3 +1,5 @@
+const LEARNING_DOMAIN = process.env.NEXT_PUBLIC_LEARNING_DOMAIN || 'learning.norteamericano.com';
+
 const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
     if (envVar && envVar.trim() !== '') {
         return envVar;
@@ -11,14 +13,14 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
 };
 
 export const getLmsApiUrl = () => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'learning.norteamericano.com') {
-        return `${window.location.protocol}//learning.norteamericano.com/lms-api`;
+    if (typeof window !== 'undefined' && window.location.hostname === LEARNING_DOMAIN) {
+        return `${window.location.protocol}//${LEARNING_DOMAIN}/lms-api`;
     }
     return getApiBaseUrl("3002", process.env.NEXT_PUBLIC_LMS_API_URL);
 };
 export const getCmsApiUrl = () => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'learning.norteamericano.com') {
-        return `${window.location.protocol}//learning.norteamericano.com/cms-api`;
+    if (typeof window !== 'undefined' && window.location.hostname === LEARNING_DOMAIN) {
+        return `${window.location.protocol}//${LEARNING_DOMAIN}/cms-api`;
     }
     return getApiBaseUrl("3001", process.env.NEXT_PUBLIC_CMS_API_URL);
 };

@@ -99,12 +99,12 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     }, [selectedPlanId]);
 
     // Handle course selection - store mysql_course_id (preferred approach)
-    const handleCourseSelect = (courseId: number) => {
+    const handleCourseSelect = (courseId: number | '') => {
         setSelectedCourseId(courseId);
         // Store the MySQL course ID directly - level/course_type can be derived from mysql_courses table
         setFormData({
             ...formData,
-            mysql_course_id: courseId,
+            mysql_course_id: courseId === '' ? undefined : courseId,
         });
     };
 
@@ -297,6 +297,13 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
         setQuestions(questions.map(q => 
             q.id === questionId ? { ...q, ...updates } : q
         ));
+    };
+
+    const handleRemoveQuestion = (questionId: string) => {
+        setQuestions(questions.filter(q => q.id !== questionId));
+        if (expandedQuestion === questionId) {
+            setExpandedQuestion(null);
+        }
     };
 
     const getQuestionTypeLabel = (type: QuestionType) => {

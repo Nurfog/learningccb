@@ -197,7 +197,7 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
             }
 
             const updated = await cmsApi.updateLesson(lesson.id, {
-                metadata: { ...lesson.metadata },
+                metadata: lesson.metadata ?? { blocks: [] },
                 content_blocks: blocks,
                 content_url,
                 content_type, // Sync type to ensure backend triggers transcription
@@ -348,11 +348,16 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                 };
                 setBlocks([...blocks, newBlock]);
             } else {
-                const newBlocks = await cmsApi.generateQuiz(lesson.id, {
+                const generatedQuiz = await cmsApi.generateQuiz(lesson.id, {
                     prompt_hint: aiQuizContext,
                     quiz_type: aiQuizType
                 });
-                setBlocks([...blocks, ...newBlocks]);
+                const newBlock: Block = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'quiz',
+                    quiz_data: { questions: generatedQuiz.questions }
+                };
+                setBlocks([...blocks, newBlock]);
             }
             setAiQuizContext("");
         } catch (err) {

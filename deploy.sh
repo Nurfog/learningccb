@@ -25,6 +25,14 @@ LETSENCRYPT_STAGING="true"
 GIT_REPO="https://github.com/Nurfog/learningccb.git"
 # ============================================================================
 
+# Cargar dominios desde .env si existen, con valores por defecto
+if [ -f ".env" ]; then
+    _STUDIO_DOMAIN=$(grep '^NEXT_PUBLIC_STUDIO_DOMAIN=' .env | cut -d'=' -f2)
+    _LEARNING_DOMAIN=$(grep '^NEXT_PUBLIC_LEARNING_DOMAIN=' .env | cut -d'=' -f2)
+fi
+STUDIO_DOMAIN="${_STUDIO_DOMAIN:-studio.norteamericano.com}"
+LEARNING_DOMAIN="${_LEARNING_DOMAIN:-learning.norteamericano.com}"
+
 # Si PEM_PATH es relativo, convertirlo a absoluto
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$PEM_PATH" != /* ]]; then
@@ -409,11 +417,11 @@ fi
 # Configurar URLs de la API para el frontend
 echo "   Configurando URLs de la API para el frontend..."
 if [ "$PROTOCOL" = "https" ]; then
-    CMS_URL="https://studio.norteamericano.com"
-    LMS_URL="https://learning.norteamericano.com"
+    CMS_URL="https://$STUDIO_DOMAIN"
+    LMS_URL="https://$LEARNING_DOMAIN"
 else
-    CMS_URL="http://studio.norteamericano.com"
-    LMS_URL="http://learning.norteamericano.com"
+    CMS_URL="http://$STUDIO_DOMAIN"
+    LMS_URL="http://$LEARNING_DOMAIN"
 fi
 
 # Remover valores existentes
@@ -462,7 +470,7 @@ else
     echo "   ⚠️  Faltan argumentos de build, agregando..."
     # Agregar argumentos si faltan
     if ! grep -q "NEXT_PUBLIC_LMS_API_URL:" docker-compose.yml; then
-        sed -i '/NEXT_PUBLIC_CMS_API_URL:/a\        NEXT_PUBLIC_LMS_API_URL: http://learning.norteamericano.com' docker-compose.yml
+        sed -i "/NEXT_PUBLIC_CMS_API_URL:/a\\        NEXT_PUBLIC_LMS_API_URL: http://$LEARNING_DOMAIN" docker-compose.yml
     fi
 fi
 echo ""
@@ -645,8 +653,8 @@ if [ "\$PROTOCOL" = "https" ] || [ "\$PRESERVE_SSL_CERTS" = "true" ]; then
         fi
     }
 
-    repair_ssl_for_domain "studio.norteamericano.com"
-    repair_ssl_for_domain "learning.norteamericano.com"
+    repair_ssl_for_domain "$STUDIO_DOMAIN"
+    repair_ssl_for_domain "$LEARNING_DOMAIN"
 
     if \$DOCKER_CMD exec nginx-proxy nginx -t >/tmp/nginx_ssl_check.log 2>&1; then
         \$DOCKER_CMD exec nginx-proxy nginx -s reload >/dev/null 2>&1 || true
@@ -788,8 +796,8 @@ echo "   CREDENCIALES DE ACCESO"
 echo "========================================"
 echo ""
 echo "URLs de acceso:"
-echo "   Studio - CMS:     $PROTOCOL://studio.norteamericano.com"
-echo "   Experience - LMS: $PROTOCOL://learning.norteamericano.com"
+echo "   Studio - CMS:     $PROTOCOL://$STUDIO_DOMAIN"
+echo "   Experience - LMS: $PROTOCOL://$LEARNING_DOMAIN"
 echo ""
 echo "Usuario Administrador:"
 echo "   Email: $ADMIN_EMAIL"
@@ -887,8 +895,8 @@ if [ $SCRIPT_EXIT -eq 0 ]; then
     echo ""
     
     echo "Accede a tu plataforma:"
-    echo "   Studio - CMS:     $PROTOCOL://studio.norteamericano.com"
-    echo "   Experience - LMS: $PROTOCOL://learning.norteamericano.com"
+    echo "   Studio - CMS:     $PROTOCOL://$STUDIO_DOMAIN"
+    echo "   Experience - LMS: $PROTOCOL://$LEARNING_DOMAIN"
     echo ""
     echo "Conectate para administrar:"
     echo "   ssh -i \"$PEM_PATH\" $REMOTE_USER@$REMOTE_HOST"

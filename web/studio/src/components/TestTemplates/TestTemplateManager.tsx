@@ -1,8 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { cmsApi, TestTemplate, TestTemplateFilters, CourseLevel, CourseType, TestType, Course } from '@/lib/api';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Copy, BookOpen, Clock, Target, Tag, ExternalLink, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+    cmsApi,
+    questionBankApi,
+    TestTemplate,
+    TestTemplateFilters,
+    TestType,
+    Course,
+    MySqlPlan,
+    MySqlCourse,
+} from '@/lib/api';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Copy, BookOpen, Clock, Target, Tag, X } from 'lucide-react';
 
 interface TestTemplateManagerProps {
     onSelectTemplate?: (template: TestTemplate) => void;
@@ -12,15 +21,36 @@ interface TestTemplateManagerProps {
 export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate }: TestTemplateManagerProps) {
     const [templates, setTemplates] = useState<TestTemplate[]>([]);
     const [loading, setLoading] = useState(true);
+
     const [filters, setFilters] = useState<TestTemplateFilters>({});
     const [showFilters, setShowFilters] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+
+    const [filterPlans, setFilterPlans] = useState<MySqlPlan[]>([]);
+    const [filterCourses, setFilterCourses] = useState<MySqlCourse[]>([]);
+    const [filterPlanId, setFilterPlanId] = useState<number | ''>('');
+    const [filterCourseId, setFilterCourseId] = useState<number | ''>('');
+
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState<TestTemplate | null>(null);
     const [courses, setCourses] = useState<Course[]>([]);
+
+    const [applyPlans, setApplyPlans] = useState<MySqlPlan[]>([]);
+    const [applyCourses, setApplyCourses] = useState<MySqlCourse[]>([]);
+    const [applyPlanId, setApplyPlanId] = useState<number | ''>('');
+    const [applyCourseId, setApplyCourseId] = useState<number | ''>('');
+
     const [selectedCourse, setSelectedCourse] = useState<string>('');
     const [selectedLesson, setSelectedLesson] = useState<string>('');
     const [applying, setApplying] = useState(false);
+
+    const resetApplyState = () => {
+        setSelectedTemplate(null);
+        setApplyPlanId('');
+        setApplyCourseId('');
+        setSelectedCourse('');
+        setSelectedLesson('');
+    };
 
     const loadTemplates = async () => {
         try {
@@ -38,9 +68,44 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
         loadTemplates();
     }, [filters]);
 
+    useEffect(() => {
+        questionBankApi.getMySQLPlans().then(setFilterPlans).catch(() => {});
+        questionBankApi.getMySQLPlans().then(setApplyPlans).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!filterPlanId) {
+            setFilterCourses([]);
+            setFilterCourseId('');
+            setFilters((f) => ({ ...f, mysql_course_id: undefined }));
+            return;
+        }
+        questionBankApi.getMySQLCoursesByPlan(filterPlanId).then(setFilterCourses).catch(() => {});
+    }, [filterPlanId]);
+
+    useEffect(() => {
+        if (!applyPlanId) {
+            setApplyCourses([]);
+            setApplyCourseId('');
+            return;
+        }
+        questionBankApi.getMySQLCoursesByPlan(applyPlanId).then(setApplyCourses).catch(() => {});
+    }, [applyPlanId]);
+
+    const filteredTemplates = useMemo(() => {
+        if (!searchTerm.trim()) return templates;
+        const q = searchTerm.toLowerCase();
+        return templates.filter((t) => {
+            const inName = t.name?.toLowerCase().includes(q);
+            const inDesc = t.description?.toLowerCase().includes(q);
+            const inTags = (t.tags || []).some((tag) => tag.toLowerCase().includes(q));
+            return Boolean(inName || inDesc || inTags);
+        });
+    }, [templates, searchTerm]);
+
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de que deseas eliminar esta plantilla?')) return;
-        
+
         try {
             await cmsApi.deleteTestTemplate(id);
             await loadTemplates();
@@ -53,16 +118,14 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const handleApplyTemplate = async (template: TestTemplate) => {
         setSelectedTemplate(template);
         setShowApplyModal(true);
-        loadCourses();
-    };
+        setApplyPlanId('');
+        setApplyCourseId('');
+        setSelectedCourse('');
+        setSelectedLesson('');
 
-    const loadCourses = async () => {
-        try {
-            const data = await cmsApi.getCourses();
-            setCourses(data);
-        } catch (error) {
-            console.error('Failed to load courses:', error);
-        }
+        cmsApi.getCourses()
+            .then(setCourses)
+            .catch((e) => console.error('Failed to load courses:', e));
     };
 
     const handleApplyToLesson = async () => {
@@ -76,34 +139,13 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
             await cmsApi.applyTemplateToLesson(selectedTemplate.id, selectedLesson);
             alert('Plantilla aplicada exitosamente a la lección');
             setShowApplyModal(false);
-            setSelectedTemplate(null);
-            setSelectedCourse('');
-            setSelectedLesson('');
+            resetApplyState();
         } catch (error) {
             console.error('Failed to apply template:', error);
             alert('Error al aplicar la plantilla');
         } finally {
             setApplying(false);
         }
-    };
-
-    const getLevelLabel = (level: CourseLevel) => {
-        const labels: Record<CourseLevel, string> = {
-            beginner: 'Beginner',
-            beginner_1: 'Beginner 1',
-            beginner_2: 'Beginner 2',
-            intermediate: 'Intermediate',
-            intermediate_1: 'Intermediate 1',
-            intermediate_2: 'Intermediate 2',
-            advanced: 'Advanced',
-            advanced_1: 'Advanced 1',
-            advanced_2: 'Advanced 2',
-        };
-        return labels[level] || level;
-    };
-
-    const getCourseTypeLabel = (type: CourseType) => {
-        return type === 'intensive' ? 'Intensivo' : 'Regular';
     };
 
     const getTestTypeLabel = (type: TestType) => {
@@ -117,13 +159,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
         return labels[type] || type;
     };
 
-    const getLevelColor = (level: CourseLevel) => {
-        if (level.includes('beginner')) return 'bg-green-100 text-green-800';
-        if (level.includes('intermediate')) return 'bg-yellow-100 text-yellow-800';
-        if (level.includes('advanced')) return 'bg-red-100 text-red-800';
-        return 'bg-gray-100 text-gray-800';
-    };
-
     const getTestTypeColor = (type: TestType) => {
         if (type === 'CA') return 'bg-blue-100 text-blue-800';
         if (type.includes('MWT') || type.includes('MOT')) return 'bg-purple-100 text-purple-800';
@@ -133,12 +168,11 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
 
     return (
         <div className="p-6">
-            {/* Header */}
             <div className="mb-6 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Plantillas de Pruebas</h1>
                     <p className="text-sm text-gray-600 mt-1">
-                        Gestiona plantillas de evaluaciones por nivel y tipo de curso
+                        Gestiona plantillas y vincúlalas a una lección específica de un curso
                     </p>
                 </div>
                 <button
@@ -150,7 +184,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                 </button>
             </div>
 
-            {/* Search and Filters */}
             <div className="mb-6 flex gap-3">
                 <div className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -173,45 +206,51 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                 </button>
             </div>
 
-            {/* Filter Panel */}
             {showFilters && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 grid grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nivel</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Programa de Estudios</label>
                         <select
-                            value={filters.level || ''}
-                            onChange={(e) => setFilters({ ...filters, level: e.target.value as CourseLevel || undefined })}
+                            value={filterPlanId}
+                            onChange={(e) => {
+                                const id = e.target.value ? Number(e.target.value) : '';
+                                setFilterPlanId(id);
+                                setFilterCourseId('');
+                                setFilters((f) => ({ ...f, mysql_course_id: undefined }));
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="">Todos los niveles</option>
-                            <option value="beginner">Beginner</option>
-                            <option value="beginner_1">Beginner 1</option>
-                            <option value="beginner_2">Beginner 2</option>
-                            <option value="intermediate">Intermediate</option>
-                            <option value="intermediate_1">Intermediate 1</option>
-                            <option value="intermediate_2">Intermediate 2</option>
-                            <option value="advanced">Advanced</option>
-                            <option value="advanced_1">Advanced 1</option>
-                            <option value="advanced_2">Advanced 2</option>
+                            <option value="">Todos los programas</option>
+                            {filterPlans.map((p) => (
+                                <option key={p.idPlanDeEstudios} value={p.idPlanDeEstudios}>{p.NombrePlan}</option>
+                            ))}
                         </select>
                     </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Curso</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Curso</label>
                         <select
-                            value={filters.course_type || ''}
-                            onChange={(e) => setFilters({ ...filters, course_type: e.target.value as CourseType || undefined })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            value={filterCourseId}
+                            disabled={!filterPlanId}
+                            onChange={(e) => {
+                                const id = e.target.value ? Number(e.target.value) : '';
+                                setFilterCourseId(id);
+                                setFilters((f) => ({ ...f, mysql_course_id: id || undefined }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                         >
-                            <option value="">Todos los tipos</option>
-                            <option value="intensive">Intensivo</option>
-                            <option value="regular">Regular</option>
+                            <option value="">Todos los cursos</option>
+                            {filterCourses.map((c) => (
+                                <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
+                            ))}
                         </select>
                     </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Prueba</label>
                         <select
                             value={filters.test_type || ''}
-                            onChange={(e) => setFilters({ ...filters, test_type: e.target.value as TestType || undefined })}
+                            onChange={(e) => setFilters({ ...filters, test_type: (e.target.value as TestType) || undefined })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="">Todos los tipos</option>
@@ -225,13 +264,12 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                 </div>
             )}
 
-            {/* Templates Grid */}
             {loading ? (
                 <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
                     <p className="mt-4 text-gray-600">Cargando plantillas...</p>
                 </div>
-            ) : templates.length === 0 ? (
+            ) : filteredTemplates.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
                     <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900">No hay plantillas</h3>
@@ -239,17 +277,16 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {templates.map((template) => (
+                    {filteredTemplates.map((template) => (
                         <div
                             key={template.id}
                             className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow"
                         >
-                            {/* Header */}
                             <div className="flex items-start justify-between mb-3">
                                 <h3 className="font-semibold text-gray-900 flex-1">{template.name}</h3>
                                 <div className="flex items-center gap-1">
                                     <button
-                                        onClick={() => alert(`Implementar: Ver plantilla ${template.id}`)}
+                                        onClick={() => onSelectTemplate?.(template)}
                                         className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                                         title="Ver detalles"
                                     >
@@ -272,25 +309,21 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                 </div>
                             </div>
 
-                            {/* Description */}
                             {template.description && (
                                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">{template.description}</p>
                             )}
 
-                            {/* Badges */}
                             <div className="flex flex-wrap gap-2 mb-3">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${getLevelColor(template.level)}`}>
-                                    {getLevelLabel(template.level)}
-                                </span>
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                    {getCourseTypeLabel(template.course_type)}
-                                </span>
                                 <span className={`px-2 py-1 rounded text-xs font-medium ${getTestTypeColor(template.test_type)}`}>
                                     {getTestTypeLabel(template.test_type)}
                                 </span>
+                                {template.mysql_course_id && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                        Curso SAM #{template.mysql_course_id}
+                                    </span>
+                                )}
                             </div>
 
-                            {/* Metadata */}
                             <div className="space-y-2 mb-3">
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <Clock className="w-4 h-4" />
@@ -306,7 +339,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                 </div>
                             </div>
 
-                            {/* Tags */}
                             {template.tags && template.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mb-3">
                                     {template.tags.map((tag, idx) => (
@@ -317,11 +349,8 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                 </div>
                             )}
 
-                            {/* Usage Stats */}
                             <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                                <span className="text-xs text-gray-500">
-                                    Usos: {template.usage_count}
-                                </span>
+                                <span className="text-xs text-gray-500">Usos: {template.usage_count}</span>
                                 <button
                                     onClick={() => handleApplyTemplate(template)}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
@@ -335,7 +364,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                 </div>
             )}
 
-            {/* Apply Template Modal */}
             {showApplyModal && selectedTemplate && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
@@ -347,7 +375,7 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                             <button
                                 onClick={() => {
                                     setShowApplyModal(false);
-                                    setSelectedTemplate(null);
+                                    resetApplyState();
                                 }}
                                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                             >
@@ -356,7 +384,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                         </div>
 
                         <div className="p-6 space-y-4">
-                            {/* Template Info */}
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                 <h4 className="font-semibold text-blue-900 mb-2">Información de la Plantilla</h4>
                                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -377,40 +404,69 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                         <span className="ml-2 font-medium">{selectedTemplate.passing_score}%</span>
                                     </div>
                                 </div>
-                                <div className="mt-3 text-xs text-blue-700">
-                                    <p>⚠️ Esta plantilla tiene <strong>1 solo intento</strong> por alumno.</p>
-                                    <p>📝 Los alumnos podrán ver sus respuestas permanentemente.</p>
-                                </div>
                             </div>
 
-                            {/* Select Course */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Curso
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">1. Programa de Estudios</label>
                                 <select
-                                    value={selectedCourse}
+                                    value={applyPlanId}
                                     onChange={(e) => {
-                                        setSelectedCourse(e.target.value);
+                                        setApplyPlanId(e.target.value ? Number(e.target.value) : '');
+                                        setApplyCourseId('');
+                                        setSelectedCourse('');
                                         setSelectedLesson('');
                                     }}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="">Selecciona un curso...</option>
-                                    {courses.map((course) => (
-                                        <option key={course.id} value={course.id}>
-                                            {course.title}
-                                        </option>
+                                    <option value="">Selecciona un programa...</option>
+                                    {applyPlans.map((p) => (
+                                        <option key={p.idPlanDeEstudios} value={p.idPlanDeEstudios}>{p.NombrePlan}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Select Lesson */}
+                            {applyPlanId && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">2. Curso</label>
+                                    <select
+                                        value={applyCourseId}
+                                        onChange={(e) => {
+                                            setApplyCourseId(e.target.value ? Number(e.target.value) : '');
+                                            setSelectedCourse('');
+                                            setSelectedLesson('');
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Selecciona un curso...</option>
+                                        {applyCourses.map((c) => (
+                                            <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {applyCourseId && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">3. Curso en la Plataforma</label>
+                                    <select
+                                        value={selectedCourse}
+                                        onChange={(e) => {
+                                            setSelectedCourse(e.target.value);
+                                            setSelectedLesson('');
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Selecciona el curso destino...</option>
+                                        {courses.map((course) => (
+                                            <option key={course.id} value={course.id}>{course.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             {selectedCourse && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Lección (debe ser de tipo "Quiz" o estar vacía)
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">4. Lección</label>
                                     <LessonSelector
                                         courseId={selectedCourse}
                                         selectedLesson={selectedLesson}
@@ -419,13 +475,11 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                 </div>
                             )}
 
-                            {/* Info Box */}
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                                 <h4 className="font-semibold text-yellow-900 mb-2 text-sm">¿Qué sucederá?</h4>
                                 <ul className="text-xs text-yellow-800 space-y-1">
-                                    <li>• La lección se convertirá en un quiz con las {selectedTemplate.name} preguntas de la plantilla</li>
-                                    <li>• Se configurará con <strong>1 solo intento</strong> por alumno</li>
-                                    <li>• Las calificaciones se sincronizarán con la base de datos MySQL</li>
+                                    <li>• La lección se convertirá en un quiz con las preguntas de la plantilla</li>
+                                    <li>• Se configurará con 1 solo intento por alumno</li>
                                     <li>• Los alumnos podrán revisar sus respuestas después de completar</li>
                                 </ul>
                             </div>
@@ -436,7 +490,7 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                 type="button"
                                 onClick={() => {
                                     setShowApplyModal(false);
-                                    setSelectedTemplate(null);
+                                    resetApplyState();
                                 }}
                                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                             >
@@ -459,26 +513,27 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     );
 }
 
-// Lesson Selector Component
-function LessonSelector({ courseId, selectedLesson, onSelect }: { 
-    courseId: string; 
+function LessonSelector({
+    courseId,
+    selectedLesson,
+    onSelect,
+}: {
+    courseId: string;
     selectedLesson: string;
     onSelect: (lessonId: string) => void;
 }) {
-    const [lessons, setLessons] = useState<any[]>([]);
+    const [modules, setModules] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadLessons = async () => {
             try {
                 setLoading(true);
-                const course = await cmsApi.getCourse(courseId);
-                if (course.modules) {
-                    const allLessons = course.modules.flatMap((m: any) => m.lessons || []);
-                    setLessons(allLessons);
-                }
+                const course = await cmsApi.getCourseWithFullOutline(courseId);
+                setModules(course.modules || []);
             } catch (error) {
                 console.error('Failed to load lessons:', error);
+                setModules([]);
             } finally {
                 setLoading(false);
             }
@@ -490,7 +545,8 @@ function LessonSelector({ courseId, selectedLesson, onSelect }: {
         return <div className="text-sm text-gray-500">Cargando lecciones...</div>;
     }
 
-    if (lessons.length === 0) {
+    const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
+    if (totalLessons === 0) {
         return <div className="text-sm text-red-600">Este curso no tiene lecciones</div>;
     }
 
@@ -501,10 +557,14 @@ function LessonSelector({ courseId, selectedLesson, onSelect }: {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
             <option value="">Selecciona una lección...</option>
-            {lessons.map((lesson) => (
-                <option key={lesson.id} value={lesson.id}>
-                    {lesson.title} ({lesson.content_type || 'Sin contenido'})
-                </option>
+            {modules.map((mod) => (
+                <optgroup key={mod.id} label={mod.title}>
+                    {(mod.lessons || []).map((lesson: any) => (
+                        <option key={lesson.id} value={lesson.id}>
+                            {lesson.title}
+                        </option>
+                    ))}
+                </optgroup>
             ))}
         </select>
     );

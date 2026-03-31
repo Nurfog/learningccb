@@ -33,6 +33,10 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
     const [saving, setSaving] = useState(false);
     const [generatingAI, setGeneratingAI] = useState(false);
 
+    const normalizedOptions = Array.isArray(formData.options)
+        ? (formData.options as string[])
+        : [];
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -109,7 +113,7 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
     };
 
     const handleAddOption = () => {
-        const currentOptions = formData.options || [];
+        const currentOptions = normalizedOptions;
         setFormData({
             ...formData,
             options: [...currentOptions, `Opción ${currentOptions.length + 1}`],
@@ -117,7 +121,7 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
     };
 
     const handleRemoveOption = (index: number) => {
-        const newOptions = (formData.options || []).filter((_: any, i: number) => i !== index);
+        const newOptions = normalizedOptions.filter((_, i) => i !== index);
         setFormData({ ...formData, options: newOptions });
         
         // Adjust correct answer if needed
@@ -291,7 +295,7 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
                                 </button>
                             </div>
                             
-                            {formData.options?.map((option: any, idx: number) => (
+                            {normalizedOptions.map((option: string, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2">
                                     <input
                                         type="radio"
@@ -304,7 +308,7 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
                                         type="text"
                                         value={option}
                                         onChange={(e) => {
-                                            const newOptions = [...(formData.options || [])];
+                                            const newOptions = [...normalizedOptions];
                                             newOptions[idx] = e.target.value;
                                             setFormData({ ...formData, options: newOptions });
                                         }}

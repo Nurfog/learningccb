@@ -19,8 +19,8 @@ services:
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
       - ./nginx/proxy.conf:/etc/nginx/conf.d/proxy.conf:ro
-      - ./nginx/studio.conf:/etc/nginx/vhost.d/studio.norteamericano.com:ro
-      - ./nginx/learning.conf:/etc/nginx/vhost.d/learning.norteamericano.com:ro
+      - ./nginx/studio.conf:/etc/nginx/vhost.d/${NEXT_PUBLIC_STUDIO_DOMAIN}:ro
+      - ./nginx/learning.conf:/etc/nginx/vhost.d/${NEXT_PUBLIC_LEARNING_DOMAIN}:ro
     restart: always
     networks:
       - openccb-network
@@ -75,15 +75,19 @@ services:
       args:
         NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL}
         NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL}
+        NEXT_PUBLIC_STUDIO_DOMAIN: ${NEXT_PUBLIC_STUDIO_DOMAIN}
+        NEXT_PUBLIC_LEARNING_DOMAIN: ${NEXT_PUBLIC_LEARNING_DOMAIN}
     container_name: openccb-studio
     environment:
-      - VIRTUAL_HOST=studio.norteamericano.com
+      - VIRTUAL_HOST=${NEXT_PUBLIC_STUDIO_DOMAIN}
       - VIRTUAL_PORT=3000
-      - LETSENCRYPT_HOST=studio.norteamericano.com
+      - LETSENCRYPT_HOST=${NEXT_PUBLIC_STUDIO_DOMAIN}
       - HTTPS_METHOD=noredirect
       - HSTS=off
       - HOSTNAME=0.0.0.0
       - DATABASE_URL=${CMS_DATABASE_URL}
+      - MYSQL_DATABASE_URL=${MYSQL_DATABASE_URL}
+      - SAM_DIAGNOSTICO_DATABASE_URL=${SAM_DIAGNOSTICO_DATABASE_URL}
       - LMS_INTERNAL_URL=http://experience:3002
       - NEXT_PUBLIC_LMS_API_URL=${NEXT_PUBLIC_LMS_API_URL}
     volumes:
@@ -109,11 +113,13 @@ services:
       args:
         NEXT_PUBLIC_LMS_API_URL: ${NEXT_PUBLIC_LMS_API_URL}
         NEXT_PUBLIC_CMS_API_URL: ${NEXT_PUBLIC_CMS_API_URL}
+        NEXT_PUBLIC_STUDIO_DOMAIN: ${NEXT_PUBLIC_STUDIO_DOMAIN}
+        NEXT_PUBLIC_LEARNING_DOMAIN: ${NEXT_PUBLIC_LEARNING_DOMAIN}
     container_name: openccb-experience
     environment:
-      - VIRTUAL_HOST=learning.norteamericano.com
+      - VIRTUAL_HOST=${NEXT_PUBLIC_LEARNING_DOMAIN}
       - VIRTUAL_PORT=3003
-      - LETSENCRYPT_HOST=learning.norteamericano.com
+      - LETSENCRYPT_HOST=${NEXT_PUBLIC_LEARNING_DOMAIN}
       - HTTPS_METHOD=noredirect
       - HSTS=off
       - HOSTNAME=0.0.0.0

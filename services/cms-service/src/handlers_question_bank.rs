@@ -1491,3 +1491,229 @@ async fn generate_course_structure<'a>(
 
     Ok((total_modules, total_lessons))
 }
+
+// ==================== Import from SAM Diagnostico ====================
+
+/// Row retornada por GROUP BY sobre las tablas de SAM_diagnostico
+#[derive(Debug, sqlx::FromRow)]
+struct SamDiagnosticoQuestion {
+    pub id_test: i32,
+    pub id_curso: i32,
+    pub id_pregunta: i32,
+    pub pregunta_nombre: Option<String>,
+    pub tipo_pregunta: Option<String>,
+    /// Opciones separadas por '|||' (GROUP_CONCAT)
+    pub opciones: Option<String>,
+    /// Texto de la respuesta correcta (valorRespuesta = 1)
+    pub respuesta_correcta: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ImportSamDiagnosticoPayload {
+    /// "adultos", "kids", "teens" o null para importar las tres audiencias
+    pub audience: Option<String>,
+    /// Filtra por idTest específico (opcional)
+    pub test_id: Option<i32>,
+    /// Filtra por idCurso específico (opcional)
+    pub curso_id: Option<i32>,
+}
+
+/// POST /api/question-bank/import-sam-diagnostico
+/// Importa preguntas desde las tablas SAM_diagnostico (preguntasadultos,
+/// preguntaskid, preguntasteens) al banco de preguntas de PostgreSQL.
+pub async fn import_from_sam_diagnostico(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportSamDiagnosticoPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use serde_json::json;
+
+    let sam_diag_url = std::env::var("SAM_DIAGNOSTICO_DATABASE_URL")
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "SAM_DIAGNOSTICO_DATABASE_URL not configured".to_string(),
+            )
+        })?;
+
+    let mysql_pool = sqlx::MySqlPool::connect(&sam_diag_url)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to connect to SAM_diagnostico: {}", e),
+            )
+        })?;
+
+    // Determinar qué tablas procesar según la audiencia solicitada
+    let tables: Vec<(&str, &str)> = match payload.audience.as_deref() {
+        Some("adultos") => vec![("adultos", "preguntasadultos")],
+        Some("kids")    => vec![("kids",    "preguntaskid")],
+        Some("teens")   => vec![("teens",   "preguntasteens")],
+        _               => vec![
+            ("adultos", "preguntasadultos"),
+            ("kids",    "preguntaskid"),
+            ("teens",   "preguntasteens"),
+        ],
+    };
+
+    let mut total_imported: i64 = 0;
+    let mut total_skipped: i64  = 0;
+    let mut errors: Vec<String> = Vec::new();
+
+    for (audience_label, table_name) in &tables {
+        // GROUP_CONCAT agrupa todas las opciones de cada pregunta en una sola fila.
+        // El separador '|||' no puede aparecer en los textos de respuesta normales.
+        let base_query = format!(
+            r#"
+            SELECT
+                idTest                                                          AS id_test,
+                idCurso                                                         AS id_curso,
+                idPregunta                                                      AS id_pregunta,
+                MAX(preguntaNombre)                                             AS pregunta_nombre,
+                MAX(tipoPregunta)                                               AS tipo_pregunta,
+                GROUP_CONCAT(
+                    respuestaNombre
+                    ORDER BY idOpcion
+                    SEPARATOR '|||'
+                )                                                               AS opciones,
+                MAX(CASE WHEN valorRespuesta = 1 THEN respuestaNombre ELSE NULL END)
+                                                                                AS respuesta_correcta
+            FROM {}
+            WHERE 1=1
+            {}
+            {}
+            GROUP BY idTest, idCurso, idPregunta
+            ORDER BY idTest, idCurso, idPregunta
+            "#,
+            table_name,
+            if payload.test_id.is_some()  { "AND idTest  = ?"  } else { "" },
+            if payload.curso_id.is_some() { "AND idCurso = ?"  } else { "" },
+        );
+
+        // Bind parámetros opcionales de forma dinámica
+        let rows: Vec<SamDiagnosticoQuestion> = {
+            let mut q = sqlx::query_as::<_, SamDiagnosticoQuestion>(&base_query);
+            if let Some(tid) = payload.test_id  { q = q.bind(tid); }
+            if let Some(cid) = payload.curso_id { q = q.bind(cid); }
+            q.fetch_all(&mysql_pool)
+                .await
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to fetch from {}: {}", table_name, e),
+                    )
+                })?
+        };
+
+        tracing::info!(
+            "SAM_diagnostico {}: {} preguntas encontradas",
+            table_name, rows.len()
+        );
+
+        for question in rows {
+            let question_text = match &question.pregunta_nombre {
+                Some(t) if !t.trim().is_empty() => t.clone(),
+                _ => continue, // Saltar preguntas sin texto
+            };
+
+            // Clave única para detectar duplicados
+            let sam_id = format!(
+                "{}-{}-{}-{}",
+                audience_label, question.id_test, question.id_curso, question.id_pregunta
+            );
+
+            let exists: (bool,) = sqlx::query_as(
+                "SELECT EXISTS(SELECT 1 FROM question_bank \
+                 WHERE source_metadata->>'sam_id' = $1 AND organization_id = $2)"
+            )
+            .bind(&sam_id)
+            .bind(org_ctx.id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to check duplicate: {}", e),
+                )
+            })?;
+
+            if exists.0 {
+                total_skipped += 1;
+                continue;
+            }
+
+            // Convertir GROUP_CONCAT → Vec<String>
+            let options_vec: Vec<String> = question
+                .opciones
+                .as_deref()
+                .unwrap_or("")
+                .split("|||")
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let options_json = if options_vec.is_empty() {
+                serde_json::Value::Null
+            } else {
+                json!(options_vec)
+            };
+
+            let correct_json = question
+                .respuesta_correcta
+                .as_ref()
+                .map(|a| json!(a))
+                .unwrap_or(serde_json::Value::Null);
+
+            let source_metadata = json!({
+                "sam_id":       sam_id,
+                "audience":     audience_label,
+                "tabla":        table_name,
+                "idTest":       question.id_test,
+                "idCurso":      question.id_curso,
+                "idPregunta":   question.id_pregunta,
+                "imported_at":  chrono::Utc::now().to_rfc3339(),
+            });
+
+            match sqlx::query(
+                r#"
+                INSERT INTO question_bank (
+                    organization_id, created_by, question_text, question_type,
+                    options, correct_answer, source, source_metadata,
+                    audio_status, is_active
+                )
+                VALUES ($1, $2, $3, 'multiple_choice', $4, $5, 'sam-diagnostico', $6, 'pending', true)
+                "#
+            )
+            .bind(org_ctx.id)
+            .bind(claims.sub)
+            .bind(&question_text)
+            .bind(&options_json)
+            .bind(&correct_json)
+            .bind(&source_metadata)
+            .execute(&pool)
+            .await
+            {
+                Ok(_)  => total_imported += 1,
+                Err(e) => errors.push(format!(
+                    "Error importando pregunta {} ({}): {}",
+                    question.id_pregunta, table_name, e
+                )),
+            }
+        }
+    }
+
+    mysql_pool.close().await;
+
+    tracing::info!(
+        "SAM_diagnostico import done: imported={} skipped={} errors={}",
+        total_imported, total_skipped, errors.len()
+    );
+
+    Ok(Json(json!({
+        "imported": total_imported,
+        "skipped":  total_skipped,
+        "errors":   errors,
+    })))
+}

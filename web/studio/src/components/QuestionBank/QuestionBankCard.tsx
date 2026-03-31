@@ -114,7 +114,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
 
             {/* Question Text */}
             <p className="text-gray-900 dark:text-white font-medium mb-3 line-clamp-3">
-                {question.question_text}
+                {String(question.question_text)}
             </p>
 
             {/* Audio Player */}

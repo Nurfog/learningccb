@@ -32,7 +32,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             return;
         }
         try {
-            const data = await cmsApi.getBranding(user.organization_id);
+            const data = await cmsApi.getBranding();
             // Translate BrandingResponse to Organization shape (partial)
             const orgData = {
                 id: user.organization_id,

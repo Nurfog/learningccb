@@ -47,7 +47,8 @@ export default function HotspotBlock({
         try {
             const data = await cmsApi.generateHotspots(lessonId, { image_url: imageUrl });
             // Handle different response formats from AI
-            let hotspotsArray = Array.isArray(data) ? data : (data.hotspots || data.items || []);
+            const raw: any = data;
+            let hotspotsArray = Array.isArray(raw) ? raw : (raw.hotspots || raw.items || []);
             
             if (!Array.isArray(hotspotsArray)) {
                 throw new Error("La respuesta de la IA no es un array válido");
