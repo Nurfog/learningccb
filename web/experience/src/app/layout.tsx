@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 import { AuthProvider } from "@/context/AuthContext";
@@ -7,8 +6,6 @@ import { I18nProvider } from "@/context/I18nContext";
 import { BrandingProvider } from "@/context/BrandingContext";
 import AuthGuard from "@/components/AuthGuard";
 import { ThemeProvider } from "@/context/ThemeContext";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Experiencia de Aprendizaje",
@@ -24,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen flex flex-col transition-colors duration-300`}>
+      <body className="min-h-screen flex flex-col font-sans transition-colors duration-300">
         <ThemeProvider>
           <BrandingProvider>
             <AuthProvider>

@@ -73,10 +73,6 @@ const nextConfig = {
                 destination: 'http://localhost:3001/question-bank/:path*',
             },
             {
-                source: '/test-templates/:path*',
-                destination: 'http://localhost:3001/test-templates/:path*',
-            },
-            {
                 source: '/knowledge-base/:path*',
                 destination: 'http://localhost:3001/knowledge-base/:path*',
             },

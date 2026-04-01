@@ -419,11 +419,11 @@ fi
 # Configurar URLs de la API para el frontend
 echo "   Configurando URLs de la API para el frontend..."
 if [ "$PROTOCOL" = "https" ]; then
-    CMS_URL="https://$STUDIO_DOMAIN"
-    LMS_URL="https://$LEARNING_DOMAIN"
+    CMS_URL="https://$STUDIO_DOMAIN/cms-api"
+    LMS_URL="https://$LEARNING_DOMAIN/lms-api"
 else
-    CMS_URL="http://$STUDIO_DOMAIN"
-    LMS_URL="http://$LEARNING_DOMAIN"
+    CMS_URL="http://$STUDIO_DOMAIN/cms-api"
+    LMS_URL="http://$LEARNING_DOMAIN/lms-api"
 fi
 
 # Remover valores existentes

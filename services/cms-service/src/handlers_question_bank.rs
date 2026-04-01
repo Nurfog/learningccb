@@ -854,7 +854,7 @@ pub async fn get_mysql_courses_by_plan(
             c.level as nivel_curso,
             sp.mysql_id as id_plan_de_estudios,
             sp.name as nombre_plan,
-            c.duracion as duracion
+            c.duracion::double precision as duracion
         FROM mysql_courses c
         JOIN mysql_study_plans sp ON c.study_plan_id = sp.id
         WHERE c.organization_id = $1
