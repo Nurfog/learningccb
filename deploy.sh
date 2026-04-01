@@ -330,6 +330,8 @@ LETSENCRYPT_STAGING=$LETSENCRYPT_STAGING
 RESET_DATABASE=$RESET_DATABASE
 PRESERVE_SSL_CERTS=$PRESERVE_SSL_CERTS
 PROTOCOL=$PROTOCOL
+STUDIO_DOMAIN=$STUDIO_DOMAIN
+LEARNING_DOMAIN=$LEARNING_DOMAIN
 
 cd /var/www/openccb
 
@@ -431,9 +433,18 @@ sed -i "/^NEXT_PUBLIC_LMS_API_URL=/d" .env 2>/dev/null || true
 # Agregar URLs correctas (sin puertos - nginx proxy maneja el routing)
 echo "NEXT_PUBLIC_CMS_API_URL=\$CMS_URL" >> .env
 echo "NEXT_PUBLIC_LMS_API_URL=\$LMS_URL" >> .env
+
+# Asegurar dominios públicos para nginx-proxy y certificados SSL
+sed -i "/^NEXT_PUBLIC_STUDIO_DOMAIN=/d" .env 2>/dev/null || true
+sed -i "/^NEXT_PUBLIC_LEARNING_DOMAIN=/d" .env 2>/dev/null || true
+echo "NEXT_PUBLIC_STUDIO_DOMAIN=\$STUDIO_DOMAIN" >> .env
+echo "NEXT_PUBLIC_LEARNING_DOMAIN=\$LEARNING_DOMAIN" >> .env
+
 echo "   URLs configuradas:"
 echo "     CMS: \$CMS_URL"
 echo "     LMS: \$LMS_URL"
+echo "     Studio Domain: \$STUDIO_DOMAIN"
+echo "     Learning Domain: \$LEARNING_DOMAIN"
 echo ""
 REMOTE_SCRIPT_CONTENT
 
