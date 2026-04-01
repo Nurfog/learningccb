@@ -1154,15 +1154,71 @@ export const questionBankApi = {
         apiFetch(`/question-bank/${id}`, { method: 'DELETE' }, false),
     importFromMySQL: (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> =>
         apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false),
-    getMySQLPlans: (): Promise<MySqlPlan[]> =>
-        apiFetch('/question-bank/mysql-plans', {}, false),
-    getMySQLCoursesByPlan: (planId: number): Promise<MySqlCourse[]> =>
-        apiFetch(`/question-bank/mysql-courses?plan_id=${planId}`, {}, false),
+    getMySQLPlans: async (): Promise<MySqlPlan[]> => {
+        const plans = (await apiFetch('/question-bank/mysql-plans', {}, false)) as MySqlPlanRaw[];
+        return plans.reduce((acc: MySqlPlan[], p: MySqlPlanRaw) => {
+            const idPlanDeEstudios = p.idPlanDeEstudios ?? p.id_plan_de_estudios;
+            const nombrePlan = p.NombrePlan ?? p.nombre_plan;
+            if (typeof idPlanDeEstudios === 'number' && typeof nombrePlan === 'string' && nombrePlan.trim()) {
+                acc.push({ idPlanDeEstudios, NombrePlan: nombrePlan });
+            }
+            return acc;
+        }, []);
+    },
+    getMySQLCoursesByPlan: async (planId: number): Promise<MySqlCourse[]> => {
+        const courses = (await apiFetch(`/question-bank/mysql-courses?plan_id=${planId}`, {}, false)) as MySqlCourseRaw[];
+        return courses.reduce((acc: MySqlCourse[], c: MySqlCourseRaw) => {
+            const idCursos = c.idCursos ?? c.id_cursos;
+            const nombreCurso = c.NombreCurso ?? c.nombre_curso;
+            const idPlanDeEstudios = c.idPlanDeEstudios ?? c.id_plan_de_estudios;
+            const nombrePlan = c.NombrePlan ?? c.nombre_plan;
+            if (
+                typeof idCursos === 'number' &&
+                typeof nombreCurso === 'string' &&
+                nombreCurso.trim() &&
+                typeof idPlanDeEstudios === 'number' &&
+                typeof nombrePlan === 'string' &&
+                nombrePlan.trim()
+            ) {
+                acc.push({
+                    idCursos,
+                    NombreCurso: nombreCurso,
+                    NivelCurso: c.NivelCurso ?? c.nivel_curso,
+                    idPlanDeEstudios,
+                    NombrePlan: nombrePlan,
+                    Duracion: c.Duracion ?? c.duracion,
+                });
+            }
+            return acc;
+        }, []);
+    },
 };
+
+interface MySqlPlanRaw {
+    idPlanDeEstudios?: number;
+    NombrePlan?: string;
+    id_plan_de_estudios?: number;
+    nombre_plan?: string;
+}
 
 export interface MySqlPlan {
     idPlanDeEstudios: number;
     NombrePlan: string;
+}
+
+interface MySqlCourseRaw {
+    idCursos?: number;
+    NombreCurso?: string;
+    NivelCurso?: number;
+    idPlanDeEstudios?: number;
+    NombrePlan?: string;
+    Duracion?: number;
+    id_cursos?: number;
+    nombre_curso?: string;
+    nivel_curso?: number;
+    id_plan_de_estudios?: number;
+    nombre_plan?: string;
+    duracion?: number;
 }
 
 export interface MySqlCourse {
