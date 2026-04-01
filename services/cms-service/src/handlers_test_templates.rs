@@ -638,10 +638,9 @@ pub async fn generate_questions_with_rag(
     Json(payload): Json<RagGenerationPayload>,
 ) -> Result<Json<Vec<TestTemplateQuestion>>, (StatusCode, String)> {
     use common::ai::{self, generate_embedding};
-    use reqwest::Client;
     use serde_json::json;
 
-    let mut mysql_questions: Vec<QuestionBankForRAG> = Vec::new();
+    let mut mysql_questions: Vec<QuestionBankForRAG>;
     
     // If topic is provided, use semantic search; otherwise use course_id filtering
     if let Some(topic) = &payload.topic {
@@ -681,14 +680,17 @@ pub async fn generate_questions_with_rag(
                         1 - (qb.embedding <=> $1::vector) AS similarity
                     FROM question_bank qb
                     WHERE qb.organization_id = $2
+                                            AND qb.source = 'imported-mysql'
+                                            AND ($3::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $3)
                       AND qb.embedding IS NOT NULL
                     ORDER BY qb.embedding <=> $1::vector
-                    LIMIT $3
+                                        LIMIT $4
                     "#
                 )
                 .bind(&pgvector)
                 .bind(org_ctx.id)
-                .bind(payload.num_questions.unwrap_or(5) * 3) // Get more for diversity
+                                .bind(payload.course_id)
+                                .bind(payload.num_questions.unwrap_or(5) * 3) // Get more for diversity
                 .fetch_all(&pool)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Semantic search failed: {}", e)))?;
@@ -717,16 +719,66 @@ pub async fn generate_questions_with_rag(
                         ) as nivel_curso
                     FROM question_bank qb
                     WHERE qb.organization_id = $1
-                      AND qb.question_text ILIKE $2
-                    LIMIT $3
+                      AND qb.source = 'imported-mysql'
+                      AND ($2::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $2)
+                      AND (
+                          qb.question_text ILIKE $3
+                          OR COALESCE(qb.options::text, '') ILIKE $3
+                      )
+                    LIMIT $4
                     "#
                 )
                 .bind(org_ctx.id)
+                .bind(payload.course_id)
                 .bind(&format!("%{}%", topic))
                 .bind(payload.num_questions.unwrap_or(5) * 3)
                 .fetch_all(&pool)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword search failed: {}", e)))?;
+
+                if mysql_questions.is_empty() {
+                    tracing::info!(
+                        "No semantic or keyword matches for topic; falling back to imported MySQL questions for course {:?}",
+                        payload.course_id
+                    );
+
+                    if let Some(course_id) = payload.course_id {
+                        mysql_questions = sqlx::query_as(
+                            r#"
+                            SELECT
+                                qb.question_text as descripcion,
+                                qb.options,
+                                COALESCE(
+                                    (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                                    0
+                                ) as id_plan_de_estudios,
+                                COALESCE(
+                                    qb.source_metadata->>'plan_nombre',
+                                    ''
+                                ) as plan_nombre,
+                                COALESCE(
+                                    (qb.source_metadata->>'nivel_curso')::integer,
+                                    NULL
+                                ) as nivel_curso
+                            FROM question_bank qb
+                            WHERE qb.organization_id = $1
+                                AND qb.source = 'imported-mysql'
+                                AND (qb.source_metadata->>'idCursos')::integer = $2
+                            ORDER BY qb.created_at DESC
+                            "#
+                        )
+                        .bind(org_ctx.id)
+                        .bind(course_id)
+                        .fetch_all(&pool)
+                        .await
+                        .map_err(|e| {
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Course fallback failed: {}", e),
+                            )
+                        })?;
+                    }
+                }
             }
         }
     } else if let Some(course_id) = payload.course_id {
@@ -794,8 +846,11 @@ pub async fn generate_questions_with_rag(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
     }
 
-    if mysql_questions.is_empty() && payload.course_id.is_some() {
-        return Err((StatusCode::NOT_FOUND, "No questions found in imported question bank for this course. Please import questions from MySQL first.".to_string()));
+    if mysql_questions.is_empty() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            "No se encontraron preguntas importadas de MySQL para el curso o tema seleccionado. Importa preguntas del banco MySQL o selecciona un curso con datos disponibles.".to_string(),
+        ));
     }
 
     // Determine course_type and level from imported data
@@ -814,12 +869,12 @@ pub async fn generate_questions_with_rag(
     // 2. Build RAG context from MySQL questions (lightweight format)
     let rag_context: String = mysql_questions
         .iter()
-        .take(15) // Use only first 15 for context
+        .take(8) // Keep context short so Ollama starts responding sooner behind the HTTPS proxy
         .map(|q| format!("* {}", q.descripcion))
         .collect::<Vec<_>>()
         .join("\n");
 
-    tracing::info!("RAG context built with {} questions", mysql_questions.len().min(15));
+    tracing::info!("RAG context built with {} questions", mysql_questions.len().min(8));
     
     // 3. Call AI to generate new questions based on RAG context (Ollama only)
     let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
@@ -838,7 +893,7 @@ pub async fn generate_questions_with_rag(
     let topic = payload.topic.clone().unwrap_or_else(|| "English grammar".to_string());
     let num_questions = payload.num_questions.unwrap_or(5);
 
-    // Simplified system prompt for better performance on slower machines
+    // Keep the prompt compact so the upstream Ollama proxy can receive the first bytes quickly.
     let system_prompt = format!(
         r#"You are an English Teacher creating quiz questions.
 
@@ -860,13 +915,9 @@ pub async fn generate_questions_with_rag(
             }}
         ]
 
-        RULES FOR OPTIONS:
-        - Each option must be ONLY the answer text (1-3 words max)
-        - Do NOT include letters like "A.", "B.", "a)", "b)"
-        - Do NOT include "Option 1:", "Answer:", or any prefix
-        - Just the pure answer text (e.g., "downtown", "Paris", "True")
-
-        Skills: reading, listening, speaking, writing. Distribute across all 4."#,
+        Rules:
+        - Option text only, no prefixes like A. or 1)
+        - Skills must be one of: reading, listening, speaking, writing"#,
         rag_context,
         num_questions,
         topic
@@ -888,8 +939,12 @@ pub async fn generate_questions_with_rag(
                     "content": "Generate the questions in valid JSON format."
                 }
             ],
-            "stream": false,
-            "format": "json"  // Ollama native JSON mode
+            "stream": true,
+            "format": "json",
+            "options": {
+                "temperature": 0.3,
+                "num_predict": (num_questions * 160).clamp(160, 900)
+            }
         }));
 
     tracing::info!("Sending request to Ollama (model: {}, prompt length: {} chars)", model, system_prompt.len());
@@ -901,10 +956,45 @@ pub async fn generate_questions_with_rag(
 
     tracing::info!("Ollama response status: {}", response.status());
 
-    let response_json: serde_json::Value = response.json().await.map_err(|e| {
-        tracing::error!("Failed to parse AI response: {}", e);
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        tracing::error!("Ollama returned non-success status {}: {}", status, body);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Ollama returned {}. El proxy de IA agotó el tiempo de espera.", status),
+        ));
+    }
+
+    let response_text = response.text().await.map_err(|e| {
+        tracing::error!("Failed to read AI stream response: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, "Invalid AI response".to_string())
     })?;
+
+    let aggregated_content = response_text
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+
+            serde_json::from_str::<serde_json::Value>(trimmed)
+                .ok()
+                .and_then(|chunk| {
+                    chunk.get("message")
+                        .and_then(|m| m.get("content"))
+                        .and_then(|content| content.as_str())
+                        .map(str::to_string)
+                })
+        })
+        .collect::<String>();
+
+    let response_json = json!({
+        "message": {
+            "content": aggregated_content
+        }
+    });
 
     tracing::debug!("Ollama response: {:?}", response_json);
 
