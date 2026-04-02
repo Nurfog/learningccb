@@ -696,6 +696,94 @@ pub async fn generate_questions_with_rag(
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Semantic search failed: {}", e)))?;
                 
                 tracing::info!("Semantic search found {} similar questions", mysql_questions.len());
+
+                if mysql_questions.is_empty() {
+                    tracing::info!(
+                        "Semantic search returned no rows; falling back to keyword search for topic {:?} and course {:?}",
+                        topic,
+                        payload.course_id
+                    );
+
+                    mysql_questions = sqlx::query_as(
+                        r#"
+                        SELECT
+                            qb.question_text as descripcion,
+                            qb.options,
+                            COALESCE(
+                                (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                                0
+                            ) as id_plan_de_estudios,
+                            COALESCE(
+                                qb.source_metadata->>'plan_nombre',
+                                ''
+                            ) as plan_nombre,
+                            COALESCE(
+                                (qb.source_metadata->>'nivel_curso')::integer,
+                                NULL
+                            ) as nivel_curso
+                        FROM question_bank qb
+                        WHERE qb.organization_id = $1
+                          AND qb.source = 'imported-mysql'
+                          AND ($2::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $2)
+                          AND (
+                              qb.question_text ILIKE $3
+                              OR COALESCE(qb.options::text, '') ILIKE $3
+                          )
+                        LIMIT $4
+                        "#
+                    )
+                    .bind(org_ctx.id)
+                    .bind(payload.course_id)
+                    .bind(&format!("%{}%", topic))
+                    .bind(payload.num_questions.unwrap_or(5) * 3)
+                    .fetch_all(&pool)
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword fallback failed: {}", e)))?;
+
+                    if mysql_questions.is_empty() {
+                        tracing::info!(
+                            "Keyword fallback returned no rows; falling back to imported MySQL questions for course {:?}",
+                            payload.course_id
+                        );
+
+                        if let Some(course_id) = payload.course_id {
+                            mysql_questions = sqlx::query_as(
+                                r#"
+                                SELECT
+                                    qb.question_text as descripcion,
+                                    qb.options,
+                                    COALESCE(
+                                        (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                                        0
+                                    ) as id_plan_de_estudios,
+                                    COALESCE(
+                                        qb.source_metadata->>'plan_nombre',
+                                        ''
+                                    ) as plan_nombre,
+                                    COALESCE(
+                                        (qb.source_metadata->>'nivel_curso')::integer,
+                                        NULL
+                                    ) as nivel_curso
+                                FROM question_bank qb
+                                WHERE qb.organization_id = $1
+                                    AND qb.source = 'imported-mysql'
+                                    AND (qb.source_metadata->>'idCursos')::integer = $2
+                                ORDER BY qb.created_at DESC
+                                "#
+                            )
+                            .bind(org_ctx.id)
+                            .bind(course_id)
+                            .fetch_all(&pool)
+                            .await
+                            .map_err(|e| {
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    format!("Course fallback failed: {}", e),
+                                )
+                            })?;
+                        }
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!("Semantic search failed, falling back to keyword search: {}", e);
@@ -847,10 +935,52 @@ pub async fn generate_questions_with_rag(
     }
 
     if mysql_questions.is_empty() {
-        return Err((
-            StatusCode::NOT_FOUND,
-            "No se encontraron preguntas importadas de MySQL para el curso o tema seleccionado. Importa preguntas del banco MySQL o selecciona un curso con datos disponibles.".to_string(),
-        ));
+        tracing::warn!(
+            "No imported MySQL questions found for org={} course={:?} topic={:?}; falling back to organization-wide imported questions",
+            org_ctx.id,
+            payload.course_id,
+            payload.topic
+        );
+
+        mysql_questions = sqlx::query_as(
+            r#"
+            SELECT
+                qb.question_text as descripcion,
+                qb.options,
+                COALESCE(
+                    (qb.source_metadata->>'idPlanDeEstudios')::integer,
+                    0
+                ) as id_plan_de_estudios,
+                COALESCE(
+                    qb.source_metadata->>'plan_nombre',
+                    ''
+                ) as plan_nombre,
+                COALESCE(
+                    (qb.source_metadata->>'nivel_curso')::integer,
+                    NULL
+                ) as nivel_curso
+            FROM question_bank qb
+            WHERE qb.organization_id = $1
+                AND qb.source = 'imported-mysql'
+            ORDER BY qb.created_at DESC
+            "#
+        )
+        .bind(org_ctx.id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to fetch organization-wide fallback questions: {}", e),
+            )
+        })?;
+
+        if mysql_questions.is_empty() {
+            return Err((
+                StatusCode::NOT_FOUND,
+                "No se encontraron preguntas importadas de MySQL para la organización. Importa preguntas del banco MySQL desde Question Bank antes de generar con IA.".to_string(),
+            ));
+        }
     }
 
     // Determine course_type and level from imported data
