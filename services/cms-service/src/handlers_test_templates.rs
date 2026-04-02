@@ -34,6 +34,10 @@ pub async fn create_test_template(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTestTemplatePayload>,
 ) -> Result<Json<TestTemplate>, (StatusCode, String)> {
+    if let Some(mysql_course_id) = payload.mysql_course_id {
+        ensure_mysql_course_metadata(&pool, org_ctx.id, mysql_course_id).await?;
+    }
+
     let template: TestTemplate = sqlx::query_as(
         r#"
         INSERT INTO test_templates (
@@ -44,7 +48,7 @@ pub async fn create_test_template(
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id, organization_id, mysql_course_id, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
-            template_data, tags, is_active, usage_count, created_at, updated_at
+            template_data, tags, is_active, usage_count, created_by, created_at, updated_at
         "#
     )
     .bind(org_ctx.id)
@@ -167,7 +171,7 @@ pub async fn get_test_template(
     // Get template
     let template: TestTemplate = sqlx::query_as(
         r#"
-        SELECT id, organization_id, created_by, name, description, level, course_type,
+        SELECT id, organization_id, mysql_course_id, created_by, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
             template_data, tags, is_active, usage_count, created_at, updated_at
         FROM test_templates
@@ -250,7 +254,7 @@ pub async fn update_test_template(
         WHERE id = $1 AND organization_id = $2
         RETURNING id, organization_id, mysql_course_id, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
-            template_data, tags, is_active, usage_count, created_at, updated_at
+            template_data, tags, is_active, usage_count, created_by, created_at, updated_at
         "#
     )
     .bind(template_id)
@@ -502,7 +506,7 @@ pub async fn apply_template_to_lesson(
     // Verify template exists and belongs to organization
     let template: TestTemplate = sqlx::query_as(
         r#"
-        SELECT id, organization_id, created_by, name, description, level, course_type,
+        SELECT id, organization_id, mysql_course_id, created_by, name, description, level, course_type,
             test_type, duration_minutes, passing_score, total_points, instructions,
             template_data, tags, is_active, usage_count, created_at, updated_at
         FROM test_templates
@@ -628,6 +632,264 @@ pub struct ApplyTemplatePayload {
 }
 
 // ==================== RAG Question Generation ====================
+
+// Helper function to generate system prompt based on question type
+fn get_system_prompt_for_question_type(
+    question_type: &str,
+    num_questions: i32,
+    topic: &str,
+    rag_context: &str,
+) -> String {
+    match question_type {
+        "true-false" => {
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL true-false questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "The capital of France is Paris.",
+        "question_type": "true-false",
+        "correct_answer": true,
+        "explanation": "Paris is indeed the capital of France.",
+        "points": 1
+    }}
+]
+
+Rules:
+- Each question must be a clear statement
+- correct_answer must be true or false
+- Explanations must be concise"#,
+                rag_context, num_questions, topic
+            )
+        }
+        "short-answer" => {
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL short-answer questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "What is the past tense of 'go'?",
+        "question_type": "short-answer",
+        "correct_answer": "went",
+        "keywords": ["went", "go's past tense"],
+        "explanation": "The irregular verb 'go' becomes 'went' in the past tense.",
+        "points": 1
+    }}
+]
+
+Rules:
+- correct_answer should be the expected response
+- keywords array contains acceptable variations or key concepts to check
+- Questions should accept brief responses"#,
+                rag_context, num_questions, topic
+            )
+        }
+        "matching" => {
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL matching question sets about: {}
+
+IMPORTANT - Return ONLY a JSON array with matching questions. Each matching question should have this EXACT structure:
+[
+    {{
+        "question_text": "Match each vocabulary term with its definition:",
+        "question_type": "matching",
+        "pairs": [
+            {{"left": "Verb", "right": "A word that describes an action"}},
+            {{"left": "Noun", "right": "A word that represents a person, place, or thing"}},
+            {{"left": "Adjective", "right": "A word that describes or modifies a noun"}}
+        ],
+        "explanation": "These are the fundamental parts of speech in English.",
+        "points": 3
+    }}
+]
+
+Rules:
+- Create 3-5 matching pairs per question
+- left/right items must be clear and distinct
+- All items in pairs array must follow the same structure
+- One question per array element"#,
+                rag_context, num_questions, topic
+            )
+        }
+        "ordering" => {
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL ordering questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "Arrange these steps of the writing process in correct order:",
+        "question_type": "ordering",
+        "items": ["Revise", "Draft", "Prewrite", "Publish", "Edit"],
+        "correct_order": [2, 1, 3, 4, 0],
+        "explanation": "The writing process starts with prewriting, then drafting, revising, editing, and finally publishing.",
+        "points": 3
+    }}
+]
+
+Rules:
+- items array contains the items to order
+- correct_order is an array of indices showing the proper sequence (0-based)
+- Must have at least 4 items to order
+- Questions should have a clear logical sequence"#,
+                rag_context, num_questions, topic
+            )
+        }
+        "fill-in-the-blanks" => {
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL fill-in-the-blanks questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "The ________ is the main character in a story, while the ________ opposes them.",
+        "question_type": "fill-in-the-blanks",
+        "blanks": [
+            {{"answer": "protagonist", "keywords": ["protagonist", "hero", "main character"]}},
+            {{"answer": "antagonist", "keywords": ["antagonist", "villain", "opponent"]}}
+        ],
+        "explanation": "These are key literary terms describing characters in stories.",
+        "points": 2
+    }}
+]
+
+Rules:
+- question_text should have ________ for each blank
+- blanks array has one object per blank
+- Each blank object must have 'answer' and 'keywords' array
+- keywords should include the main answer plus acceptable variations
+- Questions can have 1-3 blanks"#,
+                rag_context, num_questions, topic
+            )
+        }
+        "audio-response" => {
+            format!(
+                r#"You are an English Teacher creating speaking exercises.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL audio-response speaking prompts about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "Describe a memorable trip using at least three past tense verbs.",
+        "question_type": "audio-response",
+        "correct_answer": "Use clear past tense forms and relevant travel vocabulary in a coherent answer.",
+        "explanation": "This prompt checks fluency and grammatical control in spoken production.",
+        "points": 2
+    }}
+]
+
+Rules:
+- Questions must require spoken production
+- correct_answer should contain rubric guidance or expected response criteria
+- No options array is needed"#,
+                rag_context, num_questions, topic
+            )
+        }
+        _ => {
+            // Default to multiple-choice
+            format!(
+                r#"You are an English Teacher creating quiz questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL multiple-choice questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "The tourist got lost in the ______ of the city.",
+        "question_type": "multiple-choice",
+        "options": ["downtown", "countryside", "mountains", "desert"],
+        "correct_answer": 0,
+        "explanation": "Downtown is the main area of a city where tourists typically visit.",
+        "points": 1,
+        "skill_assessed": "reading"
+    }}
+]
+
+Rules:
+- Option text only, no prefixes like A. or 1)
+- Skills must be one of: reading, listening, speaking, writing"#,
+                rag_context, num_questions, topic
+            )
+        }
+    }
+}
+
+// Helper function to parse AI response based on question type
+fn parse_ai_response_for_question_type(
+    questions_data: &serde_json::Value,
+    question_type: &str,
+) -> Vec<serde_json::Value> {
+    match question_type {
+        "true-false" | "short-answer" | "matching" | "ordering" | "fill-in-the-blanks" => {
+            // These types should return an array of question objects
+            if let Some(arr) = questions_data.as_array() {
+                arr.clone()
+            } else if let Some(wrapped) = questions_data
+                .get("questions")
+                .or(questions_data.get("items"))
+            {
+                wrapped.as_array().cloned().unwrap_or_default()
+            } else if let Some(obj) = questions_data.as_object() {
+                obj.values().cloned().collect()
+            } else {
+                vec![]
+            }
+        }
+        _ => {
+            // Default parsing for multiple-choice and others
+            if let Some(arr) = questions_data.as_array() {
+                arr.clone()
+            } else if let Some(questions) = questions_data
+                .get("questions")
+                .or(questions_data.get("items"))
+            {
+                questions.as_array().cloned().unwrap_or_default()
+            } else if let Some(obj) = questions_data.as_object() {
+                let questions: Vec<serde_json::Value> = obj.values().cloned().collect();
+                if !questions.is_empty() {
+                    return questions;
+                }
+                vec![]
+            } else {
+                vec![]
+            }
+        }
+    }
+}
 
 /// POST /test-templates/generate-with-rag - Generate questions using RAG from imported MySQL question bank
 /// Uses semantic search with pgvector embeddings when available, falls back to course_id filtering
@@ -1022,35 +1284,30 @@ pub async fn generate_questions_with_rag(
     // Save topic for later use
     let topic = payload.topic.clone().unwrap_or_else(|| "English grammar".to_string());
     let num_questions = payload.num_questions.unwrap_or(5);
+    let requested_question_type = match payload.question_type.as_deref() {
+        Some("multiple-choice") => "multiple-choice".to_string(),
+        Some("true-false") => "true-false".to_string(),
+        Some("short-answer") => "short-answer".to_string(),
+        Some("essay") => "essay".to_string(),
+        Some("matching") => "matching".to_string(),
+        Some("ordering") => "ordering".to_string(),
+        Some("fill-in-the-blanks") => "fill-in-the-blanks".to_string(),
+        Some("audio-response") => "audio-response".to_string(),
+        Some("hotspot") | Some("code-lab") => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Los tipos hotspot y code-lab se crean manualmente por el instructor".to_string(),
+            ));
+        }
+        Some(_) | None => "multiple-choice".to_string(),
+    };
 
     // Keep the prompt compact so the upstream Ollama proxy can receive the first bytes quickly.
-    let system_prompt = format!(
-        r#"You are an English Teacher creating quiz questions.
-
-        Use these examples as inspiration (do NOT copy):
-        {}
-
-        Create {} ORIGINAL multiple-choice questions about: {}
-
-        IMPORTANT - Return ONLY a JSON array with this EXACT structure:
-        [
-            {{
-                "question_text": "The tourist got lost in the ______ of the city.",
-                "question_type": "multiple-choice",
-                "options": ["downtown", "countryside", "mountains", "desert"],
-                "correct_answer": 0,
-                "explanation": "Downtown is the main area of a city where tourists typically visit.",
-                "points": 1,
-                "skill_assessed": "reading"
-            }}
-        ]
-
-        Rules:
-        - Option text only, no prefixes like A. or 1)
-        - Skills must be one of: reading, listening, speaking, writing"#,
-        rag_context,
+    let system_prompt = get_system_prompt_for_question_type(
+        &requested_question_type,
         num_questions,
-        topic
+        &topic,
+        &rag_context,
     );
 
     tracing::debug!("System prompt length: {} chars", system_prompt.len());
@@ -1129,31 +1386,14 @@ pub async fn generate_questions_with_rag(
     tracing::debug!("Ollama response: {:?}", response_json);
 
     // Parse questions from Ollama response
-    let questions_data = response_json
+    let ai_payload = response_json
         .get("message")
         .and_then(|m| m.get("content"))
         .and_then(|content| content.as_str())
         .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
-        .and_then(|data| {
-            // Try multiple formats:
-            // 1. Standard array format: [...]
-            if let Some(arr) = data.as_array() {
-                return Some(arr.clone());
-            }
-            // 2. Wrapped format: {questions: [...]} or {items: [...]}
-            if let Some(questions) = data.get("questions").or(data.get("items")) {
-                return questions.as_array().cloned();
-            }
-            // 3. Object format with numbered keys: {q1: {...}, q2: {...}, ...}
-            if let Some(obj) = data.as_object() {
-                let questions: Vec<serde_json::Value> = obj.values().cloned().collect();
-                if !questions.is_empty() {
-                    return Some(questions);
-                }
-            }
-            None
-        })
-        .unwrap_or_default();
+        .unwrap_or_else(|| json!([]));
+
+    let questions_data = parse_ai_response_for_question_type(&ai_payload, &requested_question_type);
 
     // Helper function to clean options (remove "A.", "B.", "a)", etc.)
     let clean_option = |opt: &str| -> String {
@@ -1216,6 +1456,12 @@ pub async fn generate_questions_with_rag(
         .iter()
         .enumerate()
         .map(|(idx, q)| {
+            let question_type_value = q
+                .get("question_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&requested_question_type)
+                .to_string();
+
             // Get original options and correct answer
             let original_options: Vec<String> = q
                 .get("options")
@@ -1234,17 +1480,59 @@ pub async fn generate_questions_with_rag(
                 .and_then(|v| v.as_i64())
                 .map(|idx| idx as usize);
 
-            // Shuffle options if we have valid data
-            let (options, correct_answer) = if !original_options.is_empty() && original_correct_idx.is_some() {
-                let correct_idx = original_correct_idx.unwrap();
-                if correct_idx < original_options.len() {
-                    let (shuffled, new_correct_idx) = shuffle_options(original_options.clone(), Some(correct_idx as i64));
-                    (Some(json!(shuffled)), new_correct_idx.map(|idx| json!(idx)))
-                } else {
-                    (Some(json!(original_options)), q.get("correct_answer").or(q.get("correct")).cloned())
+            let (options, correct_answer, options_shuffled) = match question_type_value.as_str() {
+                "multiple-choice" => {
+                    if !original_options.is_empty() && original_correct_idx.is_some() {
+                        let correct_idx = original_correct_idx.unwrap();
+                        if correct_idx < original_options.len() {
+                            let (shuffled, new_correct_idx) =
+                                shuffle_options(original_options.clone(), Some(correct_idx as i64));
+                            (Some(json!(shuffled)), new_correct_idx.map(|idx| json!(idx)), true)
+                        } else {
+                            (
+                                Some(json!(original_options)),
+                                q.get("correct_answer").or(q.get("correct")).cloned(),
+                                false,
+                            )
+                        }
+                    } else {
+                        (
+                            Some(json!(original_options)),
+                            q.get("correct_answer").or(q.get("correct")).cloned(),
+                            false,
+                        )
+                    }
                 }
-            } else {
-                (Some(json!(original_options)), q.get("correct_answer").or(q.get("correct")).cloned())
+                "true-false" => {
+                    let bool_answer = q
+                        .get("correct_answer")
+                        .or(q.get("correct"))
+                        .and_then(|v| v.as_bool())
+                        .map(|v| if v { json!(0) } else { json!(1) });
+                    (Some(json!(["True", "False"])), bool_answer, false)
+                }
+                "matching" => {
+                    let pairs = q.get("pairs").cloned().or_else(|| q.get("options").cloned());
+                    (pairs.clone(), pairs, false)
+                }
+                "ordering" => {
+                    let items = q.get("items").cloned().or_else(|| q.get("options").cloned());
+                    let order = q
+                        .get("correct_order")
+                        .cloned()
+                        .or_else(|| q.get("correct_answer").cloned())
+                        .or_else(|| q.get("correct").cloned());
+                    (items, order, false)
+                }
+                "fill-in-the-blanks" => {
+                    let blanks = q.get("blanks").cloned();
+                    (blanks.clone(), blanks, false)
+                }
+                _ => (
+                    None,
+                    q.get("correct_answer").or(q.get("correct")).cloned(),
+                    false,
+                ),
             };
 
             TestTemplateQuestion {
@@ -1252,7 +1540,7 @@ pub async fn generate_questions_with_rag(
                 template_id: Uuid::nil(),
                 section_id: None,
                 question_order: idx as i32,
-                question_type: q.get("question_type").and_then(|v| v.as_str()).unwrap_or("multiple-choice").to_string(),
+                question_type: question_type_value,
                 question_text: q.get("question_text").and_then(|v| v.as_str()).unwrap_or("Question").to_string(),
                 options,
                 correct_answer,
@@ -1262,7 +1550,8 @@ pub async fn generate_questions_with_rag(
                     "generated_by": "rag-ai",
                     "source": "mysql-bank",
                     "generated_at": chrono::Utc::now().to_rfc3339(),
-                    "options_shuffled": true,
+                    "question_type_requested": requested_question_type.clone(),
+                    "options_shuffled": options_shuffled,
                 })),
                 created_at: chrono::Utc::now(),
             }
@@ -1282,6 +1571,8 @@ pub async fn generate_questions_with_rag(
             "essay" => common::models::QuestionBankType::Essay,
             "matching" => common::models::QuestionBankType::Matching,
             "ordering" => common::models::QuestionBankType::Ordering,
+            "fill-in-the-blanks" => common::models::QuestionBankType::FillInTheBlanks,
+            "audio-response" => common::models::QuestionBankType::AudioResponse,
             _ => common::models::QuestionBankType::MultipleChoice,
         };
 
@@ -1309,6 +1600,7 @@ pub async fn generate_questions_with_rag(
             "generated_by": "rag-ai",
             "source": "mysql-bank",
             "topic": topic,
+            "question_type": requested_question_type.clone(),
             "generated_at": chrono::Utc::now().to_rfc3339(),
         }))
         .execute(&pool)
@@ -1333,6 +1625,7 @@ pub struct RagGenerationPayload {
     pub course_id: Option<i32>, // MySQL course ID from imported metadata
     pub topic: Option<String>,
     pub num_questions: Option<i32>,
+    pub question_type: Option<String>, // Type of question to generate: multiple-choice, true-false, short-answer, matching, ordering, fill-in-the-blanks
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -1354,6 +1647,200 @@ struct MySqlQuestion {
     plan_nombre: String,
     nivel_curso: Option<i32>,
     id_plan_de_estudios: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct MySqlTemplateCourseMetadata {
+    id_cursos: i32,
+    nombre_curso: String,
+    nivel_curso: Option<i32>,
+    id_plan_de_estudios: i32,
+    nombre_plan: String,
+    duracion: Option<f64>,
+}
+
+async fn ensure_mysql_course_metadata(
+    pool: &PgPool,
+    org_id: Uuid,
+    mysql_course_id: i32,
+) -> Result<(), (StatusCode, String)> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM mysql_courses WHERE organization_id = $1 AND mysql_id = $2)"
+    )
+    .bind(org_id)
+    .bind(mysql_course_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to check MySQL course metadata: {}", e),
+        )
+    })?;
+
+    if exists {
+        return Ok(());
+    }
+
+    let mysql_url = std::env::var("MYSQL_DATABASE_URL").map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "MYSQL_DATABASE_URL not configured".to_string(),
+        )
+    })?;
+
+    let mysql_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(2)
+        .min_connections(0)
+        .acquire_timeout(Duration::from_secs(15))
+        .idle_timeout(Duration::from_secs(30))
+        .max_lifetime(Duration::from_secs(300))
+        .connect(&mysql_url)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to connect to external MySQL: {}", e),
+            )
+        })?;
+
+    let course: MySqlTemplateCourseMetadata = sqlx::query_as(
+        r#"
+        SELECT
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            pe.idPlanDeEstudios AS id_plan_de_estudios,
+            pe.Nombre AS nombre_plan,
+            c.Duracion AS duracion
+        FROM curso c
+        JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
+        WHERE c.idCursos = ?
+          AND c.Activo = 1
+          AND pe.Activo = 1
+        "#
+    )
+    .bind(mysql_course_id)
+    .fetch_one(&mysql_pool)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => (
+            StatusCode::BAD_REQUEST,
+            format!("Curso MySQL {} no existe o no está activo", mysql_course_id),
+        ),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to fetch course metadata from MySQL: {}", e),
+        ),
+    })?;
+
+    let plan_course_type = calculate_course_type_from_plan_name(&course.nombre_plan);
+
+    sqlx::query(
+        r#"
+        INSERT INTO mysql_study_plans (mysql_id, organization_id, name, course_type)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (mysql_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            course_type = EXCLUDED.course_type,
+            updated_at = NOW()
+        "#
+    )
+    .bind(course.id_plan_de_estudios)
+    .bind(org_id)
+    .bind(&course.nombre_plan)
+    .bind(&plan_course_type)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to upsert MySQL study plan metadata: {}", e),
+        )
+    })?;
+
+    let study_plan_id: i32 = sqlx::query_scalar(
+        "SELECT id FROM mysql_study_plans WHERE mysql_id = $1 AND organization_id = $2"
+    )
+    .bind(course.id_plan_de_estudios)
+    .bind(org_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to resolve MySQL study plan metadata: {}", e),
+        )
+    })?;
+
+    let course_type = calculate_course_type_from_duration(course.duracion);
+    let level_calculated = calculate_course_level_for_storage(course.nivel_curso);
+    let duracion = course.duracion.map(|value| value.round() as i32);
+
+    sqlx::query(
+        r#"
+        INSERT INTO mysql_courses (
+            mysql_id, organization_id, study_plan_id, name, level, duracion,
+            course_type, level_calculated
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (mysql_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            level = EXCLUDED.level,
+            duracion = EXCLUDED.duracion,
+            course_type = EXCLUDED.course_type,
+            level_calculated = EXCLUDED.level_calculated,
+            updated_at = NOW()
+        "#
+    )
+    .bind(course.id_cursos)
+    .bind(org_id)
+    .bind(study_plan_id)
+    .bind(&course.nombre_curso)
+    .bind(course.nivel_curso)
+    .bind(duracion)
+    .bind(&course_type)
+    .bind(&level_calculated)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to upsert MySQL course metadata: {}", e),
+        )
+    })?;
+
+    mysql_pool.close().await;
+    Ok(())
+}
+
+fn calculate_course_type_from_plan_name(plan_name: &str) -> String {
+    let plan_lower = plan_name.to_lowercase();
+    if plan_lower.contains("intensive") || plan_lower.contains("intensivo") {
+        "intensive".to_string()
+    } else {
+        "regular".to_string()
+    }
+}
+
+fn calculate_course_type_from_duration(duracion: Option<f64>) -> String {
+    match duracion {
+        Some(value) if value >= 70.0 => "intensive".to_string(),
+        _ => "regular".to_string(),
+    }
+}
+
+fn calculate_course_level_for_storage(nivel: Option<i32>) -> String {
+    match nivel {
+        None => "intermediate".to_string(),
+        Some(n) if n <= 2 => "beginner".to_string(),
+        Some(n) if n <= 4 => "beginner_1".to_string(),
+        Some(n) if n <= 6 => "beginner_2".to_string(),
+        Some(n) if n <= 8 => "intermediate".to_string(),
+        Some(n) if n <= 10 => "intermediate_1".to_string(),
+        Some(n) if n <= 12 => "intermediate_2".to_string(),
+        Some(_) => "advanced".to_string(),
+    }
 }
 
 /// Helper function to determine course type from plan name

@@ -20,7 +20,7 @@ interface Question {
     question_type: QuestionType;
     question_text: string;
     options?: string[];
-    correct_answer?: number | number[] | string;
+    correct_answer?: unknown;
     explanation?: string;
     points: number;
     metadata?: any;
@@ -52,6 +52,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const [generatingAI, setGeneratingAI] = useState(false);
     const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
     const [aiContext, setAiContext] = useState('');
+    const [aiQuestionType, setAiQuestionType] = useState<QuestionType>('multiple-choice');
     
     // MySQL course selection state
     const [mysqlPlans, setMysqlPlans] = useState<MySqlPlan[]>([]);
@@ -102,10 +103,10 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const handleCourseSelect = (courseId: number | '') => {
         setSelectedCourseId(courseId);
         // Store the MySQL course ID directly - level/course_type can be derived from mysql_courses table
-        setFormData({
-            ...formData,
+        setFormData((prev) => ({
+            ...prev,
             mysql_course_id: courseId === '' ? undefined : courseId,
-        });
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -163,7 +164,8 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
             onSuccess?.();
         } catch (error) {
             console.error('Failed to create template:', error);
-            alert('Error al crear la plantilla');
+            const message = error instanceof Error ? error.message : 'Error al crear la plantilla';
+            alert(message);
         } finally {
             setSaving(false);
         }
@@ -248,6 +250,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                 body: JSON.stringify({
                     topic: aiContext,
                     num_questions: 5,
+                    question_type: aiQuestionType,
                 }),
             });
 
@@ -266,10 +269,11 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                     question_order: questions.length + idx,
                     question_type: q.question_type || 'multiple-choice',
                     question_text: q.question_text || q.text,
-                    options: q.options || [],
-                    correct_answer: q.correct_answer || q.correct,
+                    options: Array.isArray(q.options) ? q.options : [],
+                    correct_answer: q.correct_answer ?? q.correct,
                     explanation: q.explanation || '',
                     points: q.points || 1,
+                    metadata: q.metadata,
                 }));
 
                 setQuestions([...questions, ...questionsToAdd]);
@@ -409,6 +413,10 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                         onChange={(e) => {
                                             setSelectedPlanId(e.target.value ? Number(e.target.value) : '');
                                             setSelectedCourseId('');
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                mysql_course_id: undefined,
+                                            }));
                                         }}
                                         disabled={loadingPlans}
                                         className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
@@ -554,6 +562,21 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                 placeholder="Describe el tema o contenido (ej: 'Past Simple tense, vocabulary about travel, 5 questions')"
                                 disabled={generatingAI}
                             />
+                            <select
+                                value={aiQuestionType}
+                                onChange={(e) => setAiQuestionType(e.target.value as QuestionType)}
+                                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white"
+                                disabled={generatingAI}
+                            >
+                                <option value="multiple-choice">Opcion multiple</option>
+                                <option value="true-false">Verdadero/Falso</option>
+                                <option value="short-answer">Respuesta corta</option>
+                                <option value="essay">Ensayo</option>
+                                <option value="matching">Emparejamiento</option>
+                                <option value="ordering">Ordenar</option>
+                                <option value="fill-in-the-blanks">Completar espacios</option>
+                                <option value="audio-response">Respuesta de audio</option>
+                            </select>
                             <button
                                 type="button"
                                 onClick={handleGenerateWithAI}
@@ -565,7 +588,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                             </button>
                         </div>
                         <p className="text-xs text-gray-500">
-                            La IA generará preguntas de opción múltiple con explicaciones automáticas.
+                            La IA genera varios tipos de ejercicios. Hotspot y Code Lab quedan para creacion manual del instructor.
                         </p>
                     </div>
 

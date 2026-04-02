@@ -1059,8 +1059,8 @@ export const cmsApi = {
         apiFetch(`/test-templates/${templateId}/sections/${sectionId}`, { method: 'DELETE' }, false),
     applyTemplateToLesson: (templateId: string, lessonId: string, gradingCategoryId?: string): Promise<void> =>
         apiFetch(`/test-templates/${templateId}/apply`, { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, grading_category_id: gradingCategoryId }) }, false),
-    generateQuestionsWithRAG: (courseId?: number, topic?: string, numQuestions?: number): Promise<TestTemplateQuestion[]> =>
-        apiFetch('/test-templates/generate-with-rag', { method: 'POST', body: JSON.stringify({ course_id: courseId, topic, num_questions: numQuestions }) }, false),
+    generateQuestionsWithRAG: (courseId?: number, topic?: string, numQuestions?: number, questionType?: QuestionType): Promise<TestTemplateQuestion[]> =>
+        apiFetch('/test-templates/generate-with-rag', { method: 'POST', body: JSON.stringify({ course_id: courseId, topic, num_questions: numQuestions, question_type: questionType }) }, false),
 
     // Admin - AI Usage Global
     getGlobalAiUsage: (startDate?: string, endDate?: string): Promise<GlobalAiUsageResponse> =>
@@ -1382,7 +1382,7 @@ export interface BackgroundTask {
 export type CourseLevel = 'beginner' | 'beginner_1' | 'beginner_2' | 'intermediate' | 'intermediate_1' | 'intermediate_2' | 'advanced' | 'advanced_1' | 'advanced_2';
 export type CourseType = 'intensive' | 'regular';
 export type TestType = 'CA' | 'MWT' | 'MOT' | 'FOT' | 'FWT';
-export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering';
+export type QuestionType = 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'matching' | 'ordering' | 'fill-in-the-blanks' | 'audio-response';
 
 export interface TestTemplate {
     id: string;

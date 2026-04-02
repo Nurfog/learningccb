@@ -75,7 +75,10 @@ pub async fn get_token_usage(
                 input_tokens: u.input_tokens,
                 output_tokens: u.output_tokens,
                 ai_requests: u.ai_requests,
-                last_used: u.last_used.to_rfc3339(),
+                last_used: u
+                    .last_used
+                    .map(|ts| ts.to_rfc3339())
+                    .unwrap_or_else(|| "Never".to_string()),
                 estimated_cost_usd: user_cost,
             }
         })
@@ -404,7 +407,7 @@ struct TokenUsageRecord {
     input_tokens: i64,
     output_tokens: i64,
     ai_requests: i64,
-    last_used: chrono::DateTime<chrono::Utc>,
+    last_used: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize)]
