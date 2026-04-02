@@ -16,9 +16,10 @@ import { Plus, Search, Filter, Edit2, Trash2, Eye, Copy, BookOpen, Clock, Target
 interface TestTemplateManagerProps {
     onSelectTemplate?: (template: TestTemplate) => void;
     onCreateTemplate?: () => void;
+    onEditTemplate?: (template: TestTemplate) => void;
 }
 
-export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate }: TestTemplateManagerProps) {
+export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate, onEditTemplate }: TestTemplateManagerProps) {
     const [templates, setTemplates] = useState<TestTemplate[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -346,7 +347,7 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                         <Eye className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={() => alert(`Implementar: Editar plantilla ${template.id}`)}
+                                        onClick={() => onEditTemplate?.(template)}
                                         className="p-1 text-gray-400 hover:text-green-600 transition-colors"
                                         title="Editar"
                                     >

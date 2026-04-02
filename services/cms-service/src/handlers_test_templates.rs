@@ -901,6 +901,7 @@ pub async fn generate_questions_with_rag(
 ) -> Result<Json<Vec<TestTemplateQuestion>>, (StatusCode, String)> {
     use common::ai::{self, generate_embedding};
     use serde_json::json;
+    let requested_num_questions = payload.num_questions.unwrap_or(5).clamp(1, 20);
 
     let mut mysql_questions: Vec<QuestionBankForRAG>;
     
@@ -952,7 +953,7 @@ pub async fn generate_questions_with_rag(
                 .bind(&pgvector)
                 .bind(org_ctx.id)
                                 .bind(payload.course_id)
-                                .bind(payload.num_questions.unwrap_or(5) * 3) // Get more for diversity
+                                .bind(requested_num_questions * 3) // Get more for diversity
                 .fetch_all(&pool)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Semantic search failed: {}", e)))?;
@@ -997,7 +998,7 @@ pub async fn generate_questions_with_rag(
                     .bind(org_ctx.id)
                     .bind(payload.course_id)
                     .bind(&format!("%{}%", topic))
-                    .bind(payload.num_questions.unwrap_or(5) * 3)
+                    .bind(requested_num_questions * 3)
                     .fetch_all(&pool)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword fallback failed: {}", e)))?;
@@ -1081,7 +1082,7 @@ pub async fn generate_questions_with_rag(
                 .bind(org_ctx.id)
                 .bind(payload.course_id)
                 .bind(&format!("%{}%", topic))
-                .bind(payload.num_questions.unwrap_or(5) * 3)
+                .bind(requested_num_questions * 3)
                 .fetch_all(&pool)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword search failed: {}", e)))?;
@@ -1283,7 +1284,7 @@ pub async fn generate_questions_with_rag(
 
     // Save topic for later use
     let topic = payload.topic.clone().unwrap_or_else(|| "English grammar".to_string());
-    let num_questions = payload.num_questions.unwrap_or(5);
+    let num_questions = requested_num_questions;
     let requested_question_type = match payload.question_type.as_deref() {
         Some("multiple-choice") => "multiple-choice".to_string(),
         Some("true-false") => "true-false".to_string(),

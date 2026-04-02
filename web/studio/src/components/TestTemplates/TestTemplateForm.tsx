@@ -53,6 +53,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
     const [aiContext, setAiContext] = useState('');
     const [aiQuestionType, setAiQuestionType] = useState<QuestionType>('multiple-choice');
+    const [aiQuestionCount, setAiQuestionCount] = useState<number>(5);
     
     // MySQL course selection state
     const [mysqlPlans, setMysqlPlans] = useState<MySqlPlan[]>([]);
@@ -249,7 +250,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                 },
                 body: JSON.stringify({
                     topic: aiContext,
-                    num_questions: 5,
+                    num_questions: aiQuestionCount,
                     question_type: aiQuestionType,
                 }),
             });
@@ -577,6 +578,26 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                 <option value="fill-in-the-blanks">Completar espacios</option>
                                 <option value="audio-response">Respuesta de audio</option>
                             </select>
+                            <select
+                                value={aiQuestionCount}
+                                onChange={(e) => setAiQuestionCount(Number(e.target.value))}
+                                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white"
+                                disabled={generatingAI}
+                            >
+                                <option value={1}>1</option>
+                                <option value={2}>2</option>
+                                <option value={3}>3</option>
+                                <option value={4}>4</option>
+                                <option value={5}>5</option>
+                                <option value={6}>6</option>
+                                <option value={7}>7</option>
+                                <option value={8}>8</option>
+                                <option value={9}>9</option>
+                                <option value={10}>10</option>
+                                <option value={12}>12</option>
+                                <option value={15}>15</option>
+                                <option value={20}>20</option>
+                            </select>
                             <button
                                 type="button"
                                 onClick={handleGenerateWithAI}
@@ -589,6 +610,9 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                         </div>
                         <p className="text-xs text-gray-500">
                             La IA genera varios tipos de ejercicios. Hotspot y Code Lab quedan para creacion manual del instructor.
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            Puedes elegir entre 1 y 20 preguntas por generacion.
                         </p>
                     </div>
 
