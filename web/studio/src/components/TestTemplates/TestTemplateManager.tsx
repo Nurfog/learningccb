@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     cmsApi,
     questionBankApi,
@@ -8,6 +8,8 @@ import {
     TestTemplateFilters,
     TestType,
     Course,
+    Module,
+    Lesson,
     MySqlPlan,
     MySqlCourse,
 } from '@/lib/api';
@@ -26,7 +28,6 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const [filters, setFilters] = useState<TestTemplateFilters>({});
     const [showFilters, setShowFilters] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-
     const [filterPlans, setFilterPlans] = useState<MySqlPlan[]>([]);
     const [filterCourses, setFilterCourses] = useState<MySqlCourse[]>([]);
     const [filterPlanId, setFilterPlanId] = useState<number | ''>('');
@@ -35,25 +36,18 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const [showApplyModal, setShowApplyModal] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState<TestTemplate | null>(null);
     const [courses, setCourses] = useState<Course[]>([]);
-
-    const [applyPlans, setApplyPlans] = useState<MySqlPlan[]>([]);
-    const [applyCourses, setApplyCourses] = useState<MySqlCourse[]>([]);
-    const [applyPlanId, setApplyPlanId] = useState<number | ''>('');
-    const [applyCourseId, setApplyCourseId] = useState<number | ''>('');
-    const [applyCoursesError, setApplyCoursesError] = useState('');
+    const [selectedTargetCourseId, setSelectedTargetCourseId] = useState<string>('');
 
     const [selectedLesson, setSelectedLesson] = useState<string>('');
     const [applying, setApplying] = useState(false);
 
     const resetApplyState = () => {
         setSelectedTemplate(null);
-        setApplyPlanId('');
-        setApplyCourseId('');
-        setApplyCoursesError('');
+        setSelectedTargetCourseId('');
         setSelectedLesson('');
     };
 
-    const loadTemplates = async () => {
+    const loadTemplates = useCallback(async () => {
         try {
             setLoading(true);
             const data = await cmsApi.listTestTemplates(filters);
@@ -63,88 +57,31 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        loadTemplates();
     }, [filters]);
 
     useEffect(() => {
+        loadTemplates();
+    }, [loadTemplates]);
+
+    useEffect(() => {
         questionBankApi.getMySQLPlans().then(setFilterPlans).catch(() => {});
-        questionBankApi.getMySQLPlans().then(setApplyPlans).catch(() => {});
     }, []);
 
     useEffect(() => {
         if (!filterPlanId) {
             setFilterCourses([]);
             setFilterCourseId('');
-            setFilters((f) => ({ ...f, mysql_course_id: undefined }));
+            setFilters((prev) => ({ ...prev, mysql_course_id: undefined }));
             return;
         }
-        questionBankApi.getMySQLCoursesByPlan(filterPlanId).then(setFilterCourses).catch(() => {});
-    }, [filterPlanId]);
 
-    useEffect(() => {
-        if (!applyPlanId) {
-            setApplyCourses([]);
-            setApplyCourseId('');
-            setApplyCoursesError('');
-            return;
-        }
         questionBankApi
-            .getMySQLCoursesByPlan(applyPlanId)
-            .then((courses) => {
-                setApplyCourses(courses);
-                setApplyCoursesError('');
-            })
-            .catch((error) => {
-                console.error('Failed to load MySQL courses by plan:', error);
-                setApplyCourses([]);
-                setApplyCoursesError('No se pudieron cargar los cursos para este plan.');
+            .getMySQLCoursesByPlan(filterPlanId)
+            .then(setFilterCourses)
+            .catch(() => {
+                setFilterCourses([]);
             });
-    }, [applyPlanId]);
-
-    const getCourseTypeFromPlan = (planName: string): 'intensive' | 'regular' => {
-        const planLower = (planName || '').toLowerCase();
-        return planLower.includes('intensive') || planLower.includes('intensivo') ? 'intensive' : 'regular';
-    };
-
-    const getCourseLevelFromMysql = (nivelCurso?: number, planNombre?: string): string => {
-        if (typeof nivelCurso === 'number') {
-            if (nivelCurso >= 1 && nivelCurso <= 2) return 'beginner';
-            if (nivelCurso >= 3 && nivelCurso <= 4) return 'beginner_1';
-            if (nivelCurso >= 5 && nivelCurso <= 6) return 'beginner_2';
-            if (nivelCurso >= 7 && nivelCurso <= 8) return 'intermediate';
-            if (nivelCurso >= 9 && nivelCurso <= 10) return 'intermediate_1';
-            if (nivelCurso >= 11 && nivelCurso <= 12) return 'intermediate_2';
-            return 'advanced';
-        }
-
-        const planLower = (planNombre || '').toLowerCase();
-        if (planLower.includes('basic') || planLower.includes('beginner')) return 'beginner';
-        if (planLower.includes('intermediate') || planLower.includes('intermedio')) return 'intermediate';
-        return 'advanced';
-    };
-
-    const matchingPlatformCourses = useMemo(() => {
-        if (!applyCourseId) return [] as Course[];
-        const mysqlCourse = applyCourses.find((c) => c.idCursos === applyCourseId);
-        if (!mysqlCourse) return [] as Course[];
-
-        const expectedLevel = getCourseLevelFromMysql(mysqlCourse.NivelCurso, mysqlCourse.NombrePlan);
-        const expectedType = getCourseTypeFromPlan(mysqlCourse.NombrePlan);
-
-        return courses.filter((course) => {
-            const courseLevel = String((course as { level?: string }).level || '').toLowerCase();
-            const courseType = String((course as { course_type?: string }).course_type || '').toLowerCase();
-            return courseLevel === expectedLevel && courseType === expectedType;
-        });
-    }, [applyCourseId, applyCourses, courses]);
-
-    const selectedPlatformCourseId = useMemo(() => {
-        if (matchingPlatformCourses.length === 0) return '';
-        return matchingPlatformCourses[0].id;
-    }, [matchingPlatformCourses]);
+    }, [filterPlanId]);
 
     const filteredTemplates = useMemo(() => {
         if (!searchTerm.trim()) return templates;
@@ -172,10 +109,8 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     const handleApplyTemplate = async (template: TestTemplate) => {
         setSelectedTemplate(template);
         setShowApplyModal(true);
-        setApplyPlanId('');
-        setApplyCourseId('');
+        setSelectedTargetCourseId('');
         setSelectedLesson('');
-        setApplyCoursesError('');
 
         cmsApi.getCourses()
             .then(setCourses)
@@ -183,8 +118,8 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
     };
 
     const handleApplyToLesson = async () => {
-        if (!selectedTemplate || !selectedPlatformCourseId || !selectedLesson) {
-            alert('Selecciona plan, curso y lección');
+        if (!selectedTemplate || !selectedTargetCourseId || !selectedLesson) {
+            alert('Selecciona curso y lección');
             return;
         }
 
@@ -461,65 +396,27 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">1. Programa de Estudios</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">1. Curso OpenCCB</label>
                                 <select
-                                    value={applyPlanId}
+                                    value={selectedTargetCourseId}
                                     onChange={(e) => {
-                                        setApplyPlanId(e.target.value ? Number(e.target.value) : '');
-                                        setApplyCourseId('');
+                                        setSelectedTargetCourseId(e.target.value);
                                         setSelectedLesson('');
                                     }}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="">Selecciona un programa...</option>
-                                    {applyPlans.map((p) => (
-                                        <option key={p.idPlanDeEstudios} value={p.idPlanDeEstudios}>{p.NombrePlan}</option>
+                                    <option value="">Selecciona un curso...</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.id}>{course.title}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {applyPlanId && (
+                            {selectedTargetCourseId && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">2. Curso</label>
-                                    <select
-                                        value={applyCourseId}
-                                        onChange={(e) => {
-                                            setApplyCourseId(e.target.value ? Number(e.target.value) : '');
-                                            setSelectedLesson('');
-                                        }}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Selecciona un curso...</option>
-                                        {applyCourses.map((c) => (
-                                            <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
-                                        ))}
-                                    </select>
-                                    {applyCoursesError && (
-                                        <p className="text-xs text-red-600 mt-1">{applyCoursesError}</p>
-                                    )}
-                                </div>
-                            )}
-
-                            {applyCourseId && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">3. Curso destino detectado</label>
-                                    {matchingPlatformCourses.length > 0 ? (
-                                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-700">
-                                            {matchingPlatformCourses[0].title}
-                                        </div>
-                                    ) : (
-                                        <div className="w-full px-3 py-2 border border-red-200 rounded-lg bg-red-50 text-sm text-red-700">
-                                            No se encontró un curso de plataforma compatible para este curso SAM.
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {selectedPlatformCourseId && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">4. Lección</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">2. Lección</label>
                                     <LessonSelector
-                                        courseId={selectedPlatformCourseId}
+                                        courseId={selectedTargetCourseId}
                                         selectedLesson={selectedLesson}
                                         onSelect={setSelectedLesson}
                                     />
@@ -573,7 +470,7 @@ function LessonSelector({
     selectedLesson: string;
     onSelect: (lessonId: string) => void;
 }) {
-    const [modules, setModules] = useState<any[]>([]);
+    const [modules, setModules] = useState<Module[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -610,7 +507,7 @@ function LessonSelector({
             <option value="">Selecciona una lección...</option>
             {modules.map((mod) => (
                 <optgroup key={mod.id} label={mod.title}>
-                    {(mod.lessons || []).map((lesson: any) => (
+                    {(mod.lessons || []).map((lesson: Lesson) => (
                         <option key={lesson.id} value={lesson.id}>
                             {lesson.title}
                         </option>

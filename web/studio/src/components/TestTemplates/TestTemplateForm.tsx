@@ -19,7 +19,7 @@ interface Question {
     question_order: number;
     question_type: QuestionType;
     question_text: string;
-    options?: string[];
+    options?: unknown;
     correct_answer?: unknown;
     explanation?: string;
     points: number;
@@ -27,11 +27,12 @@ interface Question {
 }
 
 interface TestTemplateFormProps {
+    templateId?: string;
     onSuccess?: () => void;
     onCancel?: () => void;
 }
 
-export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFormProps) {
+export default function TestTemplateForm({ templateId, onSuccess, onCancel }: TestTemplateFormProps) {
     const [formData, setFormData] = useState<CreateTestTemplatePayload>({
         name: '',
         description: '',
@@ -62,6 +63,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
     const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
     const [loadingPlans, setLoadingPlans] = useState(false);
     const [loadingCourses, setLoadingCourses] = useState(false);
+    const isEditing = Boolean(templateId);
 
     // Load MySQL plans on mount
     useEffect(() => {
@@ -100,6 +102,86 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
         loadCourses();
     }, [selectedPlanId]);
 
+    useEffect(() => {
+        if (!templateId) return;
+
+        const loadTemplateForEdit = async () => {
+            try {
+                setSaving(true);
+                const data = await cmsApi.getTestTemplate(templateId);
+
+                setFormData({
+                    name: data.template.name,
+                    description: data.template.description || '',
+                    mysql_course_id: data.template.mysql_course_id,
+                    level: data.template.level,
+                    course_type: data.template.course_type,
+                    test_type: data.template.test_type,
+                    duration_minutes: data.template.duration_minutes,
+                    passing_score: data.template.passing_score,
+                    total_points: data.template.total_points,
+                    instructions: data.template.instructions || '',
+                    template_data: data.template.template_data || { sections: [], questions: [] },
+                    tags: data.template.tags || [],
+                });
+
+                setSections(
+                    (data.sections || []).map((section) => ({
+                        id: section.id,
+                        title: section.title,
+                        description: section.description || '',
+                        section_order: section.section_order,
+                        points: section.points,
+                        instructions: section.instructions || '',
+                    }))
+                );
+
+                setQuestions(
+                    (data.questions || []).map((question) => {
+                        const allowedTypes: QuestionType[] = [
+                            'multiple-choice',
+                            'true-false',
+                            'short-answer',
+                            'essay',
+                            'matching',
+                            'ordering',
+                            'fill-in-the-blanks',
+                            'audio-response',
+                        ];
+                        const normalizedType = allowedTypes.includes(question.question_type)
+                            ? question.question_type
+                            : 'multiple-choice';
+
+                        return {
+                            id: question.id,
+                            section_id: question.section_id,
+                            question_order: question.question_order,
+                            question_type: normalizedType,
+                            question_text: question.question_text,
+                            options: question.options,
+                            correct_answer: question.correct_answer,
+                            explanation: question.explanation || '',
+                            points: question.points,
+                            metadata: question.metadata,
+                        };
+                    })
+                );
+
+                if (data.template.mysql_course_id) {
+                    setSelectedCourseId(data.template.mysql_course_id);
+                }
+            } catch (error) {
+                console.error('Failed to load template for edit:', error);
+                alert('No se pudo cargar la plantilla para editar');
+                onCancel?.();
+            } finally {
+                setSaving(false);
+            }
+        };
+
+        loadTemplateForEdit();
+    }, [templateId, onCancel]);
+
     // Handle course selection - store mysql_course_id (preferred approach)
     const handleCourseSelect = (courseId: number | '') => {
         setSelectedCourseId(courseId);
@@ -123,6 +205,19 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
             return;
         }
 
+        // Business rules by test type:
+        // - CA must have at least 4 questions.
+        // - MWT/MOT/FOT/FWT must have exactly 1 question.
+        if (formData.test_type === 'CA' && questions.length < 4) {
+            alert('Las plantillas CA deben tener minimo 4 preguntas.');
+            return;
+        }
+
+        if (formData.test_type !== 'CA' && questions.length !== 1) {
+            alert('Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta.');
+            return;
+        }
+
         // Validate: either mysql_course_id OR level+course_type must be provided
         if (!formData.mysql_course_id && (!formData.level || !formData.course_type)) {
             alert('Debes seleccionar un curso de MySQL o especificar nivel y tipo de curso manualmente');
@@ -132,24 +227,58 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
         try {
             setSaving(true);
 
-            // Primero crear la plantilla
-            const template = await cmsApi.createTestTemplate(formData);
-            
-            // Luego agregar secciones
+            let targetTemplateId = templateId;
+
+            if (isEditing && templateId) {
+                await cmsApi.updateTestTemplate(templateId, {
+                    name: formData.name,
+                    description: formData.description,
+                    mysql_course_id: formData.mysql_course_id,
+                    level: formData.level,
+                    course_type: formData.course_type,
+                    test_type: formData.test_type,
+                    duration_minutes: formData.duration_minutes,
+                    passing_score: formData.passing_score,
+                    total_points: formData.total_points,
+                    instructions: formData.instructions,
+                    template_data: formData.template_data,
+                    tags: formData.tags,
+                });
+
+                const existingData = await cmsApi.getTestTemplate(templateId);
+
+                for (const existingQuestion of existingData.questions) {
+                    await cmsApi.deleteTemplateQuestion(templateId, existingQuestion.id);
+                }
+
+                for (const existingSection of existingData.sections) {
+                    await cmsApi.deleteTemplateSection(templateId, existingSection.id);
+                }
+            } else {
+                const template = await cmsApi.createTestTemplate(formData);
+                targetTemplateId = template.id;
+            }
+
+            if (!targetTemplateId) {
+                throw new Error('No se pudo determinar la plantilla a guardar');
+            }
+
+            const sectionIdMap = new Map<string, string>();
+
             for (const section of sections) {
-                await cmsApi.createTemplateSection(template.id, {
+                const createdSection = await cmsApi.createTemplateSection(targetTemplateId, {
                     title: section.title,
                     description: section.description,
                     section_order: section.section_order,
                     points: section.points,
                     instructions: section.instructions,
                 });
+                sectionIdMap.set(section.id, createdSection.id);
             }
-            
-            // Finalmente agregar preguntas
+
             for (const question of questions) {
-                await cmsApi.createTemplateQuestion(template.id, {
-                    section_id: question.section_id,
+                await cmsApi.createTemplateQuestion(targetTemplateId, {
+                    section_id: question.section_id ? sectionIdMap.get(question.section_id) : undefined,
                     question_order: question.question_order,
                     question_type: question.question_type,
                     question_text: question.question_text,
@@ -160,8 +289,8 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                     metadata: question.metadata,
                 });
             }
-            
-            alert('Plantilla creada exitosamente');
+
+            alert(isEditing ? 'Plantilla actualizada exitosamente' : 'Plantilla creada exitosamente');
             onSuccess?.();
         } catch (error) {
             console.error('Failed to create template:', error);
@@ -319,6 +448,8 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
             'essay': 'Ensayo',
             'matching': 'Emparejamiento',
             'ordering': 'Ordenar',
+            'fill-in-the-blanks': 'Completar espacios',
+            'audio-response': 'Respuesta de audio',
         };
         return labels[type] || type;
     };
@@ -329,8 +460,12 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900">Nueva Plantilla de Prueba</h2>
-                        <p className="text-sm text-gray-500">Crea preguntas y secciones para tu evaluación</p>
+                        <h2 className="text-xl font-bold text-gray-900">
+                            {isEditing ? 'Editar Plantilla de Prueba' : 'Nueva Plantilla de Prueba'}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                            {isEditing ? 'Modifica preguntas y secciones de tu evaluación' : 'Crea preguntas y secciones para tu evaluación'}
+                        </p>
                     </div>
                     <button
                         onClick={onCancel}
@@ -763,7 +898,24 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                     </label>
                                                     <select
                                                         value={question.question_type}
-                                                        onChange={(e) => handleUpdateQuestion(question.id, { question_type: e.target.value as QuestionType })}
+                                                        onChange={(e) => {
+                                                            const nextType = e.target.value as QuestionType;
+                                                            const updates: Partial<Question> = { question_type: nextType };
+
+                                                            if (nextType === 'true-false') {
+                                                                updates.options = ['Verdadero', 'Falso'];
+                                                                updates.correct_answer =
+                                                                    typeof question.correct_answer === 'number' ? question.correct_answer : 0;
+                                                            } else if (
+                                                                nextType === 'multiple-choice' &&
+                                                                !Array.isArray(question.options)
+                                                            ) {
+                                                                updates.options = ['Opción 1', 'Opción 2', 'Opción 3', 'Opción 4'];
+                                                                updates.correct_answer = 0;
+                                                            }
+
+                                                            handleUpdateQuestion(question.id, updates);
+                                                        }}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                                     >
                                                         <option value="multiple-choice">Opción Múltiple</option>
@@ -772,6 +924,8 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                         <option value="essay">Ensayo</option>
                                                         <option value="matching">Emparejamiento</option>
                                                         <option value="ordering">Ordenar</option>
+                                                        <option value="fill-in-the-blanks">Completar espacios</option>
+                                                        <option value="audio-response">Respuesta de audio</option>
                                                     </select>
                                                 </div>
 
@@ -810,7 +964,7 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                     <label className="block text-sm font-medium text-gray-700">
                                                         Opciones (marca la correcta)
                                                     </label>
-                                                    {question.options?.map((option, oIdx) => (
+                                                    {(Array.isArray(question.options) ? question.options : []).map((option, oIdx) => (
                                                         <div key={oIdx} className="flex items-center gap-2">
                                                             <input
                                                                 type="radio"
@@ -821,11 +975,13 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                             />
                                                             <input
                                                                 type="text"
-                                                                value={option}
+                                                                value={String(option ?? '')}
                                                                 onChange={(e) => {
-                                                                    const newOptions = [...(question.options || [])];
-                                                                    newOptions[oIdx] = e.target.value;
-                                                                    handleUpdateQuestion(question.id, { options: newOptions });
+                                                                    const currentOptions = Array.isArray(question.options)
+                                                                        ? [...question.options]
+                                                                        : [];
+                                                                    currentOptions[oIdx] = e.target.value;
+                                                                    handleUpdateQuestion(question.id, { options: currentOptions });
                                                                 }}
                                                                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                                                 placeholder={`Opción ${oIdx + 1}`}
@@ -833,7 +989,10 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    const newOptions = question.options?.filter((_, idx) => idx !== oIdx);
+                                                                    const currentOptions = Array.isArray(question.options)
+                                                                        ? question.options
+                                                                        : [];
+                                                                    const newOptions = currentOptions.filter((_, idx) => idx !== oIdx);
                                                                     handleUpdateQuestion(question.id, { options: newOptions });
                                                                 }}
                                                                 className="p-2 text-red-600 hover:bg-red-50 rounded"
@@ -844,9 +1003,17 @@ export default function TestTemplateForm({ onSuccess, onCancel }: TestTemplateFo
                                                     ))}
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleUpdateQuestion(question.id, { 
-                                                            options: [...(question.options || []), `Opción ${(question.options?.length || 0) + 1}`] 
-                                                        })}
+                                                        onClick={() => {
+                                                            const currentOptions = Array.isArray(question.options)
+                                                                ? question.options
+                                                                : [];
+                                                            handleUpdateQuestion(question.id, {
+                                                                options: [
+                                                                    ...currentOptions,
+                                                                    `Opción ${currentOptions.length + 1}`,
+                                                                ],
+                                                            });
+                                                        }}
                                                         className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
                                                     >
                                                         <Plus className="w-3 h-3" />

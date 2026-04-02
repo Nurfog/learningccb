@@ -555,6 +555,21 @@ pub async fn apply_template_to_lesson(
         return Err((StatusCode::BAD_REQUEST, "Template has no questions".to_string()));
     }
 
+    // Business rules for template composition.
+    if matches!(template.test_type, TestType::CA) && template_questions.len() < 4 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Las plantillas CA deben tener minimo 4 preguntas".to_string(),
+        ));
+    }
+
+    if !matches!(template.test_type, TestType::CA) && template_questions.len() != 1 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta".to_string(),
+        ));
+    }
+
     // Build quiz_data JSON from template questions
     let questions_json: Vec<serde_json::Value> = template_questions
         .iter()
@@ -1452,16 +1467,28 @@ pub async fn generate_questions_with_rag(
         (shuffled_options, new_correct_idx)
     };
 
-    // Convert to TestTemplateQuestion format
+    // Convert to TestTemplateQuestion format and skip invalid LLM entries
     let generated_questions: Vec<TestTemplateQuestion> = questions_data
         .iter()
         .enumerate()
-        .map(|(idx, q)| {
+        .filter_map(|(idx, q)| {
             let question_type_value = q
                 .get("question_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or(&requested_question_type)
                 .to_string();
+
+            let question_text = q
+                .get("question_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            if question_text.is_empty() || question_text.eq_ignore_ascii_case("question") {
+                tracing::warn!("Skipping invalid generated question with empty placeholder text: {:?}", q);
+                return None;
+            }
 
             // Get original options and correct answer
             let original_options: Vec<String> = q
@@ -1483,6 +1510,10 @@ pub async fn generate_questions_with_rag(
 
             let (options, correct_answer, options_shuffled) = match question_type_value.as_str() {
                 "multiple-choice" => {
+                    if original_options.len() < 2 {
+                        tracing::warn!("Skipping invalid multiple-choice question without enough options: {:?}", q);
+                        return None;
+                    }
                     if !original_options.is_empty() && original_correct_idx.is_some() {
                         let correct_idx = original_correct_idx.unwrap();
                         if correct_idx < original_options.len() {
@@ -1510,10 +1541,23 @@ pub async fn generate_questions_with_rag(
                         .or(q.get("correct"))
                         .and_then(|v| v.as_bool())
                         .map(|v| if v { json!(0) } else { json!(1) });
+                    if bool_answer.is_none() {
+                        tracing::warn!("Skipping invalid true-false question without boolean correct answer: {:?}", q);
+                        return None;
+                    }
                     (Some(json!(["True", "False"])), bool_answer, false)
                 }
                 "matching" => {
                     let pairs = q.get("pairs").cloned().or_else(|| q.get("options").cloned());
+                    let is_valid = pairs
+                        .as_ref()
+                        .and_then(|v| v.as_array())
+                        .map(|arr| !arr.is_empty())
+                        .unwrap_or(false);
+                    if !is_valid {
+                        tracing::warn!("Skipping invalid matching question without pairs: {:?}", q);
+                        return None;
+                    }
                     (pairs.clone(), pairs, false)
                 }
                 "ordering" => {
@@ -1523,10 +1567,33 @@ pub async fn generate_questions_with_rag(
                         .cloned()
                         .or_else(|| q.get("correct_answer").cloned())
                         .or_else(|| q.get("correct").cloned());
+                    let has_items = items
+                        .as_ref()
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.len() >= 2)
+                        .unwrap_or(false);
+                    let has_order = order
+                        .as_ref()
+                        .and_then(|v| v.as_array())
+                        .map(|arr| !arr.is_empty())
+                        .unwrap_or(false);
+                    if !has_items || !has_order {
+                        tracing::warn!("Skipping invalid ordering question without items/order: {:?}", q);
+                        return None;
+                    }
                     (items, order, false)
                 }
                 "fill-in-the-blanks" => {
                     let blanks = q.get("blanks").cloned();
+                    let has_blanks = blanks
+                        .as_ref()
+                        .and_then(|v| v.as_array())
+                        .map(|arr| !arr.is_empty())
+                        .unwrap_or(false);
+                    if !has_blanks {
+                        tracing::warn!("Skipping invalid fill-in-the-blanks question without blanks array: {:?}", q);
+                        return None;
+                    }
                     (blanks.clone(), blanks, false)
                 }
                 _ => (
@@ -1536,13 +1603,13 @@ pub async fn generate_questions_with_rag(
                 ),
             };
 
-            TestTemplateQuestion {
+            Some(TestTemplateQuestion {
                 id: Uuid::new_v4(),
                 template_id: Uuid::nil(),
                 section_id: None,
                 question_order: idx as i32,
                 question_type: question_type_value,
-                question_text: q.get("question_text").and_then(|v| v.as_str()).unwrap_or("Question").to_string(),
+                question_text,
                 options,
                 correct_answer,
                 explanation: q.get("explanation").and_then(|v| v.as_str()).map(String::from),
@@ -1555,7 +1622,7 @@ pub async fn generate_questions_with_rag(
                     "options_shuffled": options_shuffled,
                 })),
                 created_at: chrono::Utc::now(),
-            }
+            })
         })
         .collect();
     
