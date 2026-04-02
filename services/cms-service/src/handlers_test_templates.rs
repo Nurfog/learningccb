@@ -13,6 +13,14 @@ use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;
 
+const COMPANY_SPECIFIC_RULES_ORG_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+fn uses_company_specific_template_rules(org_id: Uuid) -> bool {
+    Uuid::parse_str(COMPANY_SPECIFIC_RULES_ORG_ID)
+        .map(|id| id == org_id)
+        .unwrap_or(false)
+}
+
 // ==================== Query Parameters ====================
 
 #[derive(Debug, Deserialize)]
@@ -555,19 +563,21 @@ pub async fn apply_template_to_lesson(
         return Err((StatusCode::BAD_REQUEST, "Template has no questions".to_string()));
     }
 
-    // Business rules for template composition.
-    if matches!(template.test_type, TestType::CA) && template_questions.len() < 4 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Las plantillas CA deben tener minimo 4 preguntas".to_string(),
-        ));
-    }
+    // Company-specific business rules for template composition.
+    if uses_company_specific_template_rules(org_ctx.id) {
+        if matches!(template.test_type, TestType::CA) && template_questions.len() < 4 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Las plantillas CA deben tener minimo 4 preguntas".to_string(),
+            ));
+        }
 
-    if !matches!(template.test_type, TestType::CA) && template_questions.len() != 1 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta".to_string(),
-        ));
+        if !matches!(template.test_type, TestType::CA) && template_questions.len() != 1 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta".to_string(),
+            ));
+        }
     }
 
     // Build quiz_data JSON from template questions

@@ -205,19 +205,6 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
             return;
         }
 
-        // Business rules by test type:
-        // - CA must have at least 4 questions.
-        // - MWT/MOT/FOT/FWT must have exactly 1 question.
-        if (formData.test_type === 'CA' && questions.length < 4) {
-            alert('Las plantillas CA deben tener minimo 4 preguntas.');
-            return;
-        }
-
-        if (formData.test_type !== 'CA' && questions.length !== 1) {
-            alert('Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta.');
-            return;
-        }
-
         // Validate: either mysql_course_id OR level+course_type must be provided
         if (!formData.mysql_course_id && (!formData.level || !formData.course_type)) {
             alert('Debes seleccionar un curso de MySQL o especificar nivel y tipo de curso manualmente');
