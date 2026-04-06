@@ -2,7 +2,7 @@
 
 # OpenCCB Unified Deployment Script
 # Despliegue automático en AWS EC2 con SSL (Let's Encrypt)
-# Servidor: ec2-18-224-137-67.us-east-2.compute.amazonaws.com
+# Servidor: ec2-18-118-158-99.us-east-2.compute.amazonaws.com
 # Dominios: studio.norteamericano.com, learning.norteamericano.com
 
 set -e
@@ -17,7 +17,7 @@ echo ""
 # ============================================================================
 PEM_PATH="ubuntu.pem"
 REMOTE_USER="ubuntu"
-REMOTE_HOST="ec2-18-224-137-67.us-east-2.compute.amazonaws.com"
+REMOTE_HOST="ec2-18-118-158-99.us-east-2.compute.amazonaws.com"
 REMOTE_PATH="/var/www/openccb"
 # Cambiar a "false" para usar Let's Encrypt production (solo después de rate limits)
 LETSENCRYPT_STAGING="true"
@@ -433,6 +433,23 @@ sed -i "/^NEXT_PUBLIC_LMS_API_URL=/d" .env 2>/dev/null || true
 # Agregar URLs correctas (sin puertos - nginx proxy maneja el routing)
 echo "NEXT_PUBLIC_CMS_API_URL=\$CMS_URL" >> .env
 echo "NEXT_PUBLIC_LMS_API_URL=\$LMS_URL" >> .env
+
+# Configurar S3 para almacenamiento de audio
+if ! grep -q "^S3_BUCKET=" .env || grep -q "^S3_BUCKET=$" .env; then
+    sed -i "/^S3_BUCKET=/d" .env 2>/dev/null || true
+    echo "S3_BUCKET=openccb-802726101181-us-east-2-an" >> .env
+fi
+if ! grep -q "^AWS_REGION=" .env || grep -q "^AWS_REGION=$" .env; then
+    sed -i "/^AWS_REGION=/d" .env 2>/dev/null || true
+    echo "AWS_REGION=us-east-2" >> .env
+fi
+# AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY se mantienen si ya existen
+if ! grep -q "^AWS_ACCESS_KEY_ID=" .env; then
+    echo "AWS_ACCESS_KEY_ID=" >> .env
+fi
+if ! grep -q "^AWS_SECRET_ACCESS_KEY=" .env; then
+    echo "AWS_SECRET_ACCESS_KEY=" >> .env
+fi
 
 # Asegurar dominios públicos para nginx-proxy y certificados SSL
 sed -i "/^NEXT_PUBLIC_STUDIO_DOMAIN=/d" .env 2>/dev/null || true

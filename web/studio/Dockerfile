@@ -1,5 +1,7 @@
+# syntax=docker/dockerfile:1.7
+
 # Build stage for Rust CMS
-FROM rustlang/rust:nightly AS rust-builder
+FROM rust:1-bookworm AS rust-builder
 WORKDIR /usr/src/app
 
 # Install system dependencies first
@@ -11,20 +13,24 @@ COPY shared/ ./shared/
 COPY services/ ./services/
 
 # Build the CMS service
-RUN cargo build --release -p cms-service
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+	--mount=type=cache,target=/usr/local/cargo/git \
+	--mount=type=cache,target=/tmp/cargo-target \
+	CARGO_TARGET_DIR=/tmp/cargo-target cargo build --release -p cms-service && \
+	cp /tmp/cargo-target/release/cms-service /usr/src/app/cms-service
 
 # Build stage for Next.js Studio
 FROM node:20-alpine AS node-builder
 WORKDIR /app
 
 COPY web/studio/package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/studio/ .
 ARG NEXT_PUBLIC_CMS_API_URL
 ARG NEXT_PUBLIC_LMS_API_URL
 ENV NEXT_PUBLIC_CMS_API_URL=$NEXT_PUBLIC_CMS_API_URL
 ENV NEXT_PUBLIC_LMS_API_URL=$NEXT_PUBLIC_LMS_API_URL
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm npm run build
 
 # Final stage
 FROM node:20-slim AS runner
@@ -35,10 +41,10 @@ ENV NODE_ENV production
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Install sharp for Next.js image optimization
-RUN npm install sharp
+RUN --mount=type=cache,target=/root/.npm npm install sharp
 
 # Copy CMS binary
-COPY --from=rust-builder /usr/src/app/target/release/cms-service ./
+COPY --from=rust-builder /usr/src/app/cms-service ./
 
 # Copy Studio frontend
 COPY --from=node-builder /app/public ./public
