@@ -155,6 +155,13 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
         return 'bg-gray-100 text-gray-800';
     };
 
+    const getLinkedMaterialsCount = (template: TestTemplate): number => {
+        const data = template.template_data;
+        if (!data || typeof data !== 'object') return 0;
+        const selected = (data as Record<string, unknown>).selected_assets;
+        return Array.isArray(selected) ? selected.length : 0;
+    };
+
     return (
         <div className="p-6">
             <div className="mb-6 flex items-center justify-between">
@@ -326,6 +333,10 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                     <Tag className="w-4 h-4" />
                                     <span>Puntos totales: {template.total_points}</span>
                                 </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <BookOpen className="w-4 h-4" />
+                                    <span>Materiales vinculados: {getLinkedMaterialsCount(template)}</span>
+                                </div>
                             </div>
 
                             {template.tags && template.tags.length > 0 && (
@@ -391,6 +402,10 @@ export default function TestTemplateManager({ onSelectTemplate, onCreateTemplate
                                     <div>
                                         <span className="text-blue-700">Aprobación:</span>
                                         <span className="ml-2 font-medium">{selectedTemplate.passing_score}%</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-blue-700">Materiales vinculados:</span>
+                                        <span className="ml-2 font-medium">{getLinkedMaterialsCount(selectedTemplate)}</span>
                                     </div>
                                 </div>
                             </div>

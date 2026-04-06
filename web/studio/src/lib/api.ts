@@ -13,12 +13,13 @@ const getApiBaseUrl = (defaultPort: string, envVar?: string) => {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
 
-        // Producción - dominios específicos (fallback sin prefijo)
+        // Producción - usar prefijo explícito para evitar colisiones con rutas de Next.js.
+        // Ejemplo: /question-bank (página) vs /question-bank/mysql-plans (API).
         if (hostname === STUDIO_DOMAIN) {
-            return `${protocol}//${STUDIO_DOMAIN}`;
+            return `${protocol}//${STUDIO_DOMAIN}/cms-api`;
         }
         if (hostname === LEARNING_DOMAIN) {
-            return `${protocol}//${LEARNING_DOMAIN}`;
+            return `${protocol}//${LEARNING_DOMAIN}/cms-api`;
         }
 
         // Desarrollo local
@@ -599,6 +600,7 @@ export interface Asset {
     organization_id: string;
     uploaded_by: string | null;
     course_id: string | null;
+    english_level?: string | null;
     filename: string;
     storage_path: string;
     mimetype: string;
@@ -609,6 +611,9 @@ export interface Asset {
 export interface AssetFilters {
     mimetype?: string;
     course_id?: string;
+    english_level?: string;
+    sam_plan_id?: number;
+    sam_course_id?: number;
     search?: string;
     page?: number;
     limit?: number;
@@ -948,6 +953,9 @@ export const cmsApi = {
         if (filters) {
             if (filters.mimetype) params.append('mimetype', filters.mimetype);
             if (filters.course_id) params.append('course_id', filters.course_id);
+            if (filters.english_level) params.append('english_level', filters.english_level);
+            if (filters.sam_plan_id) params.append('sam_plan_id', String(filters.sam_plan_id));
+            if (filters.sam_course_id) params.append('sam_course_id', String(filters.sam_course_id));
             if (filters.search) params.append('search', filters.search);
             if (filters.page) params.append('page', filters.page.toString());
             if (filters.limit) params.append('limit', filters.limit.toString());
@@ -959,12 +967,22 @@ export const cmsApi = {
     deleteAsset: (id: string): Promise<void> => apiFetch(`/api/assets/${id}`, { method: 'DELETE' }),
     ingestAssetForRag: (id: string): Promise<AssetRagIngestResult> =>
         apiFetch(`/api/assets/${id}/ingest-rag`, { method: 'POST' }),
-    importAssetsZip: (file: File, ingestRag = false, courseId?: string): Promise<AssetZipImportResult> => {
+    importAssetsZip: (
+        file: File,
+        ingestRag = false,
+        courseId?: string,
+        englishLevel?: string,
+        samPlanId?: number,
+        samCourseId?: number,
+    ): Promise<AssetZipImportResult> => {
         return new Promise((resolve, reject) => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('ingest_rag', ingestRag ? 'true' : 'false');
             if (courseId) formData.append('course_id', courseId);
+            if (englishLevel) formData.append('english_level', englishLevel);
+            if (samPlanId) formData.append('sam_plan_id', String(samPlanId));
+            if (samCourseId) formData.append('sam_course_id', String(samCourseId));
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', `${API_BASE_URL}/api/assets/import-zip`);
@@ -990,11 +1008,21 @@ export const cmsApi = {
             xhr.send(formData);
         });
     },
-    uploadAsset: (file: File, onProgress?: (pct: number) => void, courseId?: string): Promise<UploadResponse> => {
+    uploadAsset: (
+        file: File,
+        onProgress?: (pct: number) => void,
+        courseId?: string,
+        englishLevel?: string,
+        samPlanId?: number,
+        samCourseId?: number,
+    ): Promise<UploadResponse> => {
         return new Promise((resolve, reject) => {
             const formData = new FormData();
             formData.append('file', file);
             if (courseId) formData.append('course_id', courseId);
+            if (englishLevel) formData.append('english_level', englishLevel);
+            if (samPlanId) formData.append('sam_plan_id', String(samPlanId));
+            if (samCourseId) formData.append('sam_course_id', String(samCourseId));
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', `${API_BASE_URL}/api/assets/upload`);

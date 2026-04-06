@@ -103,6 +103,24 @@ pub async fn save_mysql_courses_and_plans(
         let course_type = calculate_course_type(&plan.nombre_plan);
         tracing::debug!("Saving study plan: {} (ID: {})", plan.nombre_plan, plan.id_plan_de_estudios);
 
+        // Mirror SAM structure in PostgreSQL using SAM-native column names.
+        sqlx::query(
+            r#"
+            INSERT INTO sam_study_plans (organization_id, idPlanDeEstudios, Nombre, Activo)
+            VALUES ($1, $2, $3, TRUE)
+            ON CONFLICT (organization_id, idPlanDeEstudios) DO UPDATE SET
+                Nombre = EXCLUDED.Nombre,
+                Activo = EXCLUDED.Activo,
+                updated_at = NOW()
+            "#
+        )
+        .bind(org_id)
+        .bind(plan.id_plan_de_estudios)
+        .bind(&plan.nombre_plan)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to save SAM study plan mirror: {}", e))?;
+
         sqlx::query(
             r#"
             INSERT INTO mysql_study_plans (mysql_id, organization_id, name, course_type)
@@ -128,6 +146,31 @@ pub async fn save_mysql_courses_and_plans(
         let course_type = calculate_course_type_from_duration(course.duracion);
         let level_calculated = calculate_course_level(course.nivel_curso);
         tracing::debug!("Saving course: {} (ID: {}, Plan ID: {})", course.nombre_curso, course.id_cursos, course.id_plan_de_estudios);
+
+        sqlx::query(
+            r#"
+            INSERT INTO sam_courses (
+                organization_id, idCursos, idPlanDeEstudios, NombreCurso, NivelCurso, Duracion, Activo
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            ON CONFLICT (organization_id, idCursos) DO UPDATE SET
+                idPlanDeEstudios = EXCLUDED.idPlanDeEstudios,
+                NombreCurso = EXCLUDED.NombreCurso,
+                NivelCurso = EXCLUDED.NivelCurso,
+                Duracion = EXCLUDED.Duracion,
+                Activo = EXCLUDED.Activo,
+                updated_at = NOW()
+            "#,
+        )
+        .bind(org_id)
+        .bind(course.id_cursos)
+        .bind(course.id_plan_de_estudios)
+        .bind(&course.nombre_curso)
+        .bind(course.nivel_curso)
+        .bind(course.duracion)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to save SAM course mirror: {}", e))?;
 
         // Get study_plan_id from mysql_study_plans
         let study_plan_id: i32 = sqlx::query_scalar(
@@ -820,15 +863,15 @@ pub async fn get_mysql_plans(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<MySqlPlanInfo>>, (StatusCode, String)> {
-    // Fetch all study plans from PostgreSQL
+    // Read from SAM mirror in PostgreSQL with SAM-native fields.
     let plans: Vec<MySqlPlanInfo> = sqlx::query_as(
         r#"
         SELECT
-            mysql_id as id_plan_de_estudios,
-            name as nombre_plan
-        FROM mysql_study_plans
-        WHERE organization_id = $1 AND is_active = true
-        ORDER BY name
+            idPlanDeEstudios AS id_plan_de_estudios,
+            Nombre AS nombre_plan
+        FROM sam_study_plans
+        WHERE organization_id = $1 AND Activo = TRUE
+        ORDER BY Nombre
         "#
     )
     .bind(org_ctx.id)
@@ -845,22 +888,25 @@ pub async fn get_mysql_courses_by_plan(
     State(pool): State<PgPool>,
     Query(filters): Query<MySqlCoursesFilters>,
 ) -> Result<Json<Vec<MySqlCourseInfo>>, (StatusCode, String)> {
-    // Fetch courses filtered by plan from PostgreSQL
+    // Read from SAM mirror in PostgreSQL with SAM-native fields.
     let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
         r#"
         SELECT
-            c.mysql_id as id_cursos,
-            c.name as nombre_curso,
-            c.level as nivel_curso,
-            sp.mysql_id as id_plan_de_estudios,
-            sp.name as nombre_plan,
-            c.duracion::double precision as duracion
-        FROM mysql_courses c
-        JOIN mysql_study_plans sp ON c.study_plan_id = sp.id
+            c.idCursos AS id_cursos,
+            c.NombreCurso AS nombre_curso,
+            c.NivelCurso AS nivel_curso,
+            c.idPlanDeEstudios AS id_plan_de_estudios,
+            p.Nombre AS nombre_plan,
+            c.Duracion AS duracion
+        FROM sam_courses c
+        JOIN sam_study_plans p
+          ON p.organization_id = c.organization_id
+         AND p.idPlanDeEstudios = c.idPlanDeEstudios
         WHERE c.organization_id = $1
-            AND c.is_active = true
-            AND sp.mysql_id = $2
-        ORDER BY c.level
+          AND c.Activo = TRUE
+          AND p.Activo = TRUE
+          AND c.idPlanDeEstudios = $2
+        ORDER BY c.NivelCurso
         "#
     )
     .bind(org_ctx.id)

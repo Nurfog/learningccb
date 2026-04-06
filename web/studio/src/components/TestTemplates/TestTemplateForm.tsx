@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { cmsApi, questionBankApi, CreateTestTemplatePayload, CourseLevel, CourseType, TestType, QuestionType, MySqlPlan, MySqlCourse } from '@/lib/api';
+import { cmsApi, questionBankApi, CreateTestTemplatePayload, CourseLevel, CourseType, TestType, QuestionType, MySqlPlan, MySqlCourse, Asset } from '@/lib/api';
 import { X, Save, Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Copy, GripVertical, Edit2 } from 'lucide-react';
 
 interface Section {
@@ -31,6 +31,39 @@ interface TestTemplateFormProps {
     onSuccess?: () => void;
     onCancel?: () => void;
 }
+
+interface TemplateLinkedAsset {
+    id: string;
+    filename?: string;
+    mimetype?: string;
+}
+
+const readLinkedAssetsFromTemplateData = (templateData: unknown): TemplateLinkedAsset[] => {
+    if (!templateData || typeof templateData !== 'object') return [];
+
+    const data = templateData as Record<string, unknown>;
+    const raw = data.selected_assets;
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+        .map((item) => {
+            if (typeof item === 'string') {
+                return { id: item };
+            }
+            if (item && typeof item === 'object') {
+                const obj = item as Record<string, unknown>;
+                if (typeof obj.id === 'string') {
+                    return {
+                        id: obj.id,
+                        filename: typeof obj.filename === 'string' ? obj.filename : undefined,
+                        mimetype: typeof obj.mimetype === 'string' ? obj.mimetype : undefined,
+                    };
+                }
+            }
+            return null;
+        })
+        .filter((asset): asset is TemplateLinkedAsset => Boolean(asset));
+};
 
 export default function TestTemplateForm({ templateId, onSuccess, onCancel }: TestTemplateFormProps) {
     const [formData, setFormData] = useState<CreateTestTemplatePayload>({
@@ -63,6 +96,15 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
     const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
     const [loadingPlans, setLoadingPlans] = useState(false);
     const [loadingCourses, setLoadingCourses] = useState(false);
+    const [sharedAssets, setSharedAssets] = useState<Asset[]>([]);
+    const [selectedLinkedAssets, setSelectedLinkedAssets] = useState<TemplateLinkedAsset[]>([]);
+    const [loadingSharedAssets, setLoadingSharedAssets] = useState(false);
+    const [assetSearch, setAssetSearch] = useState('');
+    const [selectedAssetLevel, setSelectedAssetLevel] = useState<string>('');
+    const [selectedAssetPlanId, setSelectedAssetPlanId] = useState<number | ''>('');
+    const [assetPlans, setAssetPlans] = useState<MySqlPlan[]>([]);
+    const [assetCourses, setAssetCourses] = useState<MySqlCourse[]>([]);
+    const [selectedAssetCourseId, setSelectedAssetCourseId] = useState<number | ''>('');
     const isEditing = Boolean(templateId);
 
     // Load MySQL plans on mount
@@ -80,6 +122,39 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
         };
         loadPlans();
     }, []);
+
+    useEffect(() => {
+        questionBankApi.getMySQLPlans().then(setAssetPlans).catch(() => setAssetPlans([]));
+    }, []);
+
+    useEffect(() => {
+        if (!selectedAssetPlanId) {
+            setAssetCourses([]);
+            setSelectedAssetCourseId('');
+            return;
+        }
+        questionBankApi.getMySQLCoursesByPlan(selectedAssetPlanId).then(setAssetCourses).catch(() => setAssetCourses([]));
+    }, [selectedAssetPlanId]);
+
+    useEffect(() => {
+        const loadSharedAssets = async () => {
+            try {
+                setLoadingSharedAssets(true);
+                const assets = await cmsApi.getAssets({
+                    english_level: selectedAssetLevel || undefined,
+                    sam_plan_id: selectedAssetPlanId || undefined,
+                    sam_course_id: selectedAssetCourseId || undefined,
+                });
+                setSharedAssets(assets.filter((asset) => !asset.course_id));
+            } catch (error) {
+                console.error('Failed to load shared assets:', error);
+            } finally {
+                setLoadingSharedAssets(false);
+            }
+        };
+
+        loadSharedAssets();
+    }, [selectedAssetLevel, selectedAssetPlanId, selectedAssetCourseId]);
 
     // Load courses when plan is selected
     useEffect(() => {
@@ -124,6 +199,10 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
                     template_data: data.template.template_data || { sections: [], questions: [] },
                     tags: data.template.tags || [],
                 });
+
+                if (data.template.level) {
+                    setSelectedAssetLevel(data.template.level);
+                }
 
                 setSections(
                     (data.sections || []).map((section) => ({
@@ -170,6 +249,8 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
                 if (data.template.mysql_course_id) {
                     setSelectedCourseId(data.template.mysql_course_id);
                 }
+
+                setSelectedLinkedAssets(readLinkedAssetsFromTemplateData(data.template.template_data));
             } catch (error) {
                 console.error('Failed to load template for edit:', error);
                 alert('No se pudo cargar la plantilla para editar');
@@ -214,23 +295,32 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
         try {
             setSaving(true);
 
+            const templateDataObject: Record<string, unknown> =
+                formData.template_data && typeof formData.template_data === 'object'
+                    ? { ...(formData.template_data as Record<string, unknown>) }
+                    : {};
+
+            templateDataObject.selected_assets = selectedLinkedAssets;
+
+            const payloadBase = {
+                name: formData.name,
+                description: formData.description,
+                mysql_course_id: formData.mysql_course_id,
+                level: formData.level,
+                course_type: formData.course_type,
+                test_type: formData.test_type,
+                duration_minutes: formData.duration_minutes,
+                passing_score: formData.passing_score,
+                total_points: formData.total_points,
+                instructions: formData.instructions,
+                template_data: templateDataObject,
+                tags: formData.tags,
+            };
+
             let targetTemplateId = templateId;
 
             if (isEditing && templateId) {
-                await cmsApi.updateTestTemplate(templateId, {
-                    name: formData.name,
-                    description: formData.description,
-                    mysql_course_id: formData.mysql_course_id,
-                    level: formData.level,
-                    course_type: formData.course_type,
-                    test_type: formData.test_type,
-                    duration_minutes: formData.duration_minutes,
-                    passing_score: formData.passing_score,
-                    total_points: formData.total_points,
-                    instructions: formData.instructions,
-                    template_data: formData.template_data,
-                    tags: formData.tags,
-                });
+                await cmsApi.updateTestTemplate(templateId, payloadBase);
 
                 const existingData = await cmsApi.getTestTemplate(templateId);
 
@@ -242,7 +332,7 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
                     await cmsApi.deleteTemplateSection(templateId, existingSection.id);
                 }
             } else {
-                const template = await cmsApi.createTestTemplate(formData);
+                const template = await cmsApi.createTestTemplate(payloadBase);
                 targetTemplateId = template.id;
             }
 
@@ -427,6 +517,28 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
         }
     };
 
+    const handleToggleLinkedAsset = (asset: Asset) => {
+        setSelectedLinkedAssets((prev) => {
+            const exists = prev.some((selected) => selected.id === asset.id);
+            if (exists) {
+                return prev.filter((selected) => selected.id !== asset.id);
+            }
+            return [
+                ...prev,
+                { id: asset.id, filename: asset.filename, mimetype: asset.mimetype },
+            ];
+        });
+    };
+
+    const filteredSharedAssets = sharedAssets.filter((asset) => {
+        if (!assetSearch.trim()) return true;
+        const q = assetSearch.toLowerCase();
+        return (
+            asset.filename.toLowerCase().includes(q) ||
+            asset.mimetype.toLowerCase().includes(q)
+        );
+    });
+
     const getQuestionTypeLabel = (type: QuestionType) => {
         const labels: Record<QuestionType, string> = {
             'multiple-choice': 'Opción Múltiple',
@@ -574,6 +686,99 @@ export default function TestTemplateForm({ templateId, onSuccess, onCancel }: Te
                                     {loadingCourses && <p className="text-xs text-blue-600 mt-1">Cargando cursos...</p>}
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+                            <h4 className="text-sm font-medium text-emerald-900 mb-2">
+                                Material Compartido para esta Plantilla
+                            </h4>
+                            <p className="text-xs text-emerald-700 mb-3">
+                                Este material queda vinculado a la plantilla y disponible para instructores al reutilizarla.
+                            </p>
+
+                            <input
+                                type="text"
+                                value={assetSearch}
+                                onChange={(e) => setAssetSearch(e.target.value)}
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white mb-3"
+                                placeholder="Buscar material por nombre o tipo..."
+                            />
+
+                            <select
+                                value={selectedAssetLevel}
+                                onChange={(e) => setSelectedAssetLevel(e.target.value)}
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white mb-3"
+                            >
+                                <option value="">Todos los niveles</option>
+                                <option value="beginner">Beginner</option>
+                                <option value="beginner_1">Beginner 1</option>
+                                <option value="beginner_2">Beginner 2</option>
+                                <option value="intermediate">Intermediate</option>
+                                <option value="intermediate_1">Intermediate 1</option>
+                                <option value="intermediate_2">Intermediate 2</option>
+                                <option value="advanced">Advanced</option>
+                                <option value="advanced_1">Advanced 1</option>
+                                <option value="advanced_2">Advanced 2</option>
+                            </select>
+
+                            <select
+                                value={selectedAssetPlanId}
+                                onChange={(e) => {
+                                    const value = e.target.value ? Number(e.target.value) : '';
+                                    setSelectedAssetPlanId(value);
+                                    setSelectedAssetCourseId('');
+                                }}
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white mb-3"
+                            >
+                                <option value="">Todos los planes SAM</option>
+                                {assetPlans.map((p) => (
+                                    <option key={p.idPlanDeEstudios} value={p.idPlanDeEstudios}>{p.NombrePlan}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                value={selectedAssetCourseId}
+                                onChange={(e) => setSelectedAssetCourseId(e.target.value ? Number(e.target.value) : '')}
+                                disabled={!selectedAssetPlanId}
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white mb-3 disabled:opacity-60"
+                            >
+                                <option value="">Todos los cursos SAM</option>
+                                {assetCourses.map((c) => (
+                                    <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
+                                ))}
+                            </select>
+
+                            <div className="max-h-52 overflow-y-auto bg-white border border-emerald-200 rounded-lg divide-y divide-emerald-100">
+                                {loadingSharedAssets && (
+                                    <p className="text-xs text-emerald-700 p-3">Cargando materiales...</p>
+                                )}
+                                {!loadingSharedAssets && filteredSharedAssets.length === 0 && (
+                                    <p className="text-xs text-emerald-700 p-3">No hay materiales compartidos disponibles.</p>
+                                )}
+                                {!loadingSharedAssets && filteredSharedAssets.map((asset) => {
+                                    const checked = selectedLinkedAssets.some((a) => a.id === asset.id);
+                                    return (
+                                        <label key={asset.id} className="flex items-start gap-3 p-3 cursor-pointer hover:bg-emerald-50">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => handleToggleLinkedAsset(asset)}
+                                                className="mt-0.5"
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 truncate">{asset.filename}</p>
+                                                <p className="text-xs text-gray-600">{asset.mimetype}</p>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+
+                            {selectedLinkedAssets.length > 0 && (
+                                <p className="text-xs text-emerald-800 mt-2">
+                                    {selectedLinkedAssets.length} material(es) vinculados a la plantilla.
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-3 gap-4">

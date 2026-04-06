@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     Activity,
     TrendingUp,
-    Mic
+    Mic,
+    FileArchive
 } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
         { icon: Building2, label: "Organizations", href: "/admin" },
         { icon: Users, label: "Users", href: "/admin/users" },
+        { icon: FileArchive, label: "Material Compartido", href: "/admin/materials" },
         { icon: Mic, label: "Audio Evaluations", href: "/admin/audio-evaluations" },
         { icon: ClipboardList, label: "Audit Logs", href: "/admin/audit" },
         { icon: Activity, label: "System Tasks", href: "/admin/tasks" },
