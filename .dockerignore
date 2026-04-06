@@ -28,3 +28,6 @@ Thumbs.db
 coverage/
 e2e/playwright-report/
 e2e/test-results/
+
+# TLS/ACME secrets
+nginx/certs-data/

@@ -3048,8 +3048,8 @@ pub async fn get_audio_response_stats(
             COUNT(*) FILTER (WHERE teacher_score IS NOT NULL) as teacher_evaluated,
             COUNT(*) FILTER (WHERE status = 'both_evaluated') as fully_evaluated,
             COUNT(*) FILTER (WHERE status = 'pending') as pending,
-            AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL) as avg_ai_score,
-            AVG(teacher_score) FILTER (WHERE teacher_score IS NOT NULL) as avg_teacher_score
+            (AVG(ai_score) FILTER (WHERE ai_score IS NOT NULL))::float4 as avg_ai_score,
+            (AVG(teacher_score) FILTER (WHERE teacher_score IS NOT NULL))::float4 as avg_teacher_score
         FROM audio_responses
         WHERE course_id = $1 AND organization_id = $2
         GROUP BY organization_id, course_id, lesson_id

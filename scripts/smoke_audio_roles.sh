@@ -200,9 +200,9 @@ VALUES
   ('${LESSON_A_ID}', '${MODULE_A_ID}', 'Lesson A', 'video', 1, '${ORG_ID}'),
   ('${LESSON_B_ID}', '${MODULE_B_ID}', 'Lesson B', 'video', 1, '${ORG_ID}');
 
-INSERT INTO course_instructors (course_id, user_id, role)
+INSERT INTO course_instructors (organization_id, course_id, user_id, role)
 VALUES
-  ('${COURSE_A_ID}', '${INSTRUCTOR_ID}', 'instructor');
+  ('${ORG_ID}', '${COURSE_A_ID}', '${INSTRUCTOR_ID}', 'instructor');
 
 INSERT INTO audio_responses (
   id, organization_id, user_id, course_id, lesson_id, block_id, prompt,

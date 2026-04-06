@@ -1,5 +1,5 @@
 # Build stage for Rust LMS
-FROM rustlang/rust:nightly AS rust-builder
+FROM rust:1-bookworm AS rust-builder
 WORKDIR /usr/src/app
 
 # Install system dependencies first
