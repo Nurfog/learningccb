@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 # Build stage for Rust LMS
 FROM rust:1-bookworm AS rust-builder
 WORKDIR /usr/src/app
@@ -11,20 +13,24 @@ COPY shared/ ./shared/
 COPY services/ ./services/
 
 # Build the LMS service
-RUN cargo build --release -p lms-service
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+	--mount=type=cache,target=/usr/local/cargo/git \
+	--mount=type=cache,target=/tmp/cargo-target \
+	CARGO_TARGET_DIR=/tmp/cargo-target cargo build --release -p lms-service && \
+	cp /tmp/cargo-target/release/lms-service /usr/src/app/lms-service
 
 # Build stage for Next.js Experience
 FROM node:20-alpine AS node-builder
 WORKDIR /app
 
 COPY web/experience/package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/experience/ .
 ARG NEXT_PUBLIC_LMS_API_URL
 ENV NEXT_PUBLIC_LMS_API_URL=$NEXT_PUBLIC_LMS_API_URL
 ARG NEXT_PUBLIC_CMS_API_URL
 ENV NEXT_PUBLIC_CMS_API_URL=$NEXT_PUBLIC_CMS_API_URL
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm npm run build
 
 # Final stage
 FROM node:20-slim AS runner
@@ -35,10 +41,10 @@ ENV NODE_ENV production
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Install sharp for Next.js image optimization
-RUN npm install sharp
+RUN --mount=type=cache,target=/root/.npm npm install sharp
 
 # Copy LMS binary
-COPY --from=rust-builder /usr/src/app/target/release/lms-service ./
+COPY --from=rust-builder /usr/src/app/lms-service ./
 
 # Copy Experience frontend
 COPY --from=node-builder /app/public ./public
