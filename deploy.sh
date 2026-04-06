@@ -532,6 +532,57 @@ if ! $DOCKER_CMD compose version &> /dev/null 2>&1; then
     echo "   Docker Compose instalado"
 fi
 
+# Docker Buildx
+echo "Verificando Docker Buildx..."
+if ! $DOCKER_CMD buildx version &> /dev/null 2>&1; then
+    echo "   Buildx no esta instalado, instalando..."
+
+    # Opcion preferida en Ubuntu/Debian
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update -qq || true
+        sudo apt-get install -y docker-buildx-plugin &> /dev/null || true
+    fi
+
+    # Fallback: descarga binaria oficial
+    if ! $DOCKER_CMD buildx version &> /dev/null 2>&1; then
+        BUILDX_VERSION="v0.33.0"
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+            x86_64) BUILDX_ARCH="linux-amd64" ;;
+            aarch64|arm64) BUILDX_ARCH="linux-arm64" ;;
+            *)
+                echo "   ERROR: Arquitectura no soportada para instalacion automatica de buildx: $ARCH"
+                exit 1
+                ;;
+        esac
+
+        sudo mkdir -p /usr/lib/docker/cli-plugins
+        sudo curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.${BUILDX_ARCH}" -o /usr/lib/docker/cli-plugins/docker-buildx
+        sudo chmod +x /usr/lib/docker/cli-plugins/docker-buildx
+    fi
+fi
+
+if ! $DOCKER_CMD buildx version &> /dev/null 2>&1; then
+    echo "   ERROR: Buildx no pudo instalarse correctamente"
+    exit 1
+fi
+
+echo "   Buildx activo: $($DOCKER_CMD buildx version | head -1)"
+
+# Crear/activar builder dedicado para OpenCCB
+if ! $DOCKER_CMD buildx inspect openccb-builder &> /dev/null 2>&1; then
+    $DOCKER_CMD buildx create --name openccb-builder --driver docker-container --use >/dev/null 2>&1 || true
+fi
+$DOCKER_CMD buildx use openccb-builder >/dev/null 2>&1 || true
+$DOCKER_CMD buildx inspect --bootstrap >/dev/null 2>&1 || true
+
+# Forzar Compose a usar BuildKit/Buildx
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+export BUILDX_BUILDER=openccb-builder
+
+echo "   BuildKit/Buildx configurado para Docker Compose"
+
 echo ""
 
 # Funcion para ejecutar docker compose
