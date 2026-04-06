@@ -13,14 +13,6 @@ use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;
 
-const COMPANY_SPECIFIC_RULES_ORG_ID: &str = "00000000-0000-0000-0000-000000000001";
-
-fn uses_company_specific_template_rules(org_id: Uuid) -> bool {
-    Uuid::parse_str(COMPANY_SPECIFIC_RULES_ORG_ID)
-        .map(|id| id == org_id)
-        .unwrap_or(false)
-}
-
 // ==================== Query Parameters ====================
 
 #[derive(Debug, Deserialize)]
@@ -563,23 +555,6 @@ pub async fn apply_template_to_lesson(
         return Err((StatusCode::BAD_REQUEST, "Template has no questions".to_string()));
     }
 
-    // Company-specific business rules for template composition.
-    if uses_company_specific_template_rules(org_ctx.id) {
-        if matches!(template.test_type, TestType::CA) && template_questions.len() < 4 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Las plantillas CA deben tener minimo 4 preguntas".to_string(),
-            ));
-        }
-
-        if !matches!(template.test_type, TestType::CA) && template_questions.len() != 1 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Las plantillas MWT, MOT, FOT y FWT deben tener exactamente 1 pregunta".to_string(),
-            ));
-        }
-    }
-
     // Build quiz_data JSON from template questions
     let questions_json: Vec<serde_json::Value> = template_questions
         .iter()
@@ -968,8 +943,16 @@ pub async fn generate_questions_with_rag(
                         1 - (qb.embedding <=> $1::vector) AS similarity
                     FROM question_bank qb
                     WHERE qb.organization_id = $2
-                                            AND qb.source = 'imported-mysql'
-                                            AND ($3::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $3)
+                                            AND (
+                                                qb.source = 'imported-material'
+                                                OR (
+                                                    qb.source = 'imported-mysql'
+                                                    AND (
+                                                        $3::integer IS NULL
+                                                        OR (qb.source_metadata->>'idCursos')::integer = $3
+                                                    )
+                                                )
+                                            )
                       AND qb.embedding IS NOT NULL
                     ORDER BY qb.embedding <=> $1::vector
                                         LIMIT $4
@@ -1011,8 +994,16 @@ pub async fn generate_questions_with_rag(
                             ) as nivel_curso
                         FROM question_bank qb
                         WHERE qb.organization_id = $1
-                          AND qb.source = 'imported-mysql'
-                          AND ($2::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $2)
+                          AND (
+                              qb.source = 'imported-material'
+                              OR (
+                                  qb.source = 'imported-mysql'
+                                  AND (
+                                      $2::integer IS NULL
+                                      OR (qb.source_metadata->>'idCursos')::integer = $2
+                                  )
+                              )
+                          )
                           AND (
                               qb.question_text ILIKE $3
                               OR COALESCE(qb.options::text, '') ILIKE $3
@@ -1054,8 +1045,13 @@ pub async fn generate_questions_with_rag(
                                     ) as nivel_curso
                                 FROM question_bank qb
                                 WHERE qb.organization_id = $1
-                                    AND qb.source = 'imported-mysql'
-                                    AND (qb.source_metadata->>'idCursos')::integer = $2
+                                    AND (
+                                        qb.source = 'imported-material'
+                                        OR (
+                                            qb.source = 'imported-mysql'
+                                            AND (qb.source_metadata->>'idCursos')::integer = $2
+                                        )
+                                    )
                                 ORDER BY qb.created_at DESC
                                 "#
                             )
@@ -1095,8 +1091,16 @@ pub async fn generate_questions_with_rag(
                         ) as nivel_curso
                     FROM question_bank qb
                     WHERE qb.organization_id = $1
-                      AND qb.source = 'imported-mysql'
-                      AND ($2::integer IS NULL OR (qb.source_metadata->>'idCursos')::integer = $2)
+                      AND (
+                          qb.source = 'imported-material'
+                          OR (
+                              qb.source = 'imported-mysql'
+                              AND (
+                                  $2::integer IS NULL
+                                  OR (qb.source_metadata->>'idCursos')::integer = $2
+                              )
+                          )
+                      )
                       AND (
                           qb.question_text ILIKE $3
                           OR COALESCE(qb.options::text, '') ILIKE $3
@@ -1138,8 +1142,13 @@ pub async fn generate_questions_with_rag(
                                 ) as nivel_curso
                             FROM question_bank qb
                             WHERE qb.organization_id = $1
-                                AND qb.source = 'imported-mysql'
-                                AND (qb.source_metadata->>'idCursos')::integer = $2
+                                AND (
+                                    qb.source = 'imported-material'
+                                    OR (
+                                        qb.source = 'imported-mysql'
+                                        AND (qb.source_metadata->>'idCursos')::integer = $2
+                                    )
+                                )
                             ORDER BY qb.created_at DESC
                             "#
                         )
@@ -1180,8 +1189,13 @@ pub async fn generate_questions_with_rag(
                 ) as nivel_curso
             FROM question_bank qb
             WHERE qb.organization_id = $1
-                AND qb.source = 'imported-mysql'
-                AND (qb.source_metadata->>'idCursos')::integer = $2
+                AND (
+                    qb.source = 'imported-material'
+                    OR (
+                        qb.source = 'imported-mysql'
+                        AND (qb.source_metadata->>'idCursos')::integer = $2
+                    )
+                )
             ORDER BY qb.created_at DESC
             "#
         )
@@ -1212,7 +1226,7 @@ pub async fn generate_questions_with_rag(
                 ) as nivel_curso
             FROM question_bank qb
             WHERE qb.organization_id = $1
-                AND qb.source = 'imported-mysql'
+                AND qb.source IN ('imported-mysql', 'imported-material')
             ORDER BY qb.created_at DESC
             "#
         )
@@ -1249,7 +1263,7 @@ pub async fn generate_questions_with_rag(
                 ) as nivel_curso
             FROM question_bank qb
             WHERE qb.organization_id = $1
-                AND qb.source = 'imported-mysql'
+                AND qb.source IN ('imported-mysql', 'imported-material')
             ORDER BY qb.created_at DESC
             "#
         )
@@ -1266,19 +1280,22 @@ pub async fn generate_questions_with_rag(
         if mysql_questions.is_empty() {
             return Err((
                 StatusCode::NOT_FOUND,
-                "No se encontraron preguntas importadas de MySQL para la organización. Importa preguntas del banco MySQL desde Question Bank antes de generar con IA.".to_string(),
+                "No se encontraron materiales RAG en la organización. Importa preguntas MySQL o ingiere PDFs/audios para generar con IA.".to_string(),
             ));
         }
     }
 
     // Determine course_type and level from imported data
-    let course_type = mysql_questions
-        .first()
+    let representative = mysql_questions
+        .iter()
+        .find(|q| !q.plan_nombre.trim().is_empty())
+        .or_else(|| mysql_questions.first());
+
+    let course_type = representative
         .map(|q| get_course_type_from_plan(&q.plan_nombre))
         .unwrap_or(CourseType::Regular);
     
-    let level = mysql_questions
-        .first()
+    let level = representative
         .map(|q| get_course_level_from_mysql(q.nivel_curso, &q.plan_nombre, ""))
         .unwrap_or(CourseLevel::Intermediate);
 

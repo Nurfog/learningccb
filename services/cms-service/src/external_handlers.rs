@@ -9,14 +9,6 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const COMPANY_SPECIFIC_RULES_ORG_ID: &str = "00000000-0000-0000-0000-000000000001";
-
-fn uses_company_specific_template_rules(org_id: Uuid) -> bool {
-    Uuid::parse_str(COMPANY_SPECIFIC_RULES_ORG_ID)
-        .map(|id| id == org_id)
-        .unwrap_or(false)
-}
-
 async fn validate_api_key(headers: &HeaderMap, pool: &PgPool) -> Result<Uuid, StatusCode> {
     let api_key = headers
         .get("X-API-Key")
@@ -225,16 +217,6 @@ async fn create_course_lesson_and_apply_template(
     .fetch_all(pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if uses_company_specific_template_rules(org_id) {
-        if template.2 == "CA" && template_questions.len() < 4 {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-
-        if template.2 != "CA" && template_questions.len() != 1 {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-    }
 
     let questions_json: Vec<serde_json::Value> = template_questions
         .iter()

@@ -733,12 +733,10 @@ pub async fn process_transcription(
     }
 
     let url = lesson.content_url.ok_or(StatusCode::BAD_REQUEST)?;
-    let filename = url.trim_start_matches("/assets/");
-    let file_path = format!("uploads/{}", filename);
 
-    // 2. Read file to verify it exists
-    if !tokio::fs::metadata(&file_path).await.is_ok() {
-        tracing::error!("File not found: {}", file_path);
+    // 2. Validate media is reachable (local /assets or absolute URL)
+    if read_lesson_media_bytes(&url).await.is_err() {
+        tracing::error!("Media not accessible for transcription: {}", url);
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
@@ -855,11 +853,9 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
         .map_err(|e| format!("Lesson fetch failed: {}", e))?;
 
     let url = lesson.content_url.ok_or("No content URL")?;
-    let filename = url.trim_start_matches("/assets/");
-    let file_path = format!("uploads/{}", filename);
 
     // 2. Set status to processing ONLY if it's still queued (not cancelled/idle)
-    tracing::info!("Starting transcription for lesson {} (file: {})", lesson_id, file_path);
+    tracing::info!("Starting transcription for lesson {} (media: {})", lesson_id, url);
     let rows_affected = sqlx::query("UPDATE lessons SET transcription_status = 'processing' WHERE id = $1 AND transcription_status = 'queued'")
         .bind(lesson_id)
         .execute(&pool)
@@ -873,10 +869,11 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     }
 
     // 3. Read file
-    let file_data = tokio::fs::read(&file_path)
+    let filename_for_whisper = extract_filename_from_content_url(&url);
+    let file_data = read_lesson_media_bytes(&url)
         .await
         .map_err(|e| {
-            let err = format!("File read failed ({}): {}", file_path, e);
+            let err = format!("File read failed ({}): {}", url, e);
             tracing::error!("{}", err);
             err
         })?;
@@ -889,7 +886,7 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     
     // We assume a standard Whisper API (like faster-whisper-server or openai-compatible)
     let form = reqwest::multipart::Form::new()
-        .part("file", reqwest::multipart::Part::bytes(file_data).file_name(filename.to_string()))
+        .part("file", reqwest::multipart::Part::bytes(file_data).file_name(filename_for_whisper))
         .text("model", "whisper-1")
         .text("response_format", "json");
 
@@ -1092,6 +1089,40 @@ fn format_vtt_timestamp(seconds: f64) -> String {
     let millis = ((seconds.fract() * 1000.0).round()) as u32;
 
     format!("{:02}:{:02}:{:02}.{:03}", hours, mins, secs, millis)
+}
+
+fn extract_filename_from_content_url(url: &str) -> String {
+    url.rsplit('/')
+        .next()
+        .filter(|v| !v.is_empty())
+        .unwrap_or("media.bin")
+        .to_string()
+}
+
+async fn read_lesson_media_bytes(url: &str) -> Result<Vec<u8>, String> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let response = reqwest::Client::new()
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP read failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP read returned status {}", response.status()));
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("HTTP bytes read failed: {}", e))?;
+        return Ok(bytes.to_vec());
+    }
+
+    let filename = url.trim_start_matches("/assets/");
+    let file_path = format!("uploads/{}", filename);
+    tokio::fs::read(&file_path)
+        .await
+        .map_err(|e| format!("Local read failed ({}): {}", file_path, e))
 }
 
 pub async fn summarize_lesson(

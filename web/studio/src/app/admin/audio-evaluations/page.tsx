@@ -16,18 +16,21 @@ import {
     Download,
     RefreshCcw
 } from "lucide-react";
-import { lmsApi, type AudioResponse, type AudioResponseFilters } from "@/lib/api";
+import { cmsApi, lmsApi, type AudioResponse, type AudioResponseFilters, type Course } from "@/lib/api";
 import PageLayout from "@/components/PageLayout";
 import AuthGuard from "@/components/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AudioEvaluationsPage() {
     const router = useRouter();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [evaluations, setEvaluations] = useState<AudioResponse[]>([]);
+    const [courses, setCourses] = useState<Course[]>([]);
     const [selectedEvaluation, setSelectedEvaluation] = useState<AudioResponse | null>(null);
     const [teacherScore, setTeacherScore] = useState<number>(50);
     const [teacherFeedback, setTeacherFeedback] = useState<string>("");
-    const [filters, setFilters] = useState<AudioResponseFilters>({});
+    const [filters, setFilters] = useState<AudioResponseFilters>({ status: 'pending_instructor' });
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -43,9 +46,22 @@ export default function AudioEvaluationsPage() {
         }
     };
 
+    const fetchCourses = async () => {
+        try {
+            const data = await cmsApi.getCourses();
+            setCourses(data);
+        } catch (error) {
+            console.error("Error fetching courses for audio evaluations:", error);
+        }
+    };
+
     useEffect(() => {
         fetchEvaluations();
     }, [filters]);
+
+    useEffect(() => {
+        fetchCourses();
+    }, []);
 
     const handlePlayAudio = async (id: string) => {
         if (playingId === id) {
@@ -138,6 +154,7 @@ export default function AudioEvaluationsPage() {
                                 className="w-full mt-1 px-4 py-2 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/20"
                             >
                                 <option value="">Todos</option>
+                                <option value="pending_instructor">Pendientes de Instructor</option>
                                 <option value="pending">Pendiente</option>
                                 <option value="ai_evaluated">Solo IA</option>
                                 <option value="teacher_evaluated">Solo Profesor</option>
@@ -145,14 +162,17 @@ export default function AudioEvaluationsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Curso ID</label>
-                            <input
-                                type="text"
+                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Curso</label>
+                            <select
                                 value={filters.course_id || ''}
                                 onChange={(e) => setFilters({ ...filters, course_id: e.target.value || undefined })}
-                                placeholder="UUID del curso"
                                 className="w-full mt-1 px-4 py-2 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/20"
-                            />
+                            >
+                                <option value="">Todos los cursos</option>
+                                {courses.map((course) => (
+                                    <option key={course.id} value={course.id}>{course.title}</option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Lección ID</label>
@@ -167,7 +187,7 @@ export default function AudioEvaluationsPage() {
                     </div>
                     <button
                         onClick={() => {
-                            setFilters({});
+                            setFilters({ status: user?.role === 'admin' ? 'pending_instructor' : 'ai_evaluated' });
                             fetchEvaluations();
                         }}
                         className="mt-4 flex items-center gap-2 px-4 py-2 glass hover:bg-black/5 dark:hover:bg-white/10 rounded-xl text-sm font-bold text-purple-600 dark:text-purple-400 transition-all"

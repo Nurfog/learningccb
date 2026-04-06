@@ -239,6 +239,11 @@ async fn main() {
         .route("/api/ai/review-text", post(handlers::review_text))
         .route("/api/assets", get(handlers_assets::list_assets))
         .route("/api/assets/upload", post(handlers_assets::upload_asset))
+        .route("/api/assets/import-zip", post(handlers_assets::import_assets_zip))
+        .route(
+            "/api/assets/{id}/ingest-rag",
+            post(handlers_assets::ingest_asset_for_rag),
+        )
         .route("/api/assets/{id}", delete(handlers_assets::delete_asset))
         .layer(DefaultBodyLimit::disable())
 /*

@@ -614,6 +614,20 @@ export interface AssetFilters {
     limit?: number;
 }
 
+export interface AssetRagIngestResult {
+    asset_id: string;
+    source: string;
+    chunks_ingested: number;
+    chars_ingested: number;
+}
+
+export interface AssetZipImportResult {
+    imported_assets: number;
+    rag_ingested_assets: number;
+    rag_chunks_ingested: number;
+    failed_entries: string[];
+}
+
 export interface Cohort {
     id: string;
     organization_id: string;
@@ -928,6 +942,39 @@ export const cmsApi = {
     },
     getCourseAssets: (courseId: string): Promise<Asset[]> => apiFetch(`/api/assets?course_id=${courseId}`),
     deleteAsset: (id: string): Promise<void> => apiFetch(`/api/assets/${id}`, { method: 'DELETE' }),
+    ingestAssetForRag: (id: string): Promise<AssetRagIngestResult> =>
+        apiFetch(`/api/assets/${id}/ingest-rag`, { method: 'POST' }),
+    importAssetsZip: (file: File, ingestRag = false, courseId?: string): Promise<AssetZipImportResult> => {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('ingest_rag', ingestRag ? 'true' : 'false');
+            if (courseId) formData.append('course_id', courseId);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${API_BASE_URL}/api/assets/import-zip`);
+
+            const token = getToken();
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            const selectedOrgId = getSelectedOrgId();
+            if (selectedOrgId) xhr.setRequestHeader('X-Organization-Id', selectedOrgId);
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(JSON.parse(xhr.responseText));
+                } else {
+                    let msg = 'ZIP import failed';
+                    try {
+                        msg = JSON.parse(xhr.responseText).message || msg;
+                    } catch { }
+                    reject(new Error(msg));
+                }
+            };
+
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send(formData);
+        });
+    },
     uploadAsset: (file: File, onProgress?: (pct: number) => void, courseId?: string): Promise<UploadResponse> => {
         return new Promise((resolve, reject) => {
             const formData = new FormData();
