@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import { cmsApi, Course, CourseTemplateSummary } from "@/lib/api";
 import { BookOpen, Plus, Trash2, Wand2 } from "lucide-react";
+import Link from "next/link";
 
 export default function CourseTemplatesPage() {
     const [courses, setCourses] = useState<Course[]>([]);
@@ -108,8 +109,31 @@ export default function CourseTemplatesPage() {
     return (
         <PageLayout
             title="Plantillas de Curso"
-            description="Crea una plantilla base de curso y genera nuevos cursos reutilizando estructura y evaluaciones."
+            description="Flujo: Pruebas -> Plantilla de Curso -> Curso. Reutiliza una misma plantilla para crear múltiples cursos."
         >
+            <div className="mb-6 rounded-2xl border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 p-5">
+                <h2 className="text-base font-bold text-blue-900 dark:text-blue-200">Flujo recomendado</h2>
+                <ol className="mt-2 text-sm text-blue-900/90 dark:text-blue-100/90 space-y-1 list-decimal pl-5">
+                    <li>Pruebas: crea o ajusta tus plantillas de pruebas.</li>
+                    <li>Plantilla de Curso: guarda una plantilla que agrupe esas pruebas.</li>
+                    <li>Curso: crea cursos nuevos basados en esa Plantilla de Curso.</li>
+                </ol>
+                <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                        href="/test-templates"
+                        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-white dark:bg-black/20 border border-blue-200 dark:border-blue-500/30 text-sm font-semibold text-blue-800 dark:text-blue-200 hover:bg-blue-100/60 dark:hover:bg-blue-500/20"
+                    >
+                        1. Ir a Plantillas de Pruebas
+                    </Link>
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-white dark:bg-black/20 border border-blue-200 dark:border-blue-500/30 text-sm font-semibold text-blue-800 dark:text-blue-200 hover:bg-blue-100/60 dark:hover:bg-blue-500/20"
+                    >
+                        2. Ir a Cursos
+                    </Link>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-5 space-y-4">
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nueva plantilla</h2>
@@ -163,7 +187,7 @@ export default function CourseTemplatesPage() {
 
                     {sourceCourse && (
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Se usará la estructura de: <strong>{sourceCourse.title}</strong>
+                            Se usará la estructura de: <strong>{sourceCourse.title}</strong>. Esta acción crea una Plantilla de Curso reutilizable para generar cursos finales.
                         </p>
                     )}
                 </div>
