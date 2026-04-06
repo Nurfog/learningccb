@@ -222,6 +222,13 @@ async fn main() {
         .route("/courses/generate", post(handlers::generate_course))
         .route("/courses/{id}/export", get(handlers::export_course))
         .route("/courses/import", post(handlers::import_course))
+        .route("/course-templates", get(handlers::list_course_templates))
+        .route(
+            "/course-templates/from-course/{id}",
+            post(handlers::create_course_template_from_course),
+        )
+        .route("/course-templates/{id}/apply", post(handlers::apply_course_template))
+        .route("/course-templates/{id}", delete(handlers::delete_course_template))
         .route("/grading", post(handlers::create_grading_category))
         .route("/grading/{id}", delete(handlers::delete_grading_category))
         .route(

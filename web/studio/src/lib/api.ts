@@ -908,6 +908,21 @@ export const cmsApi = {
         body: JSON.stringify(data)
     }),
 
+    // Course Templates
+    listCourseTemplates: (): Promise<CourseTemplateSummary[]> => apiFetch('/course-templates'),
+    createCourseTemplateFromCourse: (courseId: string, name: string, description?: string): Promise<CourseTemplateSummary> =>
+        apiFetch(`/course-templates/from-course/${courseId}`, {
+            method: 'POST',
+            body: JSON.stringify({ name, description })
+        }),
+    applyCourseTemplate: (templateId: string, title?: string): Promise<Course> =>
+        apiFetch(`/course-templates/${templateId}/apply`, {
+            method: 'POST',
+            body: JSON.stringify({ title })
+        }),
+    deleteCourseTemplate: (templateId: string): Promise<void> =>
+        apiFetch(`/course-templates/${templateId}`, { method: 'DELETE' }),
+
     deleteCourse: (id: string): Promise<void> => apiFetch(`/courses/${id}`, { method: 'DELETE' }),
 
     async generateCourse(prompt: string, targetOrgId?: string): Promise<Course> {
@@ -1412,6 +1427,15 @@ export interface LtiDeepLinkingContentItem {
     icon?: { url: string; width?: number; height?: number };
     thumbnail?: { url: string; width?: number; height?: number };
     [key: string]: string | number | boolean | object | undefined | null;
+}
+
+export interface CourseTemplateSummary {
+    id: string;
+    name: string;
+    description?: string | null;
+    source_course_id?: string | null;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface BackgroundTask {

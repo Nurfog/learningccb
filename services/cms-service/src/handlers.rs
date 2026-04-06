@@ -3931,6 +3931,271 @@ pub async fn import_course(
     Ok(Json(new_course))
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CourseTemplateSummary {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub source_course_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCourseTemplatePayload {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyCourseTemplatePayload {
+    pub title: Option<String>,
+}
+
+pub async fn list_course_templates(
+    Org(org_ctx): Org,
+    _claims: Claims,
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<CourseTemplateSummary>>, StatusCode> {
+    let templates = sqlx::query_as::<_, CourseTemplateSummary>(
+        r#"
+        SELECT id, name, description, source_course_id, created_at, updated_at
+        FROM course_templates
+        WHERE organization_id = $1
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(org_ctx.id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(templates))
+}
+
+pub async fn create_course_template_from_course(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(course_id): Path<Uuid>,
+    Json(payload): Json<CreateCourseTemplatePayload>,
+) -> Result<Json<CourseTemplateSummary>, StatusCode> {
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM courses WHERE id = $1 AND organization_id = $2)",
+    )
+    .bind(course_id)
+    .bind(org_ctx.id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let data = exporter::get_course_data(&pool, course_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Template export failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let template_data = serde_json::to_value(&data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let template = sqlx::query_as::<_, CourseTemplateSummary>(
+        r#"
+        INSERT INTO course_templates (
+            organization_id, source_course_id, name, description, template_data, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, name, description, source_course_id, created_at, updated_at
+        "#,
+    )
+    .bind(org_ctx.id)
+    .bind(course_id)
+    .bind(payload.name)
+    .bind(payload.description)
+    .bind(template_data)
+    .bind(claims.sub)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    log_action(
+        &pool,
+        org_ctx.id,
+        claims.sub,
+        "COURSE_TEMPLATE_CREATED",
+        "CourseTemplate",
+        template.id,
+        serde_json::json!({ "source_course_id": course_id }),
+    )
+    .await;
+
+    Ok(Json(template))
+}
+
+pub async fn apply_course_template(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(template_id): Path<Uuid>,
+    Json(payload): Json<ApplyCourseTemplatePayload>,
+) -> Result<Json<Course>, StatusCode> {
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let template_data = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT template_data FROM course_templates WHERE id = $1 AND organization_id = $2",
+    )
+    .bind(template_id)
+    .bind(org_ctx.id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let exported: exporter::CourseExport = serde_json::from_value(template_data)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let new_title = payload
+        .title
+        .unwrap_or_else(|| format!("{} (Desde plantilla)", exported.course.title));
+
+    let new_course = sqlx::query_as::<_, Course>(
+        "INSERT INTO courses (
+            organization_id, instructor_id, title, pacing_mode, description,
+            passing_percentage, certificate_template, start_date, end_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *",
+    )
+    .bind(org_ctx.id)
+    .bind(claims.sub)
+    .bind(new_title)
+    .bind(exported.course.pacing_mode)
+    .bind(exported.course.description)
+    .bind(exported.course.passing_percentage)
+    .bind(exported.course.certificate_template)
+    .bind(exported.course.start_date)
+    .bind(exported.course.end_date)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut cat_map = std::collections::HashMap::new();
+    for old_cat in exported.grading_categories {
+        let new_cat = sqlx::query_as::<_, common::models::GradingCategory>(
+            "INSERT INTO grading_categories (organization_id, course_id, name, weight, drop_count)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING *",
+        )
+        .bind(org_ctx.id)
+        .bind(new_course.id)
+        .bind(old_cat.name)
+        .bind(old_cat.weight)
+        .bind(old_cat.drop_count)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        cat_map.insert(old_cat.id, new_cat.id);
+    }
+
+    for module_data in exported.modules {
+        let new_module = sqlx::query_as::<_, Module>(
+            "INSERT INTO modules (course_id, organization_id, title, position)
+             VALUES ($1, $2, $3, $4)
+             RETURNING *",
+        )
+        .bind(new_course.id)
+        .bind(org_ctx.id)
+        .bind(module_data.module.title)
+        .bind(module_data.module.position)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        for lesson in module_data.lessons {
+            let new_cat_id = lesson
+                .grading_category_id
+                .and_then(|id| cat_map.get(&id))
+                .cloned();
+
+            sqlx::query(
+                "INSERT INTO lessons (
+                    module_id, organization_id, title, content_type,
+                    content_url, position, is_graded, metadata, summary,
+                    transcription, grading_category_id, max_attempts
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            )
+            .bind(new_module.id)
+            .bind(org_ctx.id)
+            .bind(lesson.title)
+            .bind(lesson.content_type)
+            .bind(lesson.content_url)
+            .bind(lesson.position)
+            .bind(lesson.is_graded)
+            .bind(lesson.metadata)
+            .bind(lesson.summary)
+            .bind(lesson.transcription)
+            .bind(new_cat_id)
+            .bind(lesson.max_attempts)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    log_action(
+        &pool,
+        org_ctx.id,
+        claims.sub,
+        "COURSE_TEMPLATE_APPLIED",
+        "Course",
+        new_course.id,
+        serde_json::json!({ "template_id": template_id }),
+    )
+    .await;
+
+    Ok(Json(new_course))
+}
+
+pub async fn delete_course_template(
+    Org(org_ctx): Org,
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(template_id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    if claims.role != "admin" && claims.role != "instructor" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let result = sqlx::query("DELETE FROM course_templates WHERE id = $1 AND organization_id = $2")
+        .bind(template_id)
+        .bind(org_ctx.id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if result.rows_affected() == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn check_course_access(
     pool: &PgPool,
     course_id: Uuid,

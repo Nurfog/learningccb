@@ -111,6 +111,14 @@ export function Navbar() {
                                             <FileQuestion className="w-4 h-4" />
                                             Plantillas de Pruebas
                                         </Link>
+                                        <Link
+                                            href="/course-templates"
+                                            className={DROPDOWN_ITEM}
+                                            onClick={() => setCoursesOpen(false)}
+                                        >
+                                            <BookOpen className="w-4 h-4" />
+                                            Plantillas de Curso
+                                        </Link>
                                     </div>
                                 </>
                             )}
