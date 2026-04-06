@@ -826,48 +826,49 @@ sleep 10
 # Intentar crear el usuario via API
 echo "Creando usuario administrador..."
 
-CMS_INTERNAL_URL="http://openccb-studio:3001"
+ADMIN_RESPONSE=$($DOCKER_CMD exec \
+        -e ADMIN_EMAIL="$ADMIN_EMAIL" \
+        -e ADMIN_PASS="$ADMIN_PASS" \
+        -e ADMIN_NAME="$ADMIN_NAME" \
+        -e ORG_NAME="$ORG_NAME" \
+        openccb-studio node -e "
+const payload = {
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASS,
+    full_name: process.env.ADMIN_NAME,
+    organization_name: process.env.ORG_NAME,
+    role: 'admin'
+};
 
-# Crear payload JSON
-cat > /tmp/admin_payload.json << EOF
-{
-  "email": "$ADMIN_EMAIL",
-  "password": "$ADMIN_PASS",
-  "full_name": "$ADMIN_NAME",
-  "organization_name": "$ORG_NAME",
-  "role": "admin"
-}
-EOF
+fetch('http://localhost:3001/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+})
+    .then(async (res) => {
+        const body = await res.text();
+        process.stdout.write(String(res.status) + '\n');
+        process.stdout.write(body);
+    })
+    .catch((err) => {
+        console.error('FETCH_ERROR:' + err.message);
+        process.exit(2);
+    });
+" 2>/dev/null || true)
 
-# Copiar payload al servidor
-scp -i "$PEM_PATH" /tmp/admin_payload.json "$REMOTE_USER@$REMOTE_HOST:/tmp/admin_payload.json" 2>/dev/null || true
+ADMIN_STATUS=$(printf '%s' "$ADMIN_RESPONSE" | head -n1)
+ADMIN_BODY=$(printf '%s' "$ADMIN_RESPONSE" | tail -n +2)
 
-# Intentar crear usuario via SSH
-ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "
-    CMS_URL='$PROTOCOL://openccb-studio:3001'
-    if [ -f /tmp/admin_payload.json ]; then
-        RESPONSE=\$(curl -s -X POST \"\$CMS_URL/auth/register\" -H 'Content-Type: application/json' -d @/tmp/admin_payload.json 2>/dev/null || echo 'error')
-        if echo \"\$RESPONSE\" | grep -qi 'token\\|user\\|success'; then
-            echo 'Usuario creado via API'
-        else
-            echo 'Intentando via base de datos...'
-            DOCKER_CMD=\$(docker ps &>/dev/null && echo 'docker' || echo 'sudo docker')
-            \$DOCKER_CMD exec openccb-db psql -U user -d openccb_cms -c \"
-                CREATE EXTENSION IF NOT EXISTS pgcrypto;
-                SELECT * FROM fn_register_user(
-                    '$ADMIN_EMAIL',
-                    crypt('$ADMIN_PASS', gen_salt('bf', 12)),
-                    '$ADMIN_NAME',
-                    'admin',
-                    '$ORG_NAME'
-                );
-            \" 2>/dev/null && echo 'Usuario creado' || echo 'No se pudo crear'
+if [ "$ADMIN_STATUS" = "200" ] || [ "$ADMIN_STATUS" = "201" ]; then
+        echo "Usuario creado via API"
+elif printf '%s' "$ADMIN_BODY" | grep -qi "already\|exist\|duplic"; then
+        echo "Usuario administrador ya existe"
+else
+        echo "No se pudo crear el usuario administrador via API (HTTP: ${ADMIN_STATUS:-unknown})"
+        if [ -n "$ADMIN_BODY" ]; then
+                echo "Detalle: $ADMIN_BODY"
         fi
-        rm -f /tmp/admin_payload.json
-    fi
-" 2>/dev/null || echo "No se pudo crear el usuario administrador"
-
-rm -f /tmp/admin_payload.json
+fi
 
 echo ""
 echo "========================================"
