@@ -37,3 +37,10 @@ services/lms-service/dev_keys/
 # --- SSH Keys ---
 *.pem
 ubuntu.pem
+
+# --- TLS/ACME secrets (never commit) ---
+nginx/certs-data/**
+*.key
+*.csr
+*.crt
+*.cer

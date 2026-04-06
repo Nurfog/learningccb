@@ -64,6 +64,21 @@ https://learning.norteamericano.com   (LMS/Estudiantes)
 
 ## Requisitos Previos
 
+### Seguridad de certificados (git)
+
+Nunca versionar material de certificados o cuentas ACME del servidor.
+
+Rutas sensibles (ejemplos):
+
+```bash
+nginx/certs-data/
+*.key
+*.csr
+*.crt
+```
+
+Estas rutas deben permanecer ignoradas por git y gestionarse solo en el servidor/volumen de runtime.
+
 ### 1. Configurar DNS
 
 Antes de ejecutar `deploy.sh`, configura los registros DNS en tu proveedor de dominio:
@@ -129,6 +144,31 @@ docker logs nginx-proxy --tail 20
 docker logs acme-companion --tail 50
 ```
 
+### Validacion rapida de LMS (post-deploy)
+
+Despues de desplegar, valida que el backend LMS realmente levanto en `3002` y que no quedo con una URL de DB local invalida dentro de Docker.
+
+```bash
+# Health interno desde la red Docker
+docker exec openccb-studio node -e "fetch('http://experience:3002/health').then(async r=>{console.log(r.status);console.log(await r.text())})"
+
+# Ver variables activas en experience
+docker exec openccb-experience sh -lc 'echo DATABASE_URL=$DATABASE_URL; echo LMS_DATABASE_URL=$LMS_DATABASE_URL'
+```
+
+Valores esperados en Docker:
+
+```bash
+DATABASE_URL=postgresql://user:<password>@db:5432/openccb_lms
+LMS_DATABASE_URL=postgresql://user:<password>@db:5432/openccb_lms
+```
+
+Si aparece `localhost:5433` en el contenedor `openccb-experience`, recrea el servicio con la variable correcta:
+
+```bash
+LMS_DATABASE_URL='postgresql://user:password@db:5432/openccb_lms' docker compose up -d --force-recreate experience
+```
+
 ### Reiniciar servicios
 ```bash
 # Reiniciar todo
@@ -171,6 +211,36 @@ docker logs nginx-proxy --tail 20
 
 # 4. Reiniciar servicios
 sudo docker compose restart
+```
+
+### LMS inicia pero API no responde en `3002`
+
+**Sintoma comun:** el frontend en `3003` carga, pero `/lms-api/*` falla y en logs aparece `PoolTimedOut`.
+
+**Causa comun:** `openccb-experience` arranco con `DATABASE_URL` o `LMS_DATABASE_URL` apuntando a `localhost:5433` (invalido dentro del contenedor).
+
+**Solucion:**
+
+```bash
+docker logs openccb-experience --tail 80
+docker exec openccb-experience sh -lc 'echo DATABASE_URL=$DATABASE_URL; echo LMS_DATABASE_URL=$LMS_DATABASE_URL'
+LMS_DATABASE_URL='postgresql://user:password@db:5432/openccb_lms' docker compose up -d --force-recreate experience
+```
+
+### Smoke test de permisos de audio (admin/instructor/student)
+
+Existe un script para validar reglas de acceso de evaluaciones de audio en LMS:
+
+```bash
+./scripts/smoke_audio_roles.sh
+```
+
+El script crea fixtures temporales, ejecuta validaciones y limpia automaticamente.
+
+Para debug sin limpiar datos:
+
+```bash
+KEEP_FIXTURES=1 ./scripts/smoke_audio_roles.sh
 ```
 
 ### Certificados SSL no se generan

@@ -613,20 +613,44 @@ docker volume rm openccb_db_data
 ./install.sh
 ```
 
+### Seguridad de certificados
+
+No subas a git claves privadas ni artefactos ACME.
+
+```bash
+nginx/certs-data/
+*.key
+*.csr
+*.crt
+```
+
+Si necesitas respaldar certificados, hazlo fuera del repositorio.
+
 ### Logs y Debugging
 
 ```bash
 # Ver logs de servicios
-docker-compose logs -f cms
-docker-compose logs -f lms
-docker-compose logs -f studio
-docker-compose logs -f experience
+docker compose logs -f studio
+docker compose logs -f experience
+docker compose logs -f db
 
 # Logs con filtro
-docker-compose logs -f cms | grep -i error
+docker compose logs -f experience | grep -i error
 
 # Acceder a DB
-docker exec -it openccb-db-1 psql -U user -d openccb_cms
+docker exec -it openccb-db psql -U user -d openccb_cms
+
+# Verificar health LMS interno (desde red Docker)
+docker exec openccb-studio node -e "fetch('http://experience:3002/health').then(async r=>{console.log(r.status);console.log(await r.text())})"
+
+# Verificar variables activas en experience
+docker exec openccb-experience sh -lc 'echo DATABASE_URL=$DATABASE_URL; echo LMS_DATABASE_URL=$LMS_DATABASE_URL'
+```
+
+Si `openccb-experience` queda con `localhost:5433` en `DATABASE_URL`/`LMS_DATABASE_URL`, recrear con DB interna Docker:
+
+```bash
+LMS_DATABASE_URL='postgresql://user:password@db:5432/openccb_lms' docker compose up -d --force-recreate experience
 ```
 
 ### Comandos Útiles
@@ -646,12 +670,15 @@ curl http://localhost:3002/health
 ./diagnose_auth.sh
 
 # Ver usuarios
-docker exec openccb-db-1 psql -U user -d openccb_cms \
+docker exec openccb-db psql -U user -d openccb_cms \
   -c "SELECT email, role FROM users;"
 
 # Ver organizaciones
-docker exec openccb-db-1 psql -U user -d openccb_cms \
+docker exec openccb-db psql -U user -d openccb_cms \
   -c "SELECT name, api_key FROM organizations;"
+
+# Smoke test de permisos de audio LMS
+./scripts/smoke_audio_roles.sh
 ```
 
 ---
