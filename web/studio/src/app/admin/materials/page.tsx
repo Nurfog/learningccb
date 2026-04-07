@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { cmsApi, questionBankApi, MySqlPlan, MySqlCourse } from '@/lib/api';
-import { Upload, Database, FileArchive, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, Database, FileArchive, CheckCircle2, AlertTriangle, Scissors } from 'lucide-react';
 
 export default function AdminSharedMaterialsPage() {
     const [zipFile, setZipFile] = useState<File | null>(null);
@@ -12,7 +12,16 @@ export default function AdminSharedMaterialsPage() {
     const [courses, setCourses] = useState<MySqlCourse[]>([]);
     const [selectedPlanId, setSelectedPlanId] = useState<number | ''>('');
     const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
+    const [splitToRegular, setSplitToRegular] = useState(false);
+    const [regularPlanId, setRegularPlanId] = useState<number | ''>('');
+    const [regularCourses, setRegularCourses] = useState<MySqlCourse[]>([]);
+    const [selectedCourseIdR1, setSelectedCourseIdR1] = useState<number | ''>('');
+    const [selectedCourseIdR2, setSelectedCourseIdR2] = useState<number | ''>('');
     const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [phase, setPhase] = useState<'idle' | 'uploading' | 'processing' | 'done' | 'error'>('idle');
+    const [startedAt, setStartedAt] = useState<number | null>(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [result, setResult] = useState<{
         imported_assets: number;
         rag_ingested_assets: number;
@@ -22,6 +31,32 @@ export default function AdminSharedMaterialsPage() {
 
     const canUpload = useMemo(() => Boolean(zipFile) && !loading, [zipFile, loading]);
 
+    // Detect if the selected course is "intensive" (no trailing digit) and auto-detect
+    // the two corresponding regular courses (same name + " 1" and " 2").
+    const selectedCourseName = useMemo(
+        () => courses.find((c) => c.idCursos === selectedCourseId)?.NombreCurso ?? '',
+        [courses, selectedCourseId],
+    );
+    const isIntensiveCourse = useMemo(
+        () => Boolean(selectedCourseId) && !/\s*[12]$/.test(selectedCourseName.trim()),
+        [selectedCourseId, selectedCourseName],
+    );
+    // Suggested regular course names: replace "INTENSIVE" with nothing or trim trailing "INTENSIVE"
+    const regularBaseName = useMemo(() => {
+        const name = selectedCourseName.trim();
+        return name.replace(/\s*INTENSIVE\s*$/i, '').trim();
+    }, [selectedCourseName]);
+    const regularCourse1 = useMemo(
+        () => regularCourses.find((c) => c.NombreCurso.trim() === `${regularBaseName} 1`)
+            ?? regularCourses.find((c) => /\s1$/.test(c.NombreCurso.trim())),
+        [regularCourses, regularBaseName],
+    );
+    const regularCourse2 = useMemo(
+        () => regularCourses.find((c) => c.NombreCurso.trim() === `${regularBaseName} 2`)
+            ?? regularCourses.find((c) => /\s2$/.test(c.NombreCurso.trim())),
+        [regularCourses, regularBaseName],
+    );
+
     React.useEffect(() => {
         questionBankApi.getMySQLPlans().then(setPlans).catch(() => setPlans([]));
     }, []);
@@ -30,10 +65,72 @@ export default function AdminSharedMaterialsPage() {
         if (!selectedPlanId) {
             setCourses([]);
             setSelectedCourseId('');
+            setSplitToRegular(false);
+            setRegularPlanId('');
+            setRegularCourses([]);
             return;
         }
         questionBankApi.getMySQLCoursesByPlan(selectedPlanId).then(setCourses).catch(() => setCourses([]));
-    }, [selectedPlanId]);
+        // Auto-detect sibling regular plan (swap INTENSIVO <-> REGULAR in plan name)
+        const intensivePlan = plans.find((p) => p.idPlanDeEstudios === selectedPlanId);
+        if (intensivePlan) {
+            const regularPlanName = intensivePlan.NombrePlan.replace(/INTENSIVO/i, 'REGULAR').trim();
+            const sibling = plans.find((p) => p.NombrePlan.toUpperCase() === regularPlanName.toUpperCase());
+            if (sibling) {
+                setRegularPlanId(sibling.idPlanDeEstudios);
+                questionBankApi.getMySQLCoursesByPlan(sibling.idPlanDeEstudios).then(setRegularCourses).catch(() => setRegularCourses([]));
+            } else {
+                setRegularPlanId('');
+                setRegularCourses([]);
+            }
+        }
+    }, [selectedPlanId, plans]);
+
+    // Load courses for manually selected regular plan
+    React.useEffect(() => {
+        if (!regularPlanId) return;
+        questionBankApi.getMySQLCoursesByPlan(regularPlanId).then(setRegularCourses).catch(() => setRegularCourses([]));
+    }, [regularPlanId]);
+
+    // Auto-fill regular course IDs when intensive course is selected and split is on
+    React.useEffect(() => {
+        if (splitToRegular && isIntensiveCourse) {
+            setSelectedCourseIdR1(regularCourse1?.idCursos ?? '');
+            setSelectedCourseIdR2(regularCourse2?.idCursos ?? '');
+        }
+    }, [splitToRegular, isIntensiveCourse, regularCourse1, regularCourse2]);
+
+    React.useEffect(() => {
+        if (!loading || !startedAt) {
+            return;
+        }
+
+        const timer = window.setInterval(() => {
+            const seconds = Math.floor((Date.now() - startedAt) / 1000);
+            setElapsedSeconds(seconds);
+        }, 1000);
+
+        return () => {
+            window.clearInterval(timer);
+        };
+    }, [loading, startedAt]);
+
+    const formatElapsed = (seconds: number): string => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
+    const statusText =
+        phase === 'uploading'
+            ? `Subiendo ZIP... ${uploadProgress}%`
+            : phase === 'processing'
+                ? 'Procesando contenido en servidor (esto puede tardar varios minutos para ZIPs grandes)...'
+                : phase === 'done'
+                    ? 'Importacion completada'
+                    : phase === 'error'
+                        ? 'Importacion con error'
+                        : 'Sin proceso activo';
 
     const handleUpload = async () => {
         if (!zipFile) {
@@ -43,6 +140,10 @@ export default function AdminSharedMaterialsPage() {
 
         try {
             setLoading(true);
+            setPhase('uploading');
+            setUploadProgress(0);
+            setStartedAt(Date.now());
+            setElapsedSeconds(0);
             setResult(null);
             const response = await cmsApi.importAssetsZip(
                 zipFile,
@@ -51,10 +152,19 @@ export default function AdminSharedMaterialsPage() {
                 englishLevel || undefined,
                 selectedPlanId || undefined,
                 selectedCourseId || undefined,
+                (pct) => {
+                    setUploadProgress(pct);
+                    setPhase(pct >= 100 ? 'processing' : 'uploading');
+                },
+                splitToRegular,
+                selectedCourseIdR1 || undefined,
+                selectedCourseIdR2 || undefined,
             );
             setResult(response);
+            setPhase('done');
             alert('Importacion ZIP finalizada.');
         } catch (error) {
+            setPhase('error');
             console.error('ZIP import failed:', error);
             const msg = error instanceof Error ? error.message : 'Error al importar ZIP';
             alert(msg);
@@ -79,7 +189,11 @@ export default function AdminSharedMaterialsPage() {
                     </div>
                     <div>
                         <h2 className="font-bold text-slate-900 dark:text-white">Importar ZIP de Materiales</h2>
-                        <p className="text-xs text-slate-500 dark:text-gray-500">Se cargan a biblioteca compartida (sin curso especifico).</p>
+                        <p className="text-xs text-slate-500 dark:text-gray-500">
+                            Organiza el ZIP en carpetas por unidad: <code className="bg-slate-100 px-1 rounded">Unit 1/</code>,{' '}
+                            <code className="bg-slate-100 px-1 rounded">Unit 2/</code>, etc. Los audios/videos se vinculan
+                            automaticamente a los ejercicios de su unidad.
+                        </p>
                     </div>
                 </div>
 
@@ -115,6 +229,7 @@ export default function AdminSharedMaterialsPage() {
                             const value = e.target.value ? Number(e.target.value) : '';
                             setSelectedPlanId(value);
                             setSelectedCourseId('');
+                            setSplitToRegular(false);
                         }}
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                     >
@@ -132,6 +247,7 @@ export default function AdminSharedMaterialsPage() {
                         onChange={(e) => {
                             const value = e.target.value ? Number(e.target.value) : '';
                             setSelectedCourseId(value);
+                            setSplitToRegular(false);
                             const selected = courses.find((c) => c.idCursos === value);
                             if (selected?.NivelCurso !== undefined && selected?.NivelCurso !== null) {
                                 const n = selected.NivelCurso;
@@ -152,6 +268,88 @@ export default function AdminSharedMaterialsPage() {
                         ))}
                     </select>
                 </div>
+
+                {/* Split to regular courses — only shown for intensive courses */}
+                {isIntensiveCourse && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-4">
+                        <label className="flex items-center gap-3 text-sm text-indigo-900">
+                            <input
+                                type="checkbox"
+                                checked={splitToRegular}
+                                onChange={(e) => setSplitToRegular(e.target.checked)}
+                            />
+                            <Scissors className="w-4 h-4 flex-shrink-0" />
+                            <span className="font-medium">
+                                Dividir unidades en 2 cursos regulares (intensivo = regular 1 + regular 2)
+                            </span>
+                        </label>
+                        <p className="text-xs text-indigo-700 ml-7">
+                            Las unidades 1..N/2 van al curso regular 1 y N/2+1..N al regular 2.
+                            Para 8-10 unidades esto resulta en 4-5 unidades por curso regular.
+                        </p>
+
+                        {splitToRegular && (
+                            <div className="ml-7 space-y-4">
+                                {/* Plan regular — may be auto-detected or chosen manually */}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-medium text-indigo-800">
+                                        Plan de Estudios Regular
+                                    </label>
+                                    <select
+                                        value={regularPlanId}
+                                        onChange={(e) => {
+                                            const v = e.target.value ? Number(e.target.value) : '';
+                                            setRegularPlanId(v);
+                                            setSelectedCourseIdR1('');
+                                            setSelectedCourseIdR2('');
+                                        }}
+                                        className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm"
+                                    >
+                                        <option value="">Seleccionar plan regular</option>
+                                        {plans.map((p) => (
+                                            <option key={p.idPlanDeEstudios} value={p.idPlanDeEstudios}>{p.NombrePlan}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-medium text-indigo-800">
+                                            Curso Regular 1 (unidades 1..N/2)
+                                        </label>
+                                        <select
+                                            value={selectedCourseIdR1}
+                                            onChange={(e) => setSelectedCourseIdR1(e.target.value ? Number(e.target.value) : '')}
+                                            disabled={!regularPlanId}
+                                            className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                                        >
+                                            <option value="">Seleccionar</option>
+                                            {regularCourses.map((c) => (
+                                                <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-medium text-indigo-800">
+                                            Curso Regular 2 (unidades N/2+1..N)
+                                        </label>
+                                        <select
+                                            value={selectedCourseIdR2}
+                                            onChange={(e) => setSelectedCourseIdR2(e.target.value ? Number(e.target.value) : '')}
+                                            disabled={!regularPlanId}
+                                            className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                                        >
+                                            <option value="">Seleccionar</option>
+                                            {regularCourses.map((c) => (
+                                                <option key={c.idCursos} value={c.idCursos}>{c.NombreCurso}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">Nivel de Ingles para este ZIP</label>
@@ -182,6 +380,27 @@ export default function AdminSharedMaterialsPage() {
                     <Upload className="w-4 h-4" />
                     {loading ? 'Importando...' : 'Importar ZIP Compartido'}
                 </button>
+
+                {(loading || phase === 'done' || phase === 'error') && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-slate-800">Estado del proceso</span>
+                            <span className="text-slate-600">Tiempo: {formatElapsed(elapsedSeconds)}</span>
+                        </div>
+
+                        <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                                className="h-full bg-indigo-600 transition-all duration-300"
+                                style={{ width: `${phase === 'processing' ? 100 : uploadProgress}%` }}
+                            />
+                        </div>
+
+                        <p className="text-sm text-slate-700">{statusText}</p>
+                        <p className="text-xs text-slate-500">
+                            Nota: esta importacion ZIP corre en la misma solicitud (no crea fila en Tasks), por eso aqui ves el estado en vivo.
+                        </p>
+                    </div>
+                )}
             </div>
 
             {result && (

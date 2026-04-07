@@ -347,6 +347,7 @@ pub struct Asset {
     pub english_level: Option<String>,
     pub sam_plan_id: Option<i32>,
     pub sam_course_id: Option<i32>,
+    pub unit_number: Option<i32>,
     pub filename: String,
     pub storage_path: String,
     pub mimetype: String,
@@ -1402,6 +1403,8 @@ pub struct QuestionBank {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub embedding: Option<String>, // PGVector embedding for semantic search
     pub embedding_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub source_asset_id: Option<Uuid>, // audio/video asset that originated this RAG chunk
+    pub unit_number: Option<i32>,      // syllabus unit number from ZIP folder structure
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -88,6 +88,7 @@ services:
       - DATABASE_URL=${CMS_DATABASE_URL}
       - MYSQL_DATABASE_URL=${MYSQL_DATABASE_URL}
       - SAM_DIAGNOSTICO_DATABASE_URL=${SAM_DIAGNOSTICO_DATABASE_URL}
+      - WHISPER_URL=${PROD_WHISPER_URL:-https://whisper.t-800.norteamericano.cl}
       - LMS_INTERNAL_URL=http://experience:3002
       - NEXT_PUBLIC_LMS_API_URL=${NEXT_PUBLIC_LMS_API_URL}
     volumes:

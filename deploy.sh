@@ -79,8 +79,14 @@ trap cleanup EXIT
 # Copiar archivos esenciales
 echo "   📋 Copiando archivos esenciales..."
 cp -r docker-compose.yml "$PROD_DIR/" 2>/dev/null || echo "   ⚠️  docker-compose.yml no existe"
-# NO copiar .env local - tiene configuraciones incorrectas para producción
-echo "   ℹ️  .env local NO se copia - se generará uno correcto en el servidor"
+# Usar .env local como fuente de verdad para producción (si existe)
+if [ -f ".env" ]; then
+    cp .env "$PROD_DIR/.env"
+    echo "   ✅ .env local copiado (fuente de producción)"
+else
+    echo "   ⚠️  .env local no existe; se usará .env.example como fallback"
+fi
+# .env.example se mantiene como plantilla/documentación
 cp -r .env.example "$PROD_DIR/" 2>/dev/null || true
 
 # NO copiar ubuntu.pem - solo se usa localmente para SSH
@@ -347,17 +353,19 @@ echo "  PROTOCOL: \$PROTOCOL"
 echo ""
 
 # ========================================
-# GENERAR .ENV CORRECTO PARA PRODUCCION
+# RESOLVER .ENV PARA PRODUCCION
 # ========================================
-echo "Generando configuracion .env para produccion..."
+echo "Resolviendo configuracion .env para produccion..."
 
 if [ ! -f ".env" ]; then
-    echo "   Creando .env desde .env.example..."
+    echo "   .env no existe en remoto; creando desde .env.example..."
     if [ -f ".env.example" ]; then
         cp .env.example .env
     else
         touch .env
     fi
+else
+    echo "   Usando .env existente (valores de produccion)"
 fi
 
 # Generar DB_PASSWORD seguro
@@ -435,6 +443,10 @@ echo "NEXT_PUBLIC_CMS_API_URL=\$CMS_URL" >> .env
 echo "NEXT_PUBLIC_LMS_API_URL=\$LMS_URL" >> .env
 
 # Configurar S3 para almacenamiento de audio
+if ! grep -q "^ASSETS_STORAGE=" .env || grep -q "^ASSETS_STORAGE=$" .env; then
+    sed -i "/^ASSETS_STORAGE=/d" .env 2>/dev/null || true
+    echo "ASSETS_STORAGE=s3" >> .env
+fi
 if ! grep -q "^S3_BUCKET=" .env || grep -q "^S3_BUCKET=$" .env; then
     sed -i "/^S3_BUCKET=/d" .env 2>/dev/null || true
     echo "S3_BUCKET=openccb-802726101181-us-east-2-an" >> .env

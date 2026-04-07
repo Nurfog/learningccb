@@ -37,8 +37,13 @@ FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV production
 
-# Install system dependencies for Rust binary
-RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install system dependencies for Rust binary and asset processing
+RUN apt-get update && apt-get install -y \
+	openssl \
+	ca-certificates \
+	ffmpeg \
+	poppler-utils \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Install sharp for Next.js image optimization
 RUN --mount=type=cache,target=/root/.npm npm install sharp

@@ -974,6 +974,10 @@ export const cmsApi = {
         englishLevel?: string,
         samPlanId?: number,
         samCourseId?: number,
+        onProgress?: (pct: number) => void,
+        splitToRegular = false,
+        samCourseIdR1?: number,
+        samCourseIdR2?: number,
     ): Promise<AssetZipImportResult> => {
         return new Promise((resolve, reject) => {
             const formData = new FormData();
@@ -983,6 +987,11 @@ export const cmsApi = {
             if (englishLevel) formData.append('english_level', englishLevel);
             if (samPlanId) formData.append('sam_plan_id', String(samPlanId));
             if (samCourseId) formData.append('sam_course_id', String(samCourseId));
+            if (splitToRegular) {
+                formData.append('split_to_regular', 'true');
+                if (samCourseIdR1) formData.append('sam_course_id_r1', String(samCourseIdR1));
+                if (samCourseIdR2) formData.append('sam_course_id_r2', String(samCourseIdR2));
+            }
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', `${API_BASE_URL}/api/assets/import-zip`);
@@ -996,15 +1005,29 @@ export const cmsApi = {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve(JSON.parse(xhr.responseText));
                 } else {
-                    let msg = 'ZIP import failed';
+                    let msg = `ZIP import failed (HTTP ${xhr.status})`;
                     try {
-                        msg = JSON.parse(xhr.responseText).message || msg;
-                    } catch { }
+                        const parsed = JSON.parse(xhr.responseText);
+                        msg = parsed.message || parsed.error || msg;
+                    } catch {
+                        const raw = (xhr.responseText || '').trim();
+                        if (raw) {
+                            const compact = raw.replace(/\s+/g, ' ').slice(0, 240);
+                            msg = `${msg}: ${compact}`;
+                        }
+                    }
                     reject(new Error(msg));
                 }
             };
 
             xhr.onerror = () => reject(new Error('Network error'));
+            if (onProgress) {
+                xhr.upload.onprogress = (event) => {
+                    if (!event.lengthComputable) return;
+                    const pct = Math.round((event.loaded / event.total) * 100);
+                    onProgress(Math.max(0, Math.min(100, pct)));
+                };
+            }
             xhr.send(formData);
         });
     },

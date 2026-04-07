@@ -864,7 +864,7 @@ pub async fn get_mysql_plans(
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<MySqlPlanInfo>>, (StatusCode, String)> {
     // Read from SAM mirror in PostgreSQL with SAM-native fields.
-    let plans: Vec<MySqlPlanInfo> = sqlx::query_as(
+    let mut plans: Vec<MySqlPlanInfo> = sqlx::query_as(
         r#"
         SELECT
             idPlanDeEstudios AS id_plan_de_estudios,
@@ -879,6 +879,111 @@ pub async fn get_mysql_plans(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch plans: {}", e)))?;
 
+    // Backward-compatible fallback: if SAM mirror is empty, use legacy metadata mirror.
+    if plans.is_empty() {
+        plans = sqlx::query_as(
+            r#"
+            SELECT
+                mysql_id AS id_plan_de_estudios,
+                name AS nombre_plan
+            FROM mysql_study_plans
+            WHERE organization_id = $1 AND is_active = TRUE
+            ORDER BY name
+            "#,
+        )
+        .bind(org_ctx.id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch legacy plans: {}", e)))?;
+    }
+
+    // Last-resort auto-sync: if still empty, pull metadata from MySQL and persist it.
+    if plans.is_empty() {
+        match connect_mysql_pool("MYSQL_DATABASE_URL").await {
+            Ok(mysql_pool) => {
+                let mysql_plans: Result<Vec<MySqlPlanInfo>, sqlx::Error> = sqlx::query_as(
+                    r#"
+                    SELECT DISTINCT
+                        pe.idPlanDeEstudios AS id_plan_de_estudios,
+                        pe.Nombre AS nombre_plan
+                    FROM plandeestudios pe
+                    WHERE pe.Activo = 1
+                    ORDER BY pe.Nombre
+                    "#,
+                )
+                .fetch_all(&mysql_pool)
+                .await;
+
+                let mysql_courses: Result<Vec<MySqlCourseInfo>, sqlx::Error> = sqlx::query_as(
+                    r#"
+                    SELECT DISTINCT
+                        c.idCursos AS id_cursos,
+                        c.NombreCurso AS nombre_curso,
+                        c.NivelCurso AS nivel_curso,
+                        pe.idPlanDeEstudios AS id_plan_de_estudios,
+                        pe.Nombre AS nombre_plan,
+                        c.Duracion AS duracion
+                    FROM curso c
+                    JOIN plandeestudios pe ON c.idPlanDeEstudios = pe.idPlanDeEstudios
+                    WHERE c.Activo = 1
+                      AND pe.Activo = 1
+                    ORDER BY pe.Nombre, c.NivelCurso
+                    "#,
+                )
+                .fetch_all(&mysql_pool)
+                .await;
+
+                match (mysql_plans, mysql_courses) {
+                    (Ok(p), Ok(c)) => {
+                        if let Err(err) = save_mysql_courses_and_plans(&pool, org_ctx.id, p, c).await {
+                            tracing::warn!("Auto-sync MySQL metadata failed: {}", err);
+                        }
+                    }
+                    (Err(e), _) => tracing::warn!("Auto-sync plans query failed: {}", e),
+                    (_, Err(e)) => tracing::warn!("Auto-sync courses query failed: {}", e),
+                }
+
+                mysql_pool.close().await;
+            }
+            Err(e) => {
+                tracing::warn!("Auto-sync could not connect to MySQL: {:?}", e);
+            }
+        }
+
+        // Reload plans after auto-sync attempt.
+        plans = sqlx::query_as(
+            r#"
+            SELECT
+                idPlanDeEstudios AS id_plan_de_estudios,
+                Nombre AS nombre_plan
+            FROM sam_study_plans
+            WHERE organization_id = $1 AND Activo = TRUE
+            ORDER BY Nombre
+            "#,
+        )
+        .bind(org_ctx.id)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+        if plans.is_empty() {
+            plans = sqlx::query_as(
+                r#"
+                SELECT
+                    mysql_id AS id_plan_de_estudios,
+                    name AS nombre_plan
+                FROM mysql_study_plans
+                WHERE organization_id = $1 AND is_active = TRUE
+                ORDER BY name
+                "#,
+            )
+            .bind(org_ctx.id)
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
+        }
+    }
+
     Ok(Json(plans))
 }
 
@@ -889,7 +994,7 @@ pub async fn get_mysql_courses_by_plan(
     Query(filters): Query<MySqlCoursesFilters>,
 ) -> Result<Json<Vec<MySqlCourseInfo>>, (StatusCode, String)> {
     // Read from SAM mirror in PostgreSQL with SAM-native fields.
-    let courses: Vec<MySqlCourseInfo> = sqlx::query_as(
+    let mut courses: Vec<MySqlCourseInfo> = sqlx::query_as(
         r#"
         SELECT
             c.idCursos AS id_cursos,
@@ -914,6 +1019,33 @@ pub async fn get_mysql_courses_by_plan(
     .fetch_all(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch courses: {}", e)))?;
+
+    // Backward-compatible fallback: if SAM mirror is empty, use legacy metadata mirror.
+    if courses.is_empty() {
+        courses = sqlx::query_as(
+            r#"
+            SELECT
+                c.mysql_id AS id_cursos,
+                c.name AS nombre_curso,
+                c.level AS nivel_curso,
+                sp.mysql_id AS id_plan_de_estudios,
+                sp.name AS nombre_plan,
+                c.duracion::double precision AS duracion
+            FROM mysql_courses c
+            JOIN mysql_study_plans sp ON c.study_plan_id = sp.id
+            WHERE c.organization_id = $1
+              AND c.is_active = TRUE
+              AND sp.is_active = TRUE
+              AND sp.mysql_id = $2
+            ORDER BY c.level
+            "#,
+        )
+        .bind(org_ctx.id)
+        .bind(filters.plan_id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch legacy courses: {}", e)))?;
+    }
 
     Ok(Json(courses))
 }
