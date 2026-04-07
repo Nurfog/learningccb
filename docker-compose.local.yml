@@ -1,0 +1,30 @@
+# docker-compose.local.yml — Override para desarrollo local
+# Uso: docker compose -f docker-compose.yml -f docker-compose.local.yml [comando]
+#
+# Diferencias con producción:
+#  - nginx-proxy y acme-companion deshabilitados (profiles: production)
+#  - Puertos expuestos directamente al host
+#  - DB accesible en localhost:5433
+
+services:
+  nginx-proxy:
+    profiles:
+      - production
+
+  acme-companion:
+    profiles:
+      - production
+
+  db:
+    ports:
+      - "5433:5432"
+
+  studio:
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+
+  experience:
+    ports:
+      - "3003:3003"
+      - "3002:3002"

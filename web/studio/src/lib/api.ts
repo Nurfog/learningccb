@@ -980,55 +980,70 @@ export const cmsApi = {
         samCourseIdR2?: number,
     ): Promise<AssetZipImportResult> => {
         return new Promise((resolve, reject) => {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('ingest_rag', ingestRag ? 'true' : 'false');
-            if (courseId) formData.append('course_id', courseId);
-            if (englishLevel) formData.append('english_level', englishLevel);
-            if (samPlanId) formData.append('sam_plan_id', String(samPlanId));
-            if (samCourseId) formData.append('sam_course_id', String(samCourseId));
-            if (splitToRegular) {
-                formData.append('split_to_regular', 'true');
-                if (samCourseIdR1) formData.append('sam_course_id_r1', String(samCourseIdR1));
-                if (samCourseIdR2) formData.append('sam_course_id_r2', String(samCourseIdR2));
-            }
+            const maxNetworkRetries = 2;
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', `${API_BASE_URL}/api/assets/import-zip`);
-
-            const token = getToken();
-            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            const selectedOrgId = getSelectedOrgId();
-            if (selectedOrgId) xhr.setRequestHeader('X-Organization-Id', selectedOrgId);
-
-            xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve(JSON.parse(xhr.responseText));
-                } else {
-                    let msg = `ZIP import failed (HTTP ${xhr.status})`;
-                    try {
-                        const parsed = JSON.parse(xhr.responseText);
-                        msg = parsed.message || parsed.error || msg;
-                    } catch {
-                        const raw = (xhr.responseText || '').trim();
-                        if (raw) {
-                            const compact = raw.replace(/\s+/g, ' ').slice(0, 240);
-                            msg = `${msg}: ${compact}`;
-                        }
-                    }
-                    reject(new Error(msg));
+            const startAttempt = (attempt: number) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('ingest_rag', ingestRag ? 'true' : 'false');
+                if (courseId) formData.append('course_id', courseId);
+                if (englishLevel) formData.append('english_level', englishLevel);
+                if (samPlanId) formData.append('sam_plan_id', String(samPlanId));
+                if (samCourseId) formData.append('sam_course_id', String(samCourseId));
+                if (splitToRegular) {
+                    formData.append('split_to_regular', 'true');
+                    if (samCourseIdR1) formData.append('sam_course_id_r1', String(samCourseIdR1));
+                    if (samCourseIdR2) formData.append('sam_course_id_r2', String(samCourseIdR2));
                 }
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${API_BASE_URL}/api/assets/import-zip`);
+
+                const token = getToken();
+                if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                const selectedOrgId = getSelectedOrgId();
+                if (selectedOrgId) xhr.setRequestHeader('X-Organization-Id', selectedOrgId);
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        let msg = `ZIP import failed (HTTP ${xhr.status})`;
+                        try {
+                            const parsed = JSON.parse(xhr.responseText);
+                            msg = parsed.message || parsed.error || msg;
+                        } catch {
+                            const raw = (xhr.responseText || '').trim();
+                            if (raw) {
+                                const compact = raw.replace(/\s+/g, ' ').slice(0, 240);
+                                msg = `${msg}: ${compact}`;
+                            }
+                        }
+                        reject(new Error(msg));
+                    }
+                };
+
+                xhr.onerror = () => {
+                    if (attempt < maxNetworkRetries) {
+                        const delayMs = 1200 * (attempt + 1);
+                        setTimeout(() => startAttempt(attempt + 1), delayMs);
+                        return;
+                    }
+                    reject(new Error('Network error'));
+                };
+
+                if (onProgress) {
+                    xhr.upload.onprogress = (event) => {
+                        if (!event.lengthComputable) return;
+                        const pct = Math.round((event.loaded / event.total) * 100);
+                        onProgress(Math.max(0, Math.min(100, pct)));
+                    };
+                }
+
+                xhr.send(formData);
             };
 
-            xhr.onerror = () => reject(new Error('Network error'));
-            if (onProgress) {
-                xhr.upload.onprogress = (event) => {
-                    if (!event.lengthComputable) return;
-                    const pct = Math.round((event.loaded / event.total) * 100);
-                    onProgress(Math.max(0, Math.min(100, pct)));
-                };
-            }
-            xhr.send(formData);
+            startAttempt(0);
         });
     },
     uploadAsset: (

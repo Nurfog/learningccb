@@ -1,30 +1,33 @@
 #!/bin/bash
 
-# OpenCCB Unified Installation Script
-# This script automates the setup of OpenCCB:
-# 1. Prerequisite checks (Rust, Node.js, Docker, sqlx-cli)
-# 2. Hardware detection (NVIDIA GPU vs CPU)
-# 3. Environment configuration (.env) - Dev/Prod support
-# 4. Database creation and migrations (CMS, LMS, AI Bridge)
-# 5. System initialization (Admin account and Organization)
-# 6. Optional: Production deployment with SSH sync
-# Version: 3.0 - Dev/Prod + Deployment Support
+# OpenCCB Local Development Setup
+# Levanta el stack completo en local usando Docker:
+#   - PostgreSQL en localhost:5433
+#   - CMS API en localhost:3001
+#   - Studio (Next.js) en localhost:3000
+#   - LMS API en localhost:3002
+#   - Experience (Next.js) en localhost:3003
+#
+# Uso: ./install.sh [--fast] [--clean]
+#   --fast   Salta instalación de dependencias del sistema
+#   --clean  Elimina volúmenes de DB antes de iniciar (instalación limpia)
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ============================================================================
-# CONFIGURACIÓN DE PRODUCCIÓN
+# PARÁMETROS LOCALES (no editar — se derivan del docker-compose.local.yml)
 # ============================================================================
-PEM_PATH="ubuntu.pem"
-REMOTE_USER="ubuntu"
-REMOTE_HOST="ec2-18-224-137-67.us-east-2.compute.amazonaws.com"
-REMOTE_PATH="/var/www/openccb"
-# ============================================================================
-# CONFIGURACIÓN SAM (Sistema de Administración Académica)
-# ============================================================================
-# URL de conexión a la base de datos SAM externa
-# Formato: postgresql://usuario:contraseña@host:puerto/sige_sam_v3
-SAM_DATABASE_URL=""
+LOCAL_DB_PORT="5433"
+LOCAL_DB_USER="user"
+LOCAL_DB_PASS="password"
+LOCAL_CMS_URL="http://localhost:3001"
+LOCAL_LMS_URL="http://localhost:3002/lms-api"
+LOCAL_STUDIO_DOMAIN="localhost"
+LOCAL_LEARNING_DOMAIN="localhost"
+DB_CONTAINER="openccb-db"
+COMPOSE_LOCAL="docker compose -f docker-compose.yml -f docker-compose.local.yml"
 # ============================================================================
 
 echo "===================================================="

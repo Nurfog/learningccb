@@ -194,9 +194,53 @@ echo "✅ Archivos sincronizados exitosamente!"
 echo ""
 
 # ============================================================================
+# BUILD LOCAL + STREAM AL REMOTO
+# ============================================================================
+if [ "$BUILD_LOCAL" = "true" ]; then
+    echo "========================================"
+    echo "   Compilando imágenes localmente"
+    echo "========================================"
+    echo ""
+
+    # Exportar build args desde .env local
+    export NEXT_PUBLIC_CMS_API_URL=$(grep '^NEXT_PUBLIC_CMS_API_URL=' .env | cut -d'=' -f2-)
+    export NEXT_PUBLIC_LMS_API_URL=$(grep '^NEXT_PUBLIC_LMS_API_URL=' .env | cut -d'=' -f2-)
+    export NEXT_PUBLIC_STUDIO_DOMAIN=$(grep '^NEXT_PUBLIC_STUDIO_DOMAIN=' .env | cut -d'=' -f2-)
+    export NEXT_PUBLIC_LEARNING_DOMAIN=$(grep '^NEXT_PUBLIC_LEARNING_DOMAIN=' .env | cut -d'=' -f2-)
+    export COMPOSE_PARALLEL_LIMIT=1
+
+    echo "   CMS API URL : $NEXT_PUBLIC_CMS_API_URL"
+    echo "   LMS API URL : $NEXT_PUBLIC_LMS_API_URL"
+    echo "   Studio      : $NEXT_PUBLIC_STUDIO_DOMAIN"
+    echo "   Learning    : $NEXT_PUBLIC_LEARNING_DOMAIN"
+    echo ""
+
+    echo "🔨 Compilando imagen studio..."
+    docker compose -f docker-compose.yml build --no-cache studio
+
+    echo ""
+    echo "🔨 Compilando imagen experience..."
+    docker compose -f docker-compose.yml build --no-cache experience
+
+    echo ""
+    echo "📤 Transfiriendo studio al servidor (streaming SSH)..."
+    docker save openccb-studio | gzip | \
+        ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "gunzip | sudo docker load"
+
+    echo "📤 Transfiriendo experience al servidor (streaming SSH)..."
+    docker save openccb-experience | gzip | \
+        ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "gunzip | sudo docker load"
+
+    echo ""
+    echo "✅ Imágenes transferidas correctamente"
+    echo ""
+fi
+
+# ============================================================================
 # SCRIPT REMOTO PARA GESTIÓN DE CONTENEDORES
 # ============================================================================
 echo "🔧 Ejecutando gestión de contenedores en remoto..."
+echo ""
 echo ""
 
 # ============================================================================
@@ -314,6 +358,25 @@ else
 fi
 
 echo ""
+echo "----------------------------------------"
+echo "Dónde compilar las imágenes Docker"
+echo "----------------------------------------"
+echo ""
+echo "¿Compilar imágenes en esta máquina y enviar al servidor?"
+echo "  - local: Compilar aquí y transferir vía SSH (recomendado - CPU i7 >> t3a.large)"
+echo "  - remote: El servidor compila (más lento en t3a.large 2vCPU/8GB)"
+echo ""
+read -p "¿Compilar localmente? [Y/n]: " BUILD_LOCAL_CHOICE
+BUILD_LOCAL_CHOICE=${BUILD_LOCAL_CHOICE:-Y}
+if [[ "$BUILD_LOCAL_CHOICE" =~ ^[Yy]$ ]]; then
+    BUILD_LOCAL="true"
+    echo "✅ Compilación local - imágenes se streamearan via SSH"
+else
+    BUILD_LOCAL="false"
+    echo "✅ El servidor compilará las imágenes"
+fi
+
+echo ""
 echo "========================================"
 echo "   Resumen de Configuración"
 echo "========================================"
@@ -325,6 +388,7 @@ echo "   Protocolo: $PROTOCOL"
 echo "   SSL Staging: $LETSENCRYPT_STAGING"
 echo "   Preservar SSL: $PRESERVE_SSL_CERTS"
 echo "   Reiniciar DB: $RESET_DATABASE"
+echo "   Compilar local: $BUILD_LOCAL"
 echo ""
 
 # Crear script remoto en un archivo temporal
@@ -338,6 +402,7 @@ PRESERVE_SSL_CERTS=$PRESERVE_SSL_CERTS
 PROTOCOL=$PROTOCOL
 STUDIO_DOMAIN=$STUDIO_DOMAIN
 LEARNING_DOMAIN=$LEARNING_DOMAIN
+BUILD_LOCAL=$BUILD_LOCAL
 
 cd /var/www/openccb
 
@@ -663,9 +728,13 @@ $DOCKER_CMD builder prune -f 2>/dev/null || true
 # Evitar builds concurrentes que puedan competir por cachés compartidas
 export COMPOSE_PARALLEL_LIMIT=1
 
-# Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
-echo "Reconstruyendo contenedores con las URLs configuradas..."
-run_docker_compose build --no-cache studio experience db
+if [ "$BUILD_LOCAL" = "true" ]; then
+    echo "Imágenes pre-cargadas localmente - saltando build remoto"
+else
+    # Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
+    echo "Reconstruyendo contenedores con las URLs configuradas..."
+    run_docker_compose build --no-cache studio experience db
+fi
 
 # Iniciar nginx-proxy y acme-companion primero
 echo "Iniciando nginx-proxy y acme-companion - SSL..."
@@ -700,6 +769,17 @@ done
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "❌ ERROR: Postgres no respondió después de $MAX_RETRIES intentos"
     exit 1
+fi
+
+# SIEMPRE sincronizar la contraseña del rol con el .env actual
+# Evita el error 28P01 (password authentication failed) cuando el deploy regenera DB_PASSWORD
+CURRENT_DB_PASS=$(grep "^DB_PASSWORD=" .env | cut -d"=" -f2-)
+if [ -n "$CURRENT_DB_PASS" ]; then
+    echo "   Sincronizando contraseña del rol 'user' con .env..."
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres \
+        -c "ALTER USER \"user\" WITH PASSWORD '$CURRENT_DB_PASS';" >/dev/null 2>&1 && \
+        echo "   ✅ Contraseña sincronizada" || \
+        echo "   ⚠️  No se pudo sincronizar contraseña (el rol usará la del volumen)"
 fi
 
 # Verificar e crear bases de datos
