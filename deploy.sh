@@ -475,6 +475,15 @@ echo "     LMS: \$LMS_URL"
 echo "     Studio Domain: \$STUDIO_DOMAIN"
 echo "     Learning Domain: \$LEARNING_DOMAIN"
 echo ""
+
+# ========================================
+# EXPORTAR VARIABLES DE DOMINIO
+# ========================================
+# CRÍTICO: export explícito para que docker-compose las encuentre
+export NEXT_PUBLIC_STUDIO_DOMAIN=\$STUDIO_DOMAIN
+export NEXT_PUBLIC_LEARNING_DOMAIN=\$LEARNING_DOMAIN
+echo "✅ Variables de dominio exportadas para docker-compose"
+echo ""
 REMOTE_SCRIPT_CONTENT
 
 # Ahora agregamos la sección de Docker con las variables correctas
@@ -619,6 +628,10 @@ run_docker_compose() {
     $DOCKER_CMD compose -f docker-compose.yml "$@"
 }
 
+# Export explícito de dominios para evitar warnings de interpolación en compose
+export NEXT_PUBLIC_STUDIO_DOMAIN=$(grep '^NEXT_PUBLIC_STUDIO_DOMAIN=' .env | cut -d'=' -f2-)
+export NEXT_PUBLIC_LEARNING_DOMAIN=$(grep '^NEXT_PUBLIC_LEARNING_DOMAIN=' .env | cut -d'=' -f2-)
+
 # ========================================
 # INICIAR SERVICIOS
 # ========================================
@@ -632,15 +645,23 @@ run_docker_compose down || true
 echo "Eliminando contenedores antiguos..."
 $DOCKER_CMD rm openccb-studio 2>/dev/null || true
 $DOCKER_CMD rm openccb-experience 2>/dev/null || true
-$DOCKER_CMD rm openccb-db 2>/dev/null || true
 
-# Eliminar volúmenes de base de datos para empezar desde cero
-echo "Eliminando volúmenes de base de datos (datos nuevos)..."
-$DOCKER_CMD volume rm openccb_postgres_data 2>/dev/null || true
+if [ "$RESET_DATABASE" = "true" ]; then
+    $DOCKER_CMD rm openccb-db 2>/dev/null || true
+
+    # Eliminar volúmenes de base de datos solo cuando se pidió reset explícito
+    echo "Eliminando volúmenes de base de datos (RESET activado)..."
+    $DOCKER_CMD volume rm openccb_postgres_data 2>/dev/null || true
+else
+    echo "Manteniendo volumen de base de datos existente (RESET desactivado)..."
+fi
 
 # Limpiar caché de builder
 echo "Limpiando caché de Docker builder..."
 $DOCKER_CMD builder prune -f 2>/dev/null || true
+
+# Evitar builds concurrentes que puedan competir por cachés compartidas
+export COMPOSE_PARALLEL_LIMIT=1
 
 # Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
 echo "Reconstruyendo contenedores con las URLs configuradas..."
@@ -652,16 +673,52 @@ run_docker_compose up -d nginx-proxy acme-companion
 echo "Esperando a que nginx-proxy este listo..."
 sleep 10
 
-# Iniciar base de datos (crea nuevas bases desde cero)
-echo "Iniciando base de datos (datos nuevos)..."
+# Iniciar base de datos
+echo "Iniciando base de datos..."
 run_docker_compose up -d db
 echo "Esperando a que la base de datos este lista..."
 sleep 15
 
-# Crear bases de datos
-echo "Creando bases de datos..."
-$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;" 2>/dev/null || echo "   openccb_cms ya existe"
-$DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;" 2>/dev/null || echo "   openccb_lms ya existe"
+# Crear bases de datos con retry loop para esperar que Postgres esté listo
+echo "Asegurando bases de datos openccb_cms/openccb_lms..."
+
+# Retry loop para esperar que Postgres responda
+MAX_RETRIES=30
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+        echo "✅ Postgres está listo"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        echo "   Postgres no está listo, reintentando ($RETRY_COUNT/$MAX_RETRIES)..."
+        sleep 1
+    fi
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "❌ ERROR: Postgres no respondió después de $MAX_RETRIES intentos"
+    exit 1
+fi
+
+# Verificar e crear bases de datos
+CMS_EXISTS=$($DOCKER_CMD exec openccb-db psql -U user -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='openccb_cms';" 2>/dev/null | tr -d '[:space:]')
+LMS_EXISTS=$($DOCKER_CMD exec openccb-db psql -U user -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='openccb_lms';" 2>/dev/null | tr -d '[:space:]')
+
+if [ "$CMS_EXISTS" != "1" ]; then
+    echo "   Creando base de datos openccb_cms..."
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_cms;"
+else
+    echo "   ✅ openccb_cms ya existe"
+fi
+
+if [ "$LMS_EXISTS" != "1" ]; then
+    echo "   Creando base de datos openccb_lms..."
+    $DOCKER_CMD exec openccb-db psql -U user -d postgres -c "CREATE DATABASE openccb_lms;"
+else
+    echo "   ✅ openccb_lms ya existe"
+fi
 
 # Iniciar servicios
 echo "Iniciando servicios OpenCCB..."
@@ -699,21 +756,7 @@ else
     fi
 fi
 
-# Limpiar caché de builder
-echo "Limpiando caché de Docker builder..."
-$DOCKER_CMD builder prune -f 2>/dev/null || true
-
-# Reconstruir con las URLs correctas (sin cache para asegurar que tome los cambios)
-echo "Reconstruyendo contenedores con las URLs configuradas..."
-run_docker_compose build --no-cache studio experience
-
-# Iniciar servicios
-echo "Iniciando servicios OpenCCB..."
-run_docker_compose up -d studio experience
-
-echo ""
-echo "Esperando a que los servicios esten listos..."
-sleep 15
+# Evitar segunda reconstrucción/reinicio duplicado: ya se hizo arriba.
 
 # ========================================
 # VALIDAR / REPARAR SSL

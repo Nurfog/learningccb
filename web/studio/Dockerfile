@@ -13,9 +13,9 @@ COPY shared/ ./shared/
 COPY services/ ./services/
 
 # Build the CMS service
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-	--mount=type=cache,target=/usr/local/cargo/git \
-	--mount=type=cache,target=/tmp/cargo-target \
+RUN --mount=type=cache,id=openccb-cargo-registry,sharing=locked,target=/usr/local/cargo/registry \
+	--mount=type=cache,id=openccb-cargo-git,sharing=locked,target=/usr/local/cargo/git \
+	--mount=type=cache,id=openccb-cargo-target-cms,sharing=locked,target=/tmp/cargo-target \
 	CARGO_TARGET_DIR=/tmp/cargo-target cargo build --release -p cms-service && \
 	cp /tmp/cargo-target/release/cms-service /usr/src/app/cms-service
 
