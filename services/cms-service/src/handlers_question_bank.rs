@@ -12,6 +12,41 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+const QUESTION_BANK_SELECT_COLUMNS: &str = r#"
+id,
+organization_id,
+question_text,
+question_type,
+options,
+correct_answer,
+explanation,
+audio_url,
+audio_text,
+audio_status,
+audio_metadata,
+media_url,
+media_type,
+points,
+difficulty,
+tags,
+skill_assessed,
+source,
+source_metadata,
+imported_mysql_id,
+imported_mysql_course_id,
+usage_count,
+last_used_at,
+is_active,
+is_archived,
+created_by,
+created_at,
+updated_at,
+embedding::text AS embedding,
+embedding_updated_at,
+source_asset_id,
+unit_number
+"#;
+
 async fn connect_mysql_pool(env_var: &str) -> Result<sqlx::MySqlPool, (StatusCode, String)> {
     use sqlx::mysql::MySqlPoolOptions;
 
@@ -253,7 +288,7 @@ pub async fn create_question(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateQuestionBankPayload>,
 ) -> Result<Json<QuestionBank>, (StatusCode, String)> {
-    let question: QuestionBank = sqlx::query_as(
+    let create_question_sql = format!(
         r#"
         INSERT INTO question_bank (
             organization_id, created_by, question_text, question_type,
@@ -261,8 +296,13 @@ pub async fn create_question(
             tags, skill_assessed, media_url, media_type, audio_status
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending')
-        RETURNING *
-        "#
+        RETURNING {}
+        "#,
+        QUESTION_BANK_SELECT_COLUMNS
+    );
+
+    let question: QuestionBank = sqlx::query_as(
+        &create_question_sql
     )
     .bind(org_ctx.id)
     .bind(claims.sub)
@@ -275,6 +315,7 @@ pub async fn create_question(
     .bind(payload.difficulty.as_deref().unwrap_or("medium"))
     .bind(payload.tags.as_deref())
     .bind(payload.skill_assessed.as_deref())
+    .bind(payload.media_url.as_deref())
     .bind(payload.media_type.as_deref())
     .fetch_one(&pool)
     .await
@@ -299,14 +340,20 @@ pub async fn list_questions(
     {
         // No filters - simple query
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .fetch_all(&pool)
         .await
     } else if filters.question_type.is_some() {
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false AND question_type = $2 ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND question_type = $2 ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .bind(filters.question_type.unwrap())
@@ -314,7 +361,10 @@ pub async fn list_questions(
         .await
     } else if filters.difficulty.is_some() {
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false AND difficulty = $2 ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND difficulty = $2 ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .bind(filters.difficulty.as_ref().unwrap())
@@ -322,7 +372,10 @@ pub async fn list_questions(
         .await
     } else if filters.source.is_some() {
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = $2 ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = $2 ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .bind(filters.source.as_ref().unwrap())
@@ -330,7 +383,10 @@ pub async fn list_questions(
         .await
     } else if filters.has_audio == Some(true) {
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false AND audio_status = 'ready' ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND audio_status = 'ready' ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .fetch_all(&pool)
@@ -338,7 +394,10 @@ pub async fn list_questions(
     } else {
         // Default fallback
         sqlx::query_as::<_, QuestionBank>(
-            "SELECT * FROM question_bank WHERE organization_id = $1 AND is_archived = false ORDER BY created_at DESC"
+            &format!(
+                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false ORDER BY created_at DESC",
+                QUESTION_BANK_SELECT_COLUMNS
+            )
         )
         .bind(org_ctx.id)
         .fetch_all(&pool)
@@ -357,11 +416,16 @@ pub async fn get_question(
     Path(id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<QuestionBank>, (StatusCode, String)> {
-    let question: QuestionBank = sqlx::query_as(
+    let get_question_sql = format!(
         r#"
-        SELECT * FROM question_bank
+        SELECT {} FROM question_bank
         WHERE id = $1 AND organization_id = $2 AND is_archived = false
-        "#
+        "#,
+        QUESTION_BANK_SELECT_COLUMNS
+    );
+
+    let question: QuestionBank = sqlx::query_as(
+        &get_question_sql
     )
     .bind(id)
     .bind(org_ctx.id)
@@ -384,7 +448,7 @@ pub async fn update_question(
     State(pool): State<PgPool>,
     Json(payload): Json<UpdateQuestionBankPayload>,
 ) -> Result<Json<QuestionBank>, (StatusCode, String)> {
-    let question: QuestionBank = sqlx::query_as(
+    let update_question_sql = format!(
         r#"
         UPDATE question_bank
         SET
@@ -400,8 +464,13 @@ pub async fn update_question(
             is_archived = COALESCE($12, is_archived),
             updated_at = NOW()
         WHERE id = $1 AND organization_id = $2
-        RETURNING *
-        "#
+        RETURNING {}
+        "#,
+        QUESTION_BANK_SELECT_COLUMNS
+    );
+
+    let question: QuestionBank = sqlx::query_as(
+        &update_question_sql
     )
     .bind(id)
     .bind(org_ctx.id)
@@ -601,15 +670,18 @@ pub async fn import_from_mysql(
                 });
                 
                 let qb: QuestionBank = sqlx::query_as(
-                    r#"
-                    INSERT INTO question_bank (
-                        organization_id, created_by, question_text, question_type,
-                        options, correct_answer, source, source_metadata,
-                        audio_status, is_active
+                    &format!(
+                        r#"
+                        INSERT INTO question_bank (
+                            organization_id, created_by, question_text, question_type,
+                            options, correct_answer, source, source_metadata,
+                            audio_status, is_active
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, 'imported-mysql', $7, 'pending', true)
+                        RETURNING {}
+                        "#,
+                        QUESTION_BANK_SELECT_COLUMNS
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, 'imported-mysql', $7, 'pending', true)
-                    RETURNING *
-                    "#
                 )
                 .bind(org_ctx.id)
                 .bind(claims.sub)
@@ -682,16 +754,19 @@ pub async fn import_from_mysql(
         });
 
         let question: QuestionBank = sqlx::query_as(
-            r#"
-            INSERT INTO question_bank (
-                organization_id, created_by, question_text, question_type,
-                options, correct_answer, source, source_metadata,
-                imported_mysql_id, imported_mysql_course_id,
-                audio_status, is_active
+            &format!(
+                r#"
+                INSERT INTO question_bank (
+                    organization_id, created_by, question_text, question_type,
+                    options, correct_answer, source, source_metadata,
+                    imported_mysql_id, imported_mysql_course_id,
+                    audio_status, is_active
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, 'imported-mysql', $7, $8, $9, 'pending', true)
+                RETURNING {}
+                "#,
+                QUESTION_BANK_SELECT_COLUMNS
             )
-            VALUES ($1, $2, $3, $4, $5, $6, 'imported-mysql', $7, $8, $9, 'pending', true)
-            RETURNING *
-            "#
         )
         .bind(org_ctx.id)
         .bind(claims.sub)
