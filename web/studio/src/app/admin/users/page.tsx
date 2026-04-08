@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { cmsApi, User, Organization } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { UserCog, Mail, Search, Filter, ShieldCheck, Plus, X, UserPlus, Key, User as UserIcon, Building2, Gauge } from 'lucide-react';
+import { UserCog, Mail, Search, Filter, ShieldCheck, Plus, X, UserPlus, Key, User as UserIcon, Building2, Gauge, Trash2, AlertTriangle } from 'lucide-react';
 
 interface UserWithLimit extends User {
     monthly_token_limit?: number;
@@ -18,6 +18,10 @@ export default function UsersPage() {
     const [roleFilter, setRoleFilter] = useState('');
     const { user: currentUser } = useAuth();
     const [tokenLimits, setTokenLimits] = useState<Record<string, {limit: number, percentage: number}>>({});
+
+    // Delete User States
+    const [deleteConfirm, setDeleteConfirm] = useState<UserWithLimit | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Create User States
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -84,6 +88,21 @@ export default function UsersPage() {
         }
     };
 
+    const handleDeleteUser = async () => {
+        if (!deleteConfirm) return;
+        setDeleting(true);
+        try {
+            await cmsApi.deleteUser(deleteConfirm.id);
+            setDeleteConfirm(null);
+            loadData();
+        } catch (error) {
+            console.error('Failed to delete user', error);
+            alert('No se pudo eliminar el usuario.');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -98,8 +117,11 @@ export default function UsersPage() {
     };
 
     const filteredUsers = users.filter(u => {
-        const matchesSearch = u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchTerm.toLowerCase());
+        const safeName = (u.full_name || '').toLowerCase();
+        const safeEmail = (u.email || '').toLowerCase();
+        const term = searchTerm.toLowerCase();
+
+        const matchesSearch = safeName.includes(term) || safeEmail.includes(term);
         const matchesRole = roleFilter === '' || u.role === roleFilter;
         return matchesSearch && matchesRole;
     });
@@ -189,12 +211,12 @@ export default function UsersPage() {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
-                                                {u.full_name[0].toUpperCase()}
+                                                {((u.full_name || u.email || '?').trim().charAt(0) || '?').toUpperCase()}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-900 dark:text-white text-sm">{u.full_name}</div>
+                                                <div className="font-bold text-slate-900 dark:text-white text-sm">{u.full_name || 'Sin nombre'}</div>
                                                 <div className="text-[10px] text-slate-500 dark:text-gray-500 flex items-center gap-1 font-mono">
-                                                    <Mail className="w-3 h-3" /> {u.email}
+                                                    <Mail className="w-3 h-3" /> {u.email || 'sin-email'}
                                                 </div>
                                             </div>
                                         </div>
@@ -257,9 +279,20 @@ export default function UsersPage() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white opacity-0 group-hover:opacity-100 shadow-sm">
-                                            <UserCog className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <button className="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                                                <UserCog className="w-4 h-4" />
+                                            </button>
+                                            {u.id !== currentUser?.id && (
+                                                <button
+                                                    onClick={() => setDeleteConfirm(u)}
+                                                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                                                    title="Eliminar usuario"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -272,6 +305,41 @@ export default function UsersPage() {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-2xl">
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <div className="p-3 rounded-full bg-red-500/10">
+                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Eliminar usuario</h2>
+                                <p className="text-slate-500 dark:text-gray-400 text-sm">
+                                    ¿Confirmas que deseas eliminar a <span className="font-semibold text-slate-700 dark:text-white">{deleteConfirm.full_name || deleteConfirm.email}</span>? Esta acción no se puede deshacer.
+                                </p>
+                            </div>
+                            <div className="flex gap-3 w-full mt-2">
+                                <button
+                                    onClick={() => setDeleteConfirm(null)}
+                                    disabled={deleting}
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg transition-all text-slate-600 dark:text-white font-medium disabled:opacity-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDeleteUser}
+                                    disabled={deleting}
+                                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all font-bold disabled:opacity-50"
+                                >
+                                    {deleting ? 'Eliminando...' : 'Eliminar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Create User Modal */}
             {isModalOpen && (

@@ -3571,6 +3571,55 @@ pub async fn update_user(
     }))
 }
 
+pub async fn delete_user(
+    Org(org_ctx): Org,
+    claims: common::auth::Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if claims.role != "admin" {
+        return Err((StatusCode::FORBIDDEN, "Not authorized".into()));
+    }
+    // Prevent an admin from deleting themselves
+    if claims.sub == id {
+        return Err((StatusCode::BAD_REQUEST, "Cannot delete your own account".into()));
+    }
+
+    let is_super_admin = claims.role == "admin"
+        && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    let result = if is_super_admin {
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+    } else {
+        sqlx::query("DELETE FROM users WHERE id = $1 AND organization_id = $2")
+            .bind(id)
+            .bind(org_ctx.id)
+            .execute(&pool)
+            .await
+    }
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if result.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, "User not found".into()));
+    }
+
+    log_action(
+        &pool,
+        org_ctx.id,
+        claims.sub,
+        "DELETE_USER",
+        "User",
+        id,
+        serde_json::json!({}),
+    )
+    .await;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // Organizations Management (Simplified for Single-Tenant)
 // Multi-tenant organization management has been removed.
 // The system now operates on a single default organization.

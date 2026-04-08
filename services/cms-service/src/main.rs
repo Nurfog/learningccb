@@ -241,7 +241,7 @@ async fn main() {
             "/users",
             get(handlers::get_all_users).post(handlers::admin_create_user),
         )
-        .route("/users/{id}", axum::routing::put(handlers::update_user))
+        .route("/users/{id}", axum::routing::put(handlers::update_user).delete(handlers::delete_user))
         .route("/audit-logs", get(handlers::get_audit_logs))
         .route("/api/ai/review-text", post(handlers::review_text))
         .route("/api/assets", get(handlers_assets::list_assets))
@@ -513,6 +513,10 @@ async fn main() {
 
     let public_routes = Router::new()
         .nest("/api/external", api_routes)
+        .route(
+            "/api/assets/s3-proxy/{bucket}/{*key}",
+            get(handlers_assets::public_s3_proxy),
+        )
         // Health check routes
         .merge(health::health_routes(pool.clone()).with_state(health_state))
         .nest_service("/assets", tower_http::services::ServeDir::new("uploads"))

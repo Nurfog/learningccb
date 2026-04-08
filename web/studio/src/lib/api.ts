@@ -54,7 +54,61 @@ export function generateUUID(): string {
 
 export const getImageUrl = (path?: string) => {
     if (!path) return '';
-    if (path.startsWith('http')) return path;
+    if (path.startsWith('http')) {
+        // If backend persisted direct S3 public URL but bucket is private,
+        // proxy it through CMS to avoid AccessDenied.
+        try {
+            const parsed = new URL(path);
+            const host = parsed.hostname;
+            const isAwsS3 = host.includes('.s3.') || host.endsWith('.amazonaws.com');
+            if (isAwsS3) {
+                const key = parsed.pathname.replace(/^\//, '');
+                let bucket = '';
+
+                // virtual-host style: <bucket>.s3.<region>.amazonaws.com
+                if (host.includes('.s3.')) {
+                    bucket = host.split('.s3.')[0];
+                } else {
+                    // path-style: s3.<region>.amazonaws.com/<bucket>/<key>
+                    const [first, ...rest] = key.split('/');
+                    if (first && rest.length) {
+                        bucket = first;
+                        const normalizedKey = rest.join('/');
+                        return `${API_BASE_URL}/api/assets/s3-proxy/${encodeURIComponent(bucket)}/${normalizedKey}`;
+                    }
+                }
+
+                if (bucket && key) {
+                    return `${API_BASE_URL}/api/assets/s3-proxy/${encodeURIComponent(bucket)}/${key}`;
+                }
+            }
+        } catch {
+            // If URL parsing fails, fallback to original path behavior below.
+        }
+
+        return path;
+    }
+
+    // Handle S3 storage URIs persisted in DB: s3://bucket/key -> https://bucket.s3.amazonaws.com/key
+    if (path.startsWith('s3://')) {
+        const withoutScheme = path.slice(5);
+        const firstSlash = withoutScheme.indexOf('/');
+        if (firstSlash > 0) {
+            const bucket = withoutScheme.slice(0, firstSlash);
+            const key = withoutScheme.slice(firstSlash + 1);
+            if (bucket && key) {
+                return `${API_BASE_URL}/api/assets/s3-proxy/${encodeURIComponent(bucket)}/${key}`;
+            }
+        }
+    }
+
+    // Handle plain object keys (e.g. org/<org-id>/shared/assets/file.ext)
+    // when a CDN/base URL is configured for public object access.
+    const s3PublicBase = process.env.NEXT_PUBLIC_S3_PUBLIC_BASE_URL;
+    if (s3PublicBase && /^org\/.+/.test(path)) {
+        return `${s3PublicBase.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+    }
+
     // Map uploads to assets if backend stores relative paths
     // The main.rs serves "uploads" dir at "/assets" route
     let cleanPath = path;
@@ -941,6 +995,7 @@ export const cmsApi = {
     getAllUsers: (): Promise<User[]> => apiFetch('/users'),
     createUser: (data: UserCreatePayload): Promise<User> => apiFetch('/users', { method: 'POST', body: JSON.stringify(data) }),
     updateUser: (id: string, payload: { role?: string, organization_id?: string, full_name?: string, avatar_url?: string, bio?: string, language?: string }): Promise<void> => apiFetch(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteUser: (id: string): Promise<void> => apiFetch(`/users/${id}`, { method: 'DELETE' }),
 
     // Webhooks
     getWebhooks: (): Promise<Webhook[]> => apiFetch('/webhooks'),

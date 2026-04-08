@@ -574,6 +574,8 @@ pub struct AudioGradingResponse {
     pub score: i32,
     pub found_keywords: Vec<String>,
     pub feedback: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transcript: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -2488,7 +2490,7 @@ pub async fn evaluate_audio_file(
         )
     })?;
 
-    let grading: AudioGradingResponse = serde_json::from_value(
+    let mut grading: AudioGradingResponse = serde_json::from_value(
         ai_data["choices"][0]["message"]["content"]
             .as_str()
             .and_then(|c| serde_json::from_str(c).ok())
@@ -2500,6 +2502,7 @@ pub async fn evaluate_audio_file(
                 })
             })
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Mapping failed: {}", e)))?;
+    grading.transcript = Some(transcript.clone());
 
     // 3. Save audio response to database
     // Determine status based on evaluation
@@ -3497,8 +3500,9 @@ pub async fn chat_with_tutor(
         \
         REGLAS ESTRICTAS: \
         1. Solo puedes responder preguntas relacionadas con la lección ACTUAL, las lecciones PASADAS o el CONTEXTO de la BASE DE CONOCIMIENTOS proporcionado. \
-        2. Si un estudiante hace preguntas de cultura general, eventos futuros o fuera de tema, \
-        puedes responder brevemente de forma amigable usando tus conocimientos generales. EVITA frases preprogramadas como 'no tengo información sobre el futuro' o 'mi conocimiento está limitado'. Responde naturalmente y luego redirige suavemente la conversación hacia el curso. \
+        2. Si el estudiante hace preguntas de cultura general, noticias, entretenimiento, eventos históricos o cualquier tema que NO esté en el contenido del curso, \
+        debes rechazar de forma amable pero firme. Responde algo como: 'Esa pregunta está fuera del contenido de este curso. Estoy aquí para ayudarte con [título de la lección]. ¿Tienes alguna duda sobre el tema?' \
+        NUNCA respondas preguntas fuera del contexto del curso, sin importar cuán simples parezcan. \
         3. CRÍTICO: NO proporciones respuestas directas para las actividades, cuestionarios o ejercicios de código de la lección ACTUAL. \
         Incluso si la respuesta está en la memoria o base de conocimientos, solo debes proporcionar pistas o explicar conceptos. \
         4. Usa el HISTORIAL DE LA CONVERSACIÓN para mantener la continuidad y brindar ayuda personalizada basada en preguntas anteriores. \

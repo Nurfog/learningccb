@@ -1,7 +1,8 @@
 use axum::{
     Json,
     extract::{Path, Query, State, Multipart},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap, header},
+    response::IntoResponse,
 };
 use aws_config::BehaviorVersion;
 use aws_config::meta::region::RegionProviderChain;
@@ -223,6 +224,49 @@ fn parse_s3_storage_path(path: &str) -> Option<(&str, &str)> {
         return None;
     }
     Some((bucket, key))
+}
+
+/// GET /api/assets/s3-proxy/{bucket}/{*key}
+/// Proxies private S3 objects through CMS so frontend URLs do not depend on public-read ACLs.
+pub async fn public_s3_proxy(
+    Path(params): Path<HashMap<String, String>>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let bucket = params
+        .get("bucket")
+        .cloned()
+        .ok_or((StatusCode::BAD_REQUEST, "Missing bucket".to_string()))?;
+    let key = params
+        .get("key")
+        .cloned()
+        .ok_or((StatusCode::BAD_REQUEST, "Missing key".to_string()))?;
+
+    let settings = get_s3_settings().ok_or((
+        StatusCode::NOT_FOUND,
+        "S3 storage is not configured".to_string(),
+    ))?;
+
+    if bucket != settings.bucket {
+        return Err((StatusCode::FORBIDDEN, "Bucket not allowed".to_string()));
+    }
+
+    let storage_path = format!("s3://{}/{}", bucket, key);
+    let bytes = read_storage_bytes(&storage_path).await?;
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        "application/octet-stream"
+            .parse()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid header: {}", e)))?,
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=3600"
+            .parse()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid header: {}", e)))?,
+    );
+
+    Ok((headers, bytes))
 }
 
 async fn read_storage_bytes(storage_path: &str) -> Result<Vec<u8>, (StatusCode, String)> {

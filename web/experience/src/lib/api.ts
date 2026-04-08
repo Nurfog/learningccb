@@ -59,6 +59,7 @@ export interface AudioGradingResponse {
     score: number;
     found_keywords: string[];
     feedback: string;
+    transcript?: string;
 }
 
 export interface Course {

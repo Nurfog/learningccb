@@ -215,6 +215,9 @@ export default function AudioResponsePlayer({
                 blockId,
                 recordingTime
             );
+            if (result.transcript) {
+                setTranscript(result.transcript);
+            }
             setEvaluation({
                 score: result.score,
                 foundKeywords: result.found_keywords,
@@ -223,7 +226,7 @@ export default function AudioResponsePlayer({
             setSubmitted(true);
 
             if (onComplete) {
-                onComplete(result.score, transcript);
+                onComplete(result.score, result.transcript || transcript);
             }
         } catch (err: any) {
             console.error("Evaluation failed", err);
@@ -365,7 +368,7 @@ export default function AudioResponsePlayer({
                             </div>
                         )}
 
-                        {audioBlob && transcript && (
+                        {audioBlob && !isRecording && (
                             <button
                                 onClick={evaluateResponse}
                                 className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl font-bold text-white shadow-lg shadow-green-500/30 transition-all outline-none focus:ring-2 focus:ring-green-500"
