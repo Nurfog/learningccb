@@ -18,6 +18,7 @@ build/
 # Nunca subas tus llaves secretas o credenciales
 .env
 .env*.local
+.env.production
 
 # --- Archivos de Sistema y Editores ---
 .DS_Store

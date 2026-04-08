@@ -40,6 +40,36 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
         }
     };
 
+    const sourceBadge = (() => {
+        switch (question.source) {
+            case 'imported-mysql':
+            case 'sam-diagnostico':
+                return (
+                    <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                        <Globe className="w-3 h-3" /> MySQL
+                    </span>
+                );
+            case 'imported-material':
+                return (
+                    <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                        <Globe className="w-3 h-3" /> Materiales ZIP
+                    </span>
+                );
+            case 'ai-generated':
+                return (
+                    <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
+                        <Sparkles className="w-3 h-3" /> IA
+                    </span>
+                );
+            case 'manual':
+                return <span className="text-xs text-gray-500 dark:text-gray-400">Manual</span>;
+            default:
+                return question.source ? (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{question.source}</span>
+                ) : null;
+        }
+    })();
+
     const handlePlayAudio = () => {
         if (!question.audio_url) return;
 
@@ -184,20 +214,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                         {question.points} pts
                     </span>
-                    {question.source && (
-                        <div className="flex items-center gap-1">
-                            {question.source === 'imported-mysql' && (
-                                <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                                    <Globe className="w-3 h-3" /> MySQL
-                                </span>
-                            )}
-                            {question.source === 'ai-generated' && (
-                                <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
-                                    <Sparkles className="w-3 h-3" /> IA
-                                </span>
-                            )}
-                        </div>
-                    )}
+                    {sourceBadge && <div className="flex items-center gap-1">{sourceBadge}</div>}
                 </div>
             </div>
 

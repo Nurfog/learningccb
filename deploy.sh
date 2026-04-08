@@ -1056,12 +1056,13 @@ echo "========================================"
 echo ""
 echo "Probando conexión con Ollama (t-800.norteamericano.cl:11434)..."
 
-OLLAMA_TEST=$(ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "curl -s --connect-timeout 5 http://t-800.norteamericano.cl:11434/api/tags 2>&1 | head -1" 2>/dev/null)
+# Ya estamos ejecutando en el host remoto: evitar SSH anidado que puede fallar con exit 255.
+OLLAMA_TEST=$(curl -s --connect-timeout 5 http://t-800.norteamericano.cl:11434/api/tags 2>&1 | head -1 || true)
 
 if [ -n "$OLLAMA_TEST" ] && echo "$OLLAMA_TEST" | grep -q "models"; then
     echo "✅ Ollama accesible desde AWS EC2"
     echo "   Modelos disponibles:"
-    ssh -i "$PEM_PATH" "$REMOTE_USER@$REMOTE_HOST" "curl -s http://t-800.norteamericano.cl:11434/api/tags 2>&1 | grep -o '\"name\":\"[^\"]*\"' | head -5" || true
+    curl -s http://t-800.norteamericano.cl:11434/api/tags 2>&1 | grep -o '"name":"[^"]*"' | head -5 || true
 else
     echo "⚠️  Ollama NO es accesible desde AWS EC2"
     echo ""

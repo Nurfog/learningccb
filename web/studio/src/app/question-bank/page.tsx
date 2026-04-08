@@ -11,6 +11,10 @@ import QuestionBankEditor from '@/components/QuestionBank/QuestionBankEditor';
 import QuestionBankCard from '@/components/QuestionBank/QuestionBankCard';
 import MySQLImportModal from '@/components/QuestionBank/MySQLImportModal';
 
+const isMySqlOrigin = (source?: string) => source === 'imported-mysql' || source === 'sam-diagnostico';
+const isMaterialsOrigin = (source?: string) => source === 'imported-material';
+const isAiOrigin = (source?: string) => source === 'ai-generated';
+
 export default function QuestionBankPage() {
     const [questions, setQuestions] = useState<QuestionBank[]>([]);
     const [loading, setLoading] = useState(true);
@@ -89,19 +93,6 @@ export default function QuestionBankPage() {
         }
     };
 
-    const getSourceBadge = (source?: string) => {
-        switch (source) {
-            case 'imported-mysql': 
-                return <span className="flex items-center gap-1 text-xs text-blue-600"><Globe className="w-3 h-3" /> MySQL</span>;
-            case 'ai-generated': 
-                return <span className="flex items-center gap-1 text-xs text-purple-600"><Sparkles className="w-3 h-3" /> IA</span>;
-            case 'manual': 
-                return <span className="text-xs text-gray-500">Manual</span>;
-            default: 
-                return null;
-        }
-    };
-
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
@@ -145,19 +136,19 @@ export default function QuestionBankPage() {
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                         <div className="text-2xl font-bold text-blue-600">
-                            {questions.filter(q => q.source === 'imported-mysql').length}
+                            {questions.filter(q => isMySqlOrigin(q.source)).length}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">Importadas MySQL</div>
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                        <div className="text-2xl font-bold text-green-600">
-                            {questions.filter(q => q.audio_status === 'ready').length}
+                        <div className="text-2xl font-bold text-emerald-600">
+                            {questions.filter(q => isMaterialsOrigin(q.source)).length}
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Con Audio</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Materiales ZIP</div>
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                         <div className="text-2xl font-bold text-purple-600">
-                            {questions.filter(q => q.source === 'ai-generated').length}
+                            {questions.filter(q => isAiOrigin(q.source)).length}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">Generadas IA</div>
                     </div>
@@ -237,9 +228,10 @@ export default function QuestionBankPage() {
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                             >
                                 <option value="">Todos</option>
-                                <option value="manual">Manual</option>
-                                <option value="imported-mysql">MySQL</option>
-                                <option value="ai-generated">IA</option>
+                                <option value="mysql">Importadas MySQL</option>
+                                <option value="materials">Importadas desde Materiales ZIP</option>
+                                <option value="ai">Generadas por IA</option>
+                                <option value="manual">Creadas manualmente</option>
                             </select>
                         </div>
                         <div>

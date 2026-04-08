@@ -371,16 +371,54 @@ pub async fn list_questions(
         .fetch_all(&pool)
         .await
     } else if filters.source.is_some() {
-        sqlx::query_as::<_, QuestionBank>(
-            &format!(
-                "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = $2 ORDER BY created_at DESC",
-                QUESTION_BANK_SELECT_COLUMNS
-            )
-        )
-        .bind(org_ctx.id)
-        .bind(filters.source.as_ref().unwrap())
-        .fetch_all(&pool)
-        .await
+        let source_filter = filters.source.as_ref().unwrap().to_lowercase();
+        match source_filter.as_str() {
+            "mysql" => {
+                sqlx::query_as::<_, QuestionBank>(
+                    &format!(
+                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source IN ('imported-mysql', 'sam-diagnostico') ORDER BY created_at DESC",
+                        QUESTION_BANK_SELECT_COLUMNS
+                    )
+                )
+                .bind(org_ctx.id)
+                .fetch_all(&pool)
+                .await
+            }
+            "materials" | "materials-zip" => {
+                sqlx::query_as::<_, QuestionBank>(
+                    &format!(
+                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = 'imported-material' ORDER BY created_at DESC",
+                        QUESTION_BANK_SELECT_COLUMNS
+                    )
+                )
+                .bind(org_ctx.id)
+                .fetch_all(&pool)
+                .await
+            }
+            "ai" => {
+                sqlx::query_as::<_, QuestionBank>(
+                    &format!(
+                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = 'ai-generated' ORDER BY created_at DESC",
+                        QUESTION_BANK_SELECT_COLUMNS
+                    )
+                )
+                .bind(org_ctx.id)
+                .fetch_all(&pool)
+                .await
+            }
+            _ => {
+                sqlx::query_as::<_, QuestionBank>(
+                    &format!(
+                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = $2 ORDER BY created_at DESC",
+                        QUESTION_BANK_SELECT_COLUMNS
+                    )
+                )
+                .bind(org_ctx.id)
+                .bind(filters.source.as_ref().unwrap())
+                .fetch_all(&pool)
+                .await
+            }
+        }
     } else if filters.has_audio == Some(true) {
         sqlx::query_as::<_, QuestionBank>(
             &format!(
