@@ -696,6 +696,33 @@ Rules:
                 rag_context, num_questions, topic
             )
         }
+        "essay" => {
+            format!(
+                r#"You are an English Teacher creating essay questions.
+
+Use these examples as inspiration (do NOT copy):
+{}
+
+Create {} ORIGINAL essay questions about: {}
+
+IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+[
+    {{
+        "question_text": "Explain how setting influences the mood of a short story.",
+        "question_type": "essay",
+        "correct_answer": "A strong response explains specific setting details and connects them clearly to mood with evidence.",
+        "explanation": "This assesses analytical writing and use of textual evidence.",
+        "points": 3
+    }}
+]
+
+Rules:
+- Questions must require extended written responses
+- correct_answer should contain rubric guidance or expected criteria
+- No options array is needed"#,
+                rag_context, num_questions, topic
+            )
+        }
         "matching" => {
             format!(
                 r#"You are an English Teacher creating quiz questions.
@@ -848,47 +875,85 @@ Rules:
     }
 }
 
+// Flatten any value into a list of question objects.
+// Handles: plain array, {"questions":[...]}, {"key":[...q...]}, single object with question_text or type-specific fields.
+fn flatten_into_questions(v: &serde_json::Value) -> Vec<serde_json::Value> {
+    if let Some(arr) = v.as_array() {
+        // Could be [[q1,q2],[q3]] if LLM wrapped questions in sub-arrays — flatten one level.
+        let mut out = Vec::new();
+        for item in arr {
+            if item.is_object() {
+                out.push(item.clone());
+            } else if let Some(inner) = item.as_array() {
+                for q in inner {
+                    if q.is_object() {
+                        out.push(q.clone());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+    if let Some(wrapped) = v.get("questions") {
+        return flatten_into_questions(wrapped);
+    }
+    if let Some(items) = v.get("items") {
+        // Only treat "items" as a wrapper when it contains question objects/arrays.
+        // Ordering questions also use "items", but there it is an array of strings.
+        let looks_like_question_wrapper = items
+            .as_array()
+            .map(|arr| arr.iter().all(|item| item.is_object() || item.is_array()))
+            .unwrap_or(false);
+        if looks_like_question_wrapper {
+            return flatten_into_questions(items);
+        }
+    }
+    if v.as_object().is_some() {
+        // Check for type-specific fields that indicate this is a single question
+        let has_question_text = v.get("question_text").is_some();
+        let has_ordering_fields = v.get("items").is_some() || v.get("correct_order").is_some();
+        let has_matching_fields = v.get("pairs").is_some();
+        let has_blanks_fields = v.get("blanks").is_some();
+        let has_options = v.get("options").is_some();
+        let has_correct_answer = v.get("correct_answer").is_some() || v.get("correct").is_some();
+        
+        // If this looks like a single question (has question_text or type-specific fields), return it
+        if has_question_text || has_ordering_fields || has_matching_fields || has_blanks_fields || 
+           (has_options && (has_correct_answer || v.get("question_type").is_some())) {
+            return vec![v.clone()];
+        }
+        
+        // Otherwise, it might be {"question1": [...], "question2": [...]} — flatten all value arrays/objects
+        let obj = v.as_object().unwrap();
+        let mut out = Vec::new();
+        for val in obj.values() {
+            if val.is_object() && 
+               (val.get("question_text").is_some() || 
+                val.get("items").is_some() || 
+                val.get("pairs").is_some() || 
+                val.get("blanks").is_some() ||
+                val.get("options").is_some()) {
+                // Single question stored as a key's value
+                out.push(val.clone());
+            } else if let Some(arr) = val.as_array() {
+                for q in arr {
+                    if q.is_object() {
+                        out.push(q.clone());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+    vec![]
+}
+
 // Helper function to parse AI response based on question type
 fn parse_ai_response_for_question_type(
     questions_data: &serde_json::Value,
-    question_type: &str,
+    _question_type: &str,
 ) -> Vec<serde_json::Value> {
-    match question_type {
-        "true-false" | "short-answer" | "matching" | "ordering" | "fill-in-the-blanks" => {
-            // These types should return an array of question objects
-            if let Some(arr) = questions_data.as_array() {
-                arr.clone()
-            } else if let Some(wrapped) = questions_data
-                .get("questions")
-                .or(questions_data.get("items"))
-            {
-                wrapped.as_array().cloned().unwrap_or_default()
-            } else if let Some(obj) = questions_data.as_object() {
-                obj.values().cloned().collect()
-            } else {
-                vec![]
-            }
-        }
-        _ => {
-            // Default parsing for multiple-choice and others
-            if let Some(arr) = questions_data.as_array() {
-                arr.clone()
-            } else if let Some(questions) = questions_data
-                .get("questions")
-                .or(questions_data.get("items"))
-            {
-                questions.as_array().cloned().unwrap_or_default()
-            } else if let Some(obj) = questions_data.as_object() {
-                let questions: Vec<serde_json::Value> = obj.values().cloned().collect();
-                if !questions.is_empty() {
-                    return questions;
-                }
-                vec![]
-            } else {
-                vec![]
-            }
-        }
-    }
+    flatten_into_questions(questions_data)
 }
 
 /// POST /test-templates/generate-with-rag - Generate questions using RAG from imported MySQL question bank
@@ -940,7 +1005,7 @@ pub async fn generate_questions_with_rag(
                             (qb.source_metadata->>'nivel_curso')::integer,
                             NULL
                         ) as nivel_curso,
-                        1 - (qb.embedding <=> $1::vector) AS similarity
+                        (1 - (qb.embedding <=> $1::vector))::float4 AS similarity
                     FROM question_bank qb
                     WHERE qb.organization_id = $2
                                             AND (

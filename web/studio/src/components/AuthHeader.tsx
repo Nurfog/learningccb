@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { LogOut, ShieldAlert, Building2, Activity, Settings } from "lucide-react";
+import { LogOut, ShieldAlert, Building2, Activity, Settings, Gauge } from "lucide-react";
 import Link from "next/link";
 
 export default function AuthHeader() {
@@ -18,6 +18,9 @@ export default function AuthHeader() {
                     </Link>
                     <Link href="/admin/tasks" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Tasks">
                         <Activity size={16} /> <span className="hidden md:inline">Tasks</span>
+                    </Link>
+                    <Link href="/admin/token-usage" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Tokens IA">
+                        <Gauge size={16} /> <span className="hidden md:inline">Tokens</span>
                     </Link>
                     <Link href="/settings" className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center gap-2" title="Settings">
                         <Settings size={16} /> <span className="hidden md:inline">Settings</span>

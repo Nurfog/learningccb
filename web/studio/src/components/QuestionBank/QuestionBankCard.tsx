@@ -118,6 +118,38 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
                 {safeQuestionText as any}
             </p>
 
+            {/* Matching Pairs Preview */}
+            {question.question_type === 'matching' && (
+                <div className="mb-3 space-y-2">
+                    {(() => {
+                        // Try to get pairs from different possible locations
+                        let pairs = question.pairs || 
+                                   (question.correct_answer && Array.isArray(question.correct_answer) ? question.correct_answer : null) ||
+                                   (question.correct_answer && question.correct_answer.pairs ? question.correct_answer.pairs : null);
+                        
+                        if (!Array.isArray(pairs) || pairs.length === 0) {
+                            return <div className="text-xs text-gray-400">Sin pares definidos</div>;
+                        }
+                        
+                        return pairs.slice(0, 3).map((pair: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-700/50 p-2 rounded flex items-center gap-2">
+                                <span className="flex-1 text-gray-700 dark:text-gray-300">{pair.left || pair[0]}</span>
+                                <span className="text-gray-400">→</span>
+                                <span className="flex-1 text-gray-600 dark:text-gray-400 line-clamp-1">{pair.right || pair[1]}</span>
+                            </div>
+                        ));
+                    })()}
+                    {(() => {
+                        let pairs = question.pairs || 
+                                   (question.correct_answer && Array.isArray(question.correct_answer) ? question.correct_answer : null) ||
+                                   (question.correct_answer && question.correct_answer.pairs ? question.correct_answer.pairs : null);
+                        return Array.isArray(pairs) && pairs.length > 3 ? (
+                            <div className="text-xs text-gray-400">+{pairs.length - 3} pares más</div>
+                        ) : null;
+                    })()}
+                </div>
+            )}
+
             {/* Audio Player */}
             {question.audio_url && (
                 <div className="mb-3">
