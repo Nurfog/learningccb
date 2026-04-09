@@ -3799,6 +3799,25 @@ pub async fn get_lesson_feedback(
 
     let score_pct = (grade.score * 100.0) as i32;
 
+    // Reuse cached feedback when it was generated for the same attempt count.
+    if let Some(metadata) = grade.metadata.as_ref() {
+        let cached_attempts = metadata
+            .get("ai_lesson_feedback_attempts")
+            .and_then(|v| v.as_i64());
+        let cached_feedback = metadata
+            .get("ai_lesson_feedback")
+            .and_then(|v| v.as_str());
+
+        if cached_attempts == Some(grade.attempts_count as i64) {
+            if let Some(feedback) = cached_feedback {
+                return Ok(Json(ChatResponse {
+                    response: feedback.to_string(),
+                    session_id: Uuid::nil(),
+                }));
+            }
+        }
+    }
+
     let fallback_feedback = if score_pct >= 80 {
         "Excelente trabajo. Tu rendimiento demuestra dominio de los conceptos clave de esta lección. Mantén ese nivel en la siguiente actividad.".to_string()
     } else if score_pct >= 60 {
@@ -3873,55 +3892,73 @@ pub async fn get_lesson_feedback(
     )
     .await;
 
-    let response = match response_result {
-        Ok(Ok(resp)) => resp,
+    let tutor_response = match response_result {
+        Ok(Ok(response)) => {
+            if !response.status().is_success() {
+                let err_body = response.text().await.unwrap_or_default();
+                tracing::warn!("Feedback IA: proveedor devolvió error: {}", err_body);
+                fallback_feedback.clone()
+            } else {
+                let ai_data: serde_json::Value = match timeout(Duration::from_secs(8), response.json()).await {
+                    Ok(Ok(data)) => data,
+                    Ok(Err(e)) => {
+                        tracing::warn!("Feedback IA: error parseando respuesta: {}", e);
+                        serde_json::Value::Null
+                    }
+                    Err(_) => {
+                        tracing::warn!("Feedback IA: timeout parseando respuesta");
+                        serde_json::Value::Null
+                    }
+                };
+
+                ai_data["choices"][0]["message"]["content"]
+                    .as_str()
+                    .unwrap_or(&fallback_feedback)
+                    .to_string()
+            }
+        }
         Ok(Err(e)) => {
             tracing::warn!("Feedback IA: error solicitando proveedor: {}", e);
-            return Ok(Json(ChatResponse {
-                response: fallback_feedback,
-                session_id: Uuid::nil(),
-            }));
+            fallback_feedback.clone()
         }
         Err(_) => {
             tracing::warn!("Feedback IA: timeout de proveedor externo");
-            return Ok(Json(ChatResponse {
-                response: fallback_feedback,
-                session_id: Uuid::nil(),
-            }));
+            fallback_feedback.clone()
         }
     };
 
-    if !response.status().is_success() {
-        let err_body = response.text().await.unwrap_or_default();
-        tracing::warn!("Feedback IA: proveedor devolvió error: {}", err_body);
-        return Ok(Json(ChatResponse {
-            response: fallback_feedback,
-            session_id: Uuid::nil(),
-        }));
+    // Persist feedback so repeated views do not trigger AI every time.
+    let mut new_metadata = grade.metadata.clone().unwrap_or_else(|| json!({}));
+    if !new_metadata.is_object() {
+        new_metadata = json!({});
+    }
+    if let Some(obj) = new_metadata.as_object_mut() {
+        obj.insert(
+            "ai_lesson_feedback".to_string(),
+            serde_json::Value::String(tutor_response.clone()),
+        );
+        obj.insert(
+            "ai_lesson_feedback_attempts".to_string(),
+            serde_json::Value::from(grade.attempts_count),
+        );
+        obj.insert(
+            "ai_lesson_feedback_score_pct".to_string(),
+            serde_json::Value::from(score_pct),
+        );
+        obj.insert(
+            "ai_lesson_feedback_generated_at".to_string(),
+            serde_json::Value::String(Utc::now().to_rfc3339()),
+        );
     }
 
-    let ai_data: serde_json::Value = match timeout(Duration::from_secs(8), response.json()).await {
-        Ok(Ok(data)) => data,
-        Ok(Err(e)) => {
-            tracing::warn!("Feedback IA: error parseando respuesta: {}", e);
-            return Ok(Json(ChatResponse {
-                response: fallback_feedback,
-                session_id: Uuid::nil(),
-            }));
-        }
-        Err(_) => {
-            tracing::warn!("Feedback IA: timeout parseando respuesta");
-            return Ok(Json(ChatResponse {
-                response: fallback_feedback,
-                session_id: Uuid::nil(),
-            }));
-        }
-    };
-
-    let tutor_response = ai_data["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or(&fallback_feedback)
-        .to_string();
+    if let Err(e) = sqlx::query("UPDATE user_grades SET metadata = $1, updated_at = NOW() WHERE id = $2")
+        .bind(new_metadata)
+        .bind(grade.id)
+        .execute(&pool)
+        .await
+    {
+        tracing::warn!("No se pudo persistir feedback IA en user_grades: {}", e);
+    }
 
     Ok(Json(ChatResponse {
         response: tutor_response,

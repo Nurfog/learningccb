@@ -232,7 +232,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col relative overflow-hidden">
-                <div className="absolute top-4 left-4 z-10 flex gap-2">
+                <div className="relative z-10 flex flex-wrap gap-2 px-6 pt-4 pb-2">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
                         className="hidden lg:block p-3 rounded-xl glass border-black/10 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all bg-black/5 dark:bg-black/40"

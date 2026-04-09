@@ -206,14 +206,20 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                     <input
                         type="text"
                         value={rubric.name}
-                        onChange={(e) => handleUpdateRubric(e.target.value, rubric.description || "")}
+                        onChange={(e) =>
+                            setRubric(prev => prev ? { ...prev, name: e.target.value } : prev)
+                        }
+                        onBlur={() => handleUpdateRubric(rubric.name, rubric.description || "")}
                         placeholder="Rubric Name"
                         className="bg-transparent text-3xl font-black text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-2 w-full uppercase tracking-tighter"
                     />
                     <input
                         type="text"
                         value={rubric.description || ""}
-                        onChange={(e) => handleUpdateRubric(rubric.name, e.target.value)}
+                        onChange={(e) =>
+                            setRubric(prev => prev ? { ...prev, description: e.target.value } : prev)
+                        }
+                        onBlur={() => handleUpdateRubric(rubric.name, rubric.description || "")}
                         placeholder="Add a description..."
                         className="bg-transparent text-sm font-bold text-slate-400 dark:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded px-2 mt-2 w-full italic"
                     />
@@ -271,13 +277,35 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                                 <input
                                                     type="text"
                                                     value={item.name}
-                                                    onChange={(e) => handleUpdateCriterion(item.id, { name: e.target.value })}
+                                                    onChange={(e) =>
+                                                        setRubric(prev => {
+                                                            if (!prev) return prev;
+                                                            return {
+                                                                ...prev,
+                                                                criteria: prev.criteria.map(c =>
+                                                                    c.id === item.id ? { ...c, name: e.target.value } : c
+                                                                )
+                                                            };
+                                                        })
+                                                    }
+                                                    onBlur={() => handleUpdateCriterion(item.id, { name: item.name })}
                                                     className="bg-transparent text-xl font-black text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 rounded-lg px-2 w-full uppercase tracking-tight"
                                                 />
                                                 <input
                                                     type="text"
                                                     value={item.description || ""}
-                                                    onChange={(e) => handleUpdateCriterion(item.id, { description: e.target.value })}
+                                                    onChange={(e) =>
+                                                        setRubric(prev => {
+                                                            if (!prev) return prev;
+                                                            return {
+                                                                ...prev,
+                                                                criteria: prev.criteria.map(c =>
+                                                                    c.id === item.id ? { ...c, description: e.target.value } : c
+                                                                )
+                                                            };
+                                                        })
+                                                    }
+                                                    onBlur={() => handleUpdateCriterion(item.id, { description: item.description || "" })}
                                                     placeholder="Focus area (e.g. Critical Thinking, Technical Accuracy...)"
                                                     className="bg-transparent text-sm font-medium text-slate-500 dark:text-gray-500 focus:outline-none w-full mt-2 italic px-2"
                                                 />
@@ -288,7 +316,19 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                                     <input
                                                         type="number"
                                                         value={item.max_points}
-                                                        onChange={(e) => handleUpdateCriterion(item.id, { max_points: parseInt(e.target.value) || 0 })}
+                                                        onChange={(e) => {
+                                                            const points = parseInt(e.target.value) || 0;
+                                                            setRubric(prev => {
+                                                                if (!prev) return prev;
+                                                                return {
+                                                                    ...prev,
+                                                                    criteria: prev.criteria.map(c =>
+                                                                        c.id === item.id ? { ...c, max_points: points } : c
+                                                                    )
+                                                                };
+                                                            });
+                                                        }}
+                                                        onBlur={() => handleUpdateCriterion(item.id, { max_points: item.max_points })}
                                                         className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 w-20 text-center text-blue-600 dark:text-blue-400 font-black text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all shadow-sm"
                                                     />
                                                 </div>
@@ -324,13 +364,49 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                                         <input
                                                             type="text"
                                                             value={level.name}
-                                                            onChange={(e) => handleUpdateLevel(level.id, item.id, { name: e.target.value })}
+                                                            onChange={(e) =>
+                                                                setRubric(prev => {
+                                                                    if (!prev) return prev;
+                                                                    return {
+                                                                        ...prev,
+                                                                        criteria: prev.criteria.map(c =>
+                                                                            c.id === item.id
+                                                                                ? {
+                                                                                      ...c,
+                                                                                      levels: c.levels.map(l =>
+                                                                                          l.id === level.id ? { ...l, name: e.target.value } : l
+                                                                                      )
+                                                                                  }
+                                                                                : c
+                                                                        )
+                                                                    };
+                                                                })
+                                                            }
+                                                            onBlur={() => handleUpdateLevel(level.id, item.id, { name: level.name })}
                                                             placeholder="Level (e.g. Master)"
                                                             className="bg-transparent text-sm font-black text-slate-900 dark:text-gray-200 focus:outline-none uppercase tracking-tight"
                                                         />
                                                         <textarea
                                                             value={level.description || ""}
-                                                            onChange={(e) => handleUpdateLevel(level.id, item.id, { description: e.target.value })}
+                                                            onChange={(e) =>
+                                                                setRubric(prev => {
+                                                                    if (!prev) return prev;
+                                                                    return {
+                                                                        ...prev,
+                                                                        criteria: prev.criteria.map(c =>
+                                                                            c.id === item.id
+                                                                                ? {
+                                                                                      ...c,
+                                                                                      levels: c.levels.map(l =>
+                                                                                          l.id === level.id ? { ...l, description: e.target.value } : l
+                                                                                      )
+                                                                                  }
+                                                                                : c
+                                                                        )
+                                                                    };
+                                                                })
+                                                            }
+                                                            onBlur={() => handleUpdateLevel(level.id, item.id, { description: level.description || "" })}
                                                             placeholder="Grade description..."
                                                             className="bg-transparent text-xs font-medium text-slate-500 dark:text-gray-500 focus:outline-none resize-none h-20 leading-relaxed italic"
                                                         />
@@ -339,7 +415,26 @@ export default function RubricEditor({ rubricId, courseId, onClose, onSaved }: R
                                                             <input
                                                                 type="number"
                                                                 value={level.points}
-                                                                onChange={(e) => handleUpdateLevel(level.id, item.id, { points: parseInt(e.target.value) || 0 })}
+                                                                onChange={(e) => {
+                                                                    const points = parseInt(e.target.value) || 0;
+                                                                    setRubric(prev => {
+                                                                        if (!prev) return prev;
+                                                                        return {
+                                                                            ...prev,
+                                                                            criteria: prev.criteria.map(c =>
+                                                                                c.id === item.id
+                                                                                    ? {
+                                                                                          ...c,
+                                                                                          levels: c.levels.map(l =>
+                                                                                              l.id === level.id ? { ...l, points } : l
+                                                                                          )
+                                                                                      }
+                                                                                    : c
+                                                                            )
+                                                                        };
+                                                                    });
+                                                                }}
+                                                                onBlur={() => handleUpdateLevel(level.id, item.id, { points: level.points })}
                                                                 className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 w-14 text-xs font-black text-center text-blue-600 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-inner"
                                                             />
                                                         </div>
