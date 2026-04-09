@@ -200,7 +200,6 @@ export default function QuestionBankPage() {
                                 <option value="fill-in-the-blanks">Completar</option>
                                 <option value="audio-response">Respuesta Audio</option>
                                 <option value="hotspot">Hotspot</option>
-                                <option value="code-lab">Código</option>
                             </select>
                         </div>
                         <div>

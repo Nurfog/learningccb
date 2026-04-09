@@ -242,8 +242,6 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
                                 <option value="ordering">Ordenar</option>
                                 <option value="fill-in-the-blanks">Completar Espacios</option>
                                 <option value="audio-response">Respuesta de Audio</option>
-                                <option value="hotspot">Hotspot (Imagen)</option>
-                                <option value="code-lab">Ejercicio de Código</option>
                             </select>
                         </div>
 

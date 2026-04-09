@@ -1171,7 +1171,6 @@ export default function LessonEditor({ params }: { params: { id: string; lessonI
                                     { type: 'audio-response', icon: '🎤', label: 'Oral Practice', color: 'blue' },
                                     { type: 'memory-match', icon: '🧩', label: 'Logic Game', color: 'indigo' },
                                     { type: 'peer-review', icon: '👥', label: 'Peer Review', color: 'slate' },
-                                    { type: 'code-lab', icon: '🧑‍💻', label: 'Code Lab', color: 'indigo' },
                                     { type: 'mermaid', icon: '📊', label: 'Mermaid Diagram', color: 'indigo' },
                                     { type: 'role-playing', icon: '🎭', label: 'Role-Playing AI', color: 'purple' },
                                 ].map((item) => (

@@ -39,6 +39,9 @@ export default function AudioResponsePlayer({
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
+        // For graded audio responses we intentionally avoid transcript capture/display.
+        if (isGraded) return;
+
         // Initialize Web Speech API
         if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
             const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -67,7 +70,7 @@ export default function AudioResponsePlayer({
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, []);
+    }, [isGraded]);
 
     const startRecording = async () => {
         // Check if browser supports MediaRecorder
@@ -128,7 +131,7 @@ export default function AudioResponsePlayer({
             console.log('[AudioResponse] Recording started');
 
             // Start speech recognition
-            if (recognitionRef.current) {
+            if (!isGraded && recognitionRef.current) {
                 setTranscript("");
                 try {
                     recognitionRef.current.start();
@@ -215,7 +218,7 @@ export default function AudioResponsePlayer({
                 blockId,
                 recordingTime
             );
-            if (result.transcript) {
+            if (!isGraded && result.transcript) {
                 setTranscript(result.transcript);
             }
             setEvaluation({
@@ -226,7 +229,7 @@ export default function AudioResponsePlayer({
             setSubmitted(true);
 
             if (onComplete) {
-                onComplete(result.score, result.transcript || transcript);
+                onComplete(result.score, isGraded ? "" : (result.transcript || transcript));
             }
         } catch (err: any) {
             console.error("Evaluation failed", err);
@@ -361,7 +364,7 @@ export default function AudioResponsePlayer({
                         </div>
 
                         {/* Transcript Preview */}
-                        {transcript && !submitted && (
+                        {transcript && !submitted && !isGraded && (
                             <div className="p-4 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl">
                                 <p className="text-xs text-gray-500 dark:text-gray-500 uppercase tracking-wider mb-2">Transcript:</p>
                                 <p className="text-sm text-gray-700 dark:text-gray-300">{transcript}</p>
@@ -436,10 +439,12 @@ export default function AudioResponsePlayer({
                             </div>
                         )}
 
-                        <div className="p-4 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl">
-                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Your Transcript:</p>
-                            <p className="text-sm text-gray-700 dark:text-gray-300">{transcript}</p>
-                        </div>
+                        {!isGraded && (
+                            <div className="p-4 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl">
+                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Your Transcript:</p>
+                                <p className="text-sm text-gray-700 dark:text-gray-300">{transcript}</p>
+                            </div>
+                        )}
 
                         {!isGraded && evaluation.score < 70 && (
                             <button
