@@ -45,17 +45,17 @@ export default function Combobox({ options, value, onChange, placeholder = "Sear
                 onClick={() => setIsOpen(!isOpen)}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
-                className="flex items-center justify-between w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 cursor-pointer hover:border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                className="flex items-center justify-between w-full bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-2.5 cursor-pointer hover:border-gray-400 dark:hover:border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             >
-                <span className={selectedOption ? "text-white" : "text-gray-500"}>
+                <span className={selectedOption ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-gray-500"}>
                     {selectedOption ? selectedOption.name : placeholder}
                 </span>
-                <ChevronDown size={18} className={`text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                <ChevronDown size={18} className={`text-gray-400 dark:text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 z-[110] bg-[#1a1d23] border border-white/10 rounded-lg shadow-2xl overflow-hidden glass-card animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="p-2 border-b border-white/5 bg-white/5">
+                <div className="absolute top-full left-0 right-0 mt-2 z-[110] bg-white dark:bg-[#1a1d23] border border-gray-200 dark:border-white/10 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-2 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5">
                         <div className="relative">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                             <input
@@ -65,8 +65,8 @@ export default function Combobox({ options, value, onChange, placeholder = "Sear
                                 aria-autocomplete="list"
                                 aria-expanded="true"
                                 aria-controls="combobox-options"
-                                className="w-full bg-black/20 border-none rounded-md pl-9 pr-4 py-2 text-sm focus:ring-0 placeholder:text-gray-600"
-                                placeholder="Search..."
+                                className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-transparent rounded-md pl-9 pr-4 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                placeholder="Buscar..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
@@ -78,7 +78,7 @@ export default function Combobox({ options, value, onChange, placeholder = "Sear
                         className="max-h-60 overflow-y-auto p-1 custom-scrollbar"
                     >
                         {filteredOptions.length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-gray-500 text-center" role="option" aria-disabled="true">No results found</div>
+                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-500 text-center" role="option" aria-disabled="true">Sin resultados</div>
                         ) : (
                             filteredOptions.map(option => (
                                 <div
@@ -98,7 +98,9 @@ export default function Combobox({ options, value, onChange, placeholder = "Sear
                                             setSearch("");
                                         }
                                     }}
-                                    className={`flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors outline-none focus:bg-blue-600 focus:text-white ${value === option.id ? "bg-blue-600 text-white" : "hover:bg-white/5 text-gray-300"
+                                    className={`flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors outline-none focus:bg-blue-600 focus:text-white ${value === option.id
+                                        ? "bg-blue-600 text-white"
+                                        : "hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
                                         }`}
                                 >
                                     <span className="text-sm font-medium">{option.name}</span>

@@ -60,7 +60,7 @@ body {
 }
 
 .glass-card:hover {
-  @apply border-white/20 bg-white/5;
+  @apply border-black/10 dark:border-white/20 bg-black/5 dark:bg-white/5;
 }
 
 .gradient-text {
@@ -106,10 +106,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 10px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }

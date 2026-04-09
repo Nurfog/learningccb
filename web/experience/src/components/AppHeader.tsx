@@ -23,7 +23,7 @@ export default function AppHeader() {
     const platformName = branding?.platform_name || branding?.name || 'Academia';
 
     return (
-        <header className="h-16 glass sticky top-0 z-[100] px-4 md:px-6 flex items-center justify-between backdrop-blur-xl bg-gray-50/70 dark:bg-black/40 border-b border-black/5 dark:border-white/5">
+        <header className="h-16 glass sticky top-0 z-[100] px-4 md:px-6 flex items-center justify-between backdrop-blur-xl bg-gray-50/80 dark:bg-black/40 border-b border-black/8 dark:border-white/5">
             <Link href="/" className="flex items-center gap-2 md:gap-5 group" aria-label={`${platformName} - Dashboard`}>
                 <div className={`rounded-lg md:rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-all overflow-hidden relative border border-white/5 ${branding?.logo_variant === 'wide' ? 'w-36 h-9 md:w-56 md:h-12 px-2 bg-white' : 'w-8 h-8 md:w-12 md:h-12'}`}>
                     {branding?.logo_url ? (
@@ -46,13 +46,13 @@ export default function AppHeader() {
 
             <div className="flex items-center gap-4">
                 <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
-                    <Link href="/" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.catalog')}
                     </Link>
-                    <Link href="/my-learning" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/my-learning" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.myLearning')}
                     </Link>
-                    <Link href="/bookmarks" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                    <Link href="/bookmarks" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
                         {t('nav.bookmarks')}
                     </Link>
 
@@ -66,14 +66,14 @@ export default function AppHeader() {
                 <div className="flex items-center gap-2 md:gap-4">
                     <NotificationCenter />
 
-                    <div className="hidden sm:flex items-center gap-2 border-l border-white/10 pl-4">
+                    <div className="hidden sm:flex items-center gap-2 border-l border-black/10 dark:border-white/10 pl-4">
                         <Globe size={14} className="text-gray-500" aria-hidden="true" />
                         <select
                             id="language-selector"
                             value={language}
                             onChange={(e) => setLanguage(e.target.value)}
                             aria-label={t('nav.selectLanguage') || 'Select Language'}
-                            className="bg-transparent text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                            className="bg-transparent text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none cursor-pointer"
                         >
                             <option value="en" className="bg-white dark:bg-[#0f1115]">EN</option>
                             <option value="es" className="bg-white dark:bg-[#0f1115]">ES</option>
@@ -83,21 +83,21 @@ export default function AppHeader() {
 
                     <button
                         onClick={toggleTheme}
-                        className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all border-l border-white/10 pl-4"
+                        className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all border-l border-black/10 dark:border-white/10 pl-4"
                         title={theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
                     >
                         {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
 
-                    <div className="hidden md:flex items-center gap-4 pl-4 border-l border-white/10">
+                    <div className="hidden md:flex items-center gap-4 pl-4 border-l border-black/10 dark:border-white/10">
                         <Link href="/profile" className="flex items-center gap-2 group/profile">
-                            <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bold text-xs text-blue-400 group-hover/profile:border-blue-500/50 transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 group-hover/profile:border-blue-500/50 transition-colors">
                                 {user?.full_name?.charAt(0) || 'U'}
                             </div>
                         </Link>
                         <button
                             onClick={logout}
-                            className="p-2 hover:bg-red-500/10 rounded-full text-gray-400 hover:text-red-400 transition-colors"
+                            className="p-2 hover:bg-red-500/10 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                             title={t('nav.signOut')}
                             aria-label={t('nav.signOut')}
                         >
@@ -120,46 +120,46 @@ export default function AppHeader() {
             {/* Mobile Sidebar Overlay */}
             {isMenuOpen && (
                 <div
-                    className="fixed inset-0 z-[150] md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+                    className="fixed inset-0 z-[150] md:hidden bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
                     onClick={() => setIsMenuOpen(false)}
                 >
                     <div
-                        className="absolute right-0 top-0 bottom-0 w-64 glass border-l border-white/10 p-6 flex flex-col animate-in slide-in-from-right duration-300"
+                        className="absolute right-0 top-0 bottom-0 w-72 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-white/10 p-6 flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl"
                         role="dialog"
                         aria-modal="true"
                         aria-label="Menú móvil"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex justify-between items-center mb-8">
-                            <span className="font-black text-xs uppercase tracking-[0.2em] text-gray-500">Menú</span>
+                            <span className="font-black text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Menú</span>
                             <button
                                 onClick={() => setIsMenuOpen(false)}
-                                className="p-2 hover:bg-white/5 rounded-lg"
-                                aria-label="Close menu"
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-500 dark:text-gray-400 transition-colors"
+                                aria-label="Cerrar menú"
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <nav className="flex flex-col gap-6 flex-1" aria-label="Mobile navigation">
+                        <nav className="flex flex-col gap-2 flex-1" aria-label="Mobile navigation">
                             <Link
                                 href="/"
                                 onClick={() => setIsMenuOpen(false)}
-                                className="text-sm font-black uppercase tracking-widest text-gray-300 hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 transition-all"
+                                className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 py-2 transition-all"
                             >
                                 {t('nav.catalog')}
                             </Link>
                             <Link
                                 href="/my-learning"
                                 onClick={() => setIsMenuOpen(false)}
-                                className="text-sm font-black uppercase tracking-widest text-gray-300 hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 transition-all"
+                                className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 py-2 transition-all"
                             >
                                 {t('nav.myLearning')}
                             </Link>
                             <Link
                                 href="/bookmarks"
                                 onClick={() => setIsMenuOpen(false)}
-                                className="text-sm font-black uppercase tracking-widest text-gray-300 hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 transition-all"
+                                className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-white border-l-2 border-transparent hover:border-blue-500 pl-4 py-2 transition-all"
                             >
                                 {t('nav.bookmarks')}
                             </Link>
@@ -167,22 +167,22 @@ export default function AppHeader() {
                                 <Link
                                     href={`/profile/${user.id}`}
                                     onClick={() => setIsMenuOpen(false)}
-                                    className="text-sm font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 border-l-2 border-transparent hover:border-blue-500 pl-4 transition-all"
+                                    className="text-sm font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border-l-2 border-transparent hover:border-blue-500 pl-4 py-2 transition-all"
                                 >
                                     MI PORTAFOLIO
                                 </Link>
                             )}
 
-                            <div className="pt-6 mt-6 border-t border-white/5 space-y-4">
-                                <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-white/5">
+                            <div className="pt-6 mt-6 border-t border-gray-100 dark:border-white/5 space-y-4">
+                                <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-gray-100 dark:bg-white/5">
                                     <div className="flex items-center gap-3">
-                                        <Globe size={16} className="text-gray-500" aria-hidden="true" />
+                                        <Globe size={16} className="text-gray-400" aria-hidden="true" />
                                         <select
                                             id="mobile-language-selector"
                                             value={language}
                                             onChange={(e) => setLanguage(e.target.value)}
                                             aria-label={t('nav.selectLanguage') || 'Select Language'}
-                                            className="bg-transparent text-xs font-bold uppercase tracking-widest text-gray-300 focus:outline-none"
+                                            className="bg-transparent text-xs font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 focus:outline-none"
                                         >
                                             <option value="en" className="bg-white dark:bg-[#0f1115]">English</option>
                                             <option value="es" className="bg-white dark:bg-[#0f1115]">Español</option>
@@ -191,7 +191,7 @@ export default function AppHeader() {
                                     </div>
                                     <button
                                         onClick={toggleTheme}
-                                        className="p-2 hover:bg-white/10 rounded-lg text-gray-400 transition-colors"
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-gray-500 dark:text-gray-400 transition-colors"
                                     >
                                         {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                                     </button>
@@ -199,20 +199,20 @@ export default function AppHeader() {
                             </div>
                         </nav>
 
-                        <div className="pt-6 border-t border-white/5 space-y-4">
+                        <div className="pt-6 border-t border-gray-100 dark:border-white/5 space-y-2">
                             <Link
                                 href="/profile"
                                 onClick={() => setIsMenuOpen(false)}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                             >
-                                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center font-bold text-xs text-blue-400" aria-hidden="true">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400" aria-hidden="true">
                                     {user?.full_name?.charAt(0) || 'U'}
                                 </div>
-                                <span className="text-sm font-bold">{user?.full_name || 'Mi Perfil'}</span>
+                                <span className="text-sm font-bold text-gray-800 dark:text-white">{user?.full_name || 'Mi Perfil'}</span>
                             </Link>
                             <button
                                 onClick={logout}
-                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
                                 <LogOut size={18} aria-hidden="true" />
                                 <span className="text-sm font-bold">{t('nav.signOut')}</span>
