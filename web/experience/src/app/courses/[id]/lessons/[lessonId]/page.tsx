@@ -31,8 +31,8 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
     const [lesson, setLesson] = useState<Lesson | null>(null);
     const [course, setCourse] = useState<(Course & { modules: Module[] }) | null>(null);
     const [loading, setLoading] = useState(true);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [transcriptOpen, setTranscriptOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [notesOpen, setNotesOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [userGrade, setUserGrade] = useState<UserGrade | null>(null);
@@ -68,6 +68,15 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
         };
         fetchAll();
     }, [params.id, params.lessonId, user]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        // En desktop dejamos el sidebar disponible por defecto.
+        if (window.innerWidth >= 1024) {
+            setSidebarOpen(true);
+        }
+    }, []);
 
     if (loading) return <div className="p-20 text-center animate-pulse text-gray-600 dark:text-gray-500 font-bold uppercase tracking-widest">Cargando Experiencia...</div>;
     if (!lesson || !course) return <div className="p-20 text-center text-red-400">Contenido no encontrado.</div>;
@@ -190,7 +199,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
         <div className="flex h-[calc(100vh-64px)] overflow-hidden">
             {/* Navigation Sidebar */}
             <aside
-                className={`glass border-r border-black/5 dark:border-white/5 transition-all duration-500 bg-black/5 dark:bg-black/40 flex flex-col ${sidebarOpen ? 'w-80' : 'w-0 overflow-hidden border-none'}`}
+                className={`hidden lg:flex glass border-r border-black/5 dark:border-white/5 transition-all duration-500 bg-black/5 dark:bg-black/40 flex-col ${sidebarOpen ? 'w-80' : 'w-0 overflow-hidden border-none'}`}
             >
                 <div className="p-6 border-b border-black/5 dark:border-white/5">
                     <h2 className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-500 mb-1">Contenido del Curso</h2>
@@ -226,7 +235,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="p-3 rounded-xl glass border-black/10 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all bg-black/5 dark:bg-black/40"
+                        className="hidden lg:block p-3 rounded-xl glass border-black/10 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all bg-black/5 dark:bg-black/40"
                         title="Alternar Barra Lateral"
                     >
                         <Menu size={20} />
@@ -570,7 +579,7 @@ export default function LessonPlayerPage({ params }: { params: { id: string, les
 
                     {/* Right Side Panels */}
                     {((hasTranscription && transcriptOpen) || notesOpen) && (
-                        <aside className="w-[400px] border-l border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-black/20 flex flex-col animate-in slide-in-from-right duration-500">
+                        <aside className="hidden xl:flex w-[400px] border-l border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-black/20 flex-col animate-in slide-in-from-right duration-500">
                             {/* Panel Tabs */}
                             <div className="flex border-b border-black/5 dark:border-white/5">
                                 {hasTranscription && (
