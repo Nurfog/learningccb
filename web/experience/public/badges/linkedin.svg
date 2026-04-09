@@ -1,0 +1,8 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LinkedIn badge">
+  <rect width="128" height="128" rx="28" fill="#0A66C2"/>
+  <rect x="24" y="24" width="80" height="80" rx="20" fill="#E0F2FE" opacity="0.16"/>
+  <circle cx="45" cy="49" r="8" fill="#FFFFFF"/>
+  <rect x="38" y="62" width="14" height="30" rx="4" fill="#FFFFFF"/>
+  <path d="M60 62H73C83.49 62 90 68.85 90 80.35V92H76V81.97C76 77.64 74.15 74.67 69.95 74.67C66.75 74.67 64.85 76.82 64 78.89V92H60V62Z" fill="#FFFFFF"/>
+  <path d="M41 104H87" stroke="#93C5FD" stroke-width="8" stroke-linecap="round"/>
+</svg>

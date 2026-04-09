@@ -1,0 +1,15 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0 0H120V120H0V0Z" fill="transparent"/>
+  <g stroke="rgba(148,163,184,0.18)" stroke-width="1">
+    <path d="M20 0V120"/>
+    <path d="M40 0V120"/>
+    <path d="M60 0V120"/>
+    <path d="M80 0V120"/>
+    <path d="M100 0V120"/>
+    <path d="M0 20H120"/>
+    <path d="M0 40H120"/>
+    <path d="M0 60H120"/>
+    <path d="M0 80H120"/>
+    <path d="M0 100H120"/>
+  </g>
+</svg>
