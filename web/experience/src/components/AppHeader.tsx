@@ -10,7 +10,7 @@ import NotificationCenter from "./NotificationCenter";
 import { useState } from "react";
 import { useTheme } from "@/context/ThemeContext";
 
-import { lmsApi, getImageUrl } from "@/lib/api";
+import { getImageUrl } from "@/lib/api";
 
 export default function AppHeader() {
     const { t, language, setLanguage } = useTranslation();
@@ -46,26 +46,26 @@ export default function AppHeader() {
             </Link>
 
             <div className="flex items-center gap-4">
-                <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
-                    <Link href="/" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
-                        {t('nav.catalog')}
-                    </Link>
-                    <Link href="/my-learning" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
-                        {t('nav.myLearning')}
-                    </Link>
-                    <Link href="/bookmarks" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
-                        {t('nav.bookmarks')}
-                    </Link>
+                {user && (
+                    <nav className="hidden md:flex items-center gap-8 mr-4" aria-label="Navegación principal">
+                        <Link href="/" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                            {t('nav.catalog')}
+                        </Link>
+                        <Link href="/my-learning" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                            {t('nav.myLearning')}
+                        </Link>
+                        <Link href="/bookmarks" className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-slate-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                            {t('nav.bookmarks')}
+                        </Link>
 
-                    {user && (
                         <Link href={`/profile/${user.id}`} className="flex items-center gap-2 text-base font-black uppercase tracking-wider transition-colors text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                             MI PORTAFOLIO
                         </Link>
-                    )}
-                </nav>
+                    </nav>
+                )}
 
                 <div className="flex items-center gap-2 md:gap-4">
-                    <NotificationCenter />
+                    {user && <NotificationCenter />}
 
                     <div className="hidden sm:flex items-center gap-2 border-l border-black/10 dark:border-white/10 pl-4">
                         <Globe size={14} className="text-gray-500" aria-hidden="true" />
@@ -90,31 +90,37 @@ export default function AppHeader() {
                         {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
 
-                    <div className="hidden md:flex items-center gap-4 pl-4 border-l border-black/10 dark:border-white/10">
-                        <Link href="/profile" className="flex items-center gap-2 group/profile">
-                            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 group-hover/profile:border-blue-500/50 transition-colors">
-                                {user?.full_name?.charAt(0) || 'U'}
-                            </div>
-                        </Link>
-                        <button
-                            onClick={logout}
-                            className="p-2 hover:bg-red-500/10 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                            title={t('nav.signOut')}
-                            aria-label={t('nav.signOut')}
-                        >
-                            <LogOut size={16} />
-                        </button>
-                    </div>
+                    {user ? (
+                        <div className="hidden md:flex items-center gap-4 pl-4 border-l border-black/10 dark:border-white/10">
+                            <Link href="/profile" className="flex items-center gap-2 group/profile">
+                                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 group-hover/profile:border-blue-500/50 transition-colors">
+                                    {user.full_name?.charAt(0) || 'U'}
+                                </div>
+                            </Link>
+                            <button
+                                onClick={logout}
+                                className="p-2 hover:bg-red-500/10 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                title={t('nav.signOut')}
+                                aria-label={t('nav.signOut')}
+                            >
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <Link href="/auth/login" className="hidden md:inline-flex text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors">Sign In</Link>
+                    )}
 
                     {/* Mobile Menu Button */}
-                    <button
-                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="md:hidden p-2 hover:bg-white/5 rounded-lg text-gray-400 transition-colors"
-                        aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-                        aria-expanded={isMenuOpen}
-                    >
-                        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                    </button>
+                    {user && (
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className="md:hidden p-2 hover:bg-white/5 rounded-lg text-gray-400 transition-colors"
+                            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+                            aria-expanded={isMenuOpen}
+                        >
+                            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                        </button>
+                    )}
                 </div>
             </div>
             </header>

@@ -63,6 +63,7 @@ export function Navbar() {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-6">
+                    {user && (
                     <div className="flex items-center gap-5">
 
                         {/* Cursos Dropdown */}
@@ -195,8 +196,9 @@ export function Navbar() {
                             </Link>
                         )}
                     </div>
+                    )}
 
-                    <div className="h-6 w-px bg-black/10 dark:bg-white/10 mx-1" />
+                    {user && <div className="h-6 w-px bg-black/10 dark:bg-white/10 mx-1" />}
 
                     {/* Theme Toggle */}
                     <button
@@ -250,21 +252,23 @@ export function Navbar() {
                 </div>
 
                 {/* Mobile: Hamburger button */}
-                <button
-                    onClick={() => setMobileOpen(true)}
-                    className="md:hidden p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-gray-400 transition-colors"
-                    aria-label="Abrir menú"
-                    aria-expanded={mobileOpen}
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
+                {user && (
+                    <button
+                        onClick={() => setMobileOpen(true)}
+                        className="md:hidden p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-gray-400 transition-colors"
+                        aria-label="Abrir menú"
+                        aria-expanded={mobileOpen}
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                )}
             </div>
 
             </nav>
 
                 {/* Mobile Sidebar Overlay — fuera del <nav> para evitar que el
                     backdrop-filter cree un stacking context que confine el fixed */}
-                {mobileOpen && (
+                {user && mobileOpen && (
                 <div
                     className="fixed inset-0 z-[150] md:hidden bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setMobileOpen(false)}
