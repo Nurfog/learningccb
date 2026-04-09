@@ -46,7 +46,6 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             } as any;
 
             setBranding(orgData);
-            console.log('Branding loaded in Studio:', orgData);
         } catch (error) {
             console.error('Failed to load branding', error);
         } finally {
@@ -60,7 +59,6 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     useEffect(() => {
         if (!branding) return;
-        console.log('Applying branding in Studio for path:', pathname);
 
         // Apply CSS variables
         if (branding.primary_color) {

@@ -29,7 +29,6 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             try {
                 const data = await lmsApi.getBranding();
                 setBranding(data);
-                console.log('Branding loaded in Experience:', data);
             } catch (error) {
                 console.error('Failed to load branding', error);
             } finally {
@@ -42,7 +41,6 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     useEffect(() => {
         if (!branding) return;
-        console.log('Applying branding in Experience for path:', pathname);
 
         // Apply CSS variables
         if (branding.primary_color) {
