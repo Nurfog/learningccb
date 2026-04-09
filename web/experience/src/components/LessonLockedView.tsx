@@ -21,7 +21,7 @@ export default function LessonLockedView({ lessonId, courseId, grade, maxAttempt
                 const res = await lmsApi.getLessonFeedback(lessonId);
                 setFeedback(res.response);
             } catch (err) {
-                console.error("Error fetching AI feedback:", err);
+                console.warn("AI feedback unavailable, usando fallback local");
                 setFeedback("¡Buen trabajo completando esta evaluación! Sigue así para mejorar tus resultados en las próximas lecciones.");
             } finally {
                 setLoading(false);
@@ -38,18 +38,18 @@ export default function LessonLockedView({ lessonId, courseId, grade, maxAttempt
             {/* Header / Score Card */}
             <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[3rem] blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
-                <div className="relative glass p-10 md:p-16 rounded-[2.5rem] border border-white/10 bg-black/40 text-center space-y-8 overflow-hidden">
+                <div className="relative glass p-10 md:p-16 rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-black/40 text-center space-y-8 overflow-hidden">
                     {/* Background visual flair */}
                     <div className="absolute top-0 right-0 p-8 opacity-10">
                         <Sparkles size={120} className="text-blue-500" />
                     </div>
 
-                    <div className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+                    <div className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600/10 border border-blue-500/20 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
                         <CheckCircle2 size={12} /> Evaluación Finalizada
                     </div>
 
                     <div className="space-y-4">
-                        <h2 className="text-5xl md:text-7xl font-black text-white tracking-tighter">
+                        <h2 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white tracking-tighter">
                             Tu Puntuación: <span className={isPassing ? "text-blue-500" : "text-amber-500"}>{scorePct}%</span>
                         </h2>
                         <div className="flex justify-center gap-1">
@@ -57,21 +57,21 @@ export default function LessonLockedView({ lessonId, courseId, grade, maxAttempt
                                 <Star
                                     key={s}
                                     size={32}
-                                    className={`${s <= Math.ceil(scorePct / 20) ? "text-yellow-500 fill-yellow-500" : "text-white/5"} transition-all`}
+                                    className={`${s <= Math.ceil(scorePct / 20) ? "text-yellow-500 fill-yellow-500" : "text-slate-300 dark:text-white/10"} transition-all`}
                                 />
                             ))}
                         </div>
                     </div>
 
                     <div className="flex flex-wrap justify-center gap-6 pt-4">
-                        <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/5 border border-white/5">
+                        <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
                             <RotateCcw size={20} className="text-gray-500" />
                             <div className="text-left">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Intentos Usados</p>
-                                <p className="text-lg font-black text-white">{grade.attempts_count} {maxAttempts ? `de ${maxAttempts}` : ""}</p>
+                                <p className="text-lg font-black text-slate-900 dark:text-white">{grade.attempts_count} {maxAttempts ? `de ${maxAttempts}` : ""}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/5 border border-white/5">
+                        <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
                             <Trophy size={20} className="text-amber-500" />
                             <div className="text-left">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Estado</p>
@@ -87,25 +87,25 @@ export default function LessonLockedView({ lessonId, courseId, grade, maxAttempt
             {/* AI Feedback Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="glass p-8 md:p-12 rounded-[2.5rem] border border-white/5 bg-blue-600/5 relative overflow-hidden group">
+                    <div className="glass p-8 md:p-12 rounded-[2.5rem] border border-slate-200 dark:border-white/5 bg-blue-600/5 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full group-hover:bg-blue-600/20 transition-all duration-1000"></div>
 
-                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-blue-400 mb-8 flex items-center gap-3">
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-blue-700 dark:text-blue-400 mb-8 flex items-center gap-3">
                             <Bot size={20} className="animate-bounce" /> Retroalimentación de tu Tutor de IA
                         </h3>
 
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4">
                                 <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-                                <p className="text-xs font-black uppercase tracking-widest text-gray-500">Generando análisis personalizado...</p>
+                                <p className="text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-500">Generando análisis personalizado...</p>
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                <div className="text-xl md:text-2xl text-gray-200 leading-relaxed font-medium">
+                                <div className="text-xl md:text-2xl text-slate-800 dark:text-gray-200 leading-relaxed font-medium">
                                     {feedback}
                                 </div>
                                 <div className="h-px w-20 bg-blue-500/40 rounded-full"></div>
-                                <p className="text-xs font-bold text-gray-500 italic uppercase tracking-wider">
+                                <p className="text-xs font-bold text-gray-600 dark:text-gray-500 italic uppercase tracking-wider">
                                     Este análisis es generado automáticamente basándose en tu desempeño histórico y los contenidos de esta lección.
                                 </p>
                             </div>
@@ -114,22 +114,22 @@ export default function LessonLockedView({ lessonId, courseId, grade, maxAttempt
                 </div>
 
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="glass p-8 rounded-[2rem] border border-white/5 bg-white/[0.02]">
+                    <div className="glass p-8 rounded-[2rem] border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/[0.02]">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-6 flex items-center gap-2">
                             <BookOpen size={16} className="text-blue-500" /> Próximos Pasos
                         </h3>
                         <ul className="space-y-4">
-                            <li className="flex items-start gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-transparent hover:border-white/10 group cursor-pointer">
+                            <li className="flex items-start gap-3 p-4 rounded-xl bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors border border-slate-200 dark:border-transparent hover:border-slate-300 dark:hover:border-white/10 group cursor-pointer">
                                 <div className="w-8 h-8 rounded-lg bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
                                     <Award size={16} />
                                 </div>
-                                <p className="text-xs font-bold text-gray-300 leading-tight group-hover:text-white transition-colors">Continúa con la siguiente lección para seguir sumando XP.</p>
+                                <p className="text-xs font-bold text-slate-700 dark:text-gray-300 leading-tight group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Continúa con la siguiente lección para seguir sumando XP.</p>
                             </li>
-                            <li className="flex items-start gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-transparent hover:border-white/10 group cursor-pointer">
+                            <li className="flex items-start gap-3 p-4 rounded-xl bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors border border-slate-200 dark:border-transparent hover:border-slate-300 dark:hover:border-white/10 group cursor-pointer">
                                 <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
                                     <BookOpen size={16} />
                                 </div>
-                                <p className="text-xs font-bold text-gray-300 leading-tight group-hover:text-white transition-colors">Revisa el glosario de términos de esta sección.</p>
+                                <p className="text-xs font-bold text-slate-700 dark:text-gray-300 leading-tight group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Revisa el glosario de términos de esta sección.</p>
                             </li>
                         </ul>
                     </div>

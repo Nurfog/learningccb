@@ -23,6 +23,7 @@ use common::models::{
 use crate::external_db::MySqlPool;
 use serde_json::json;
 use base64::Engine;
+use tokio::time::{Duration, timeout};
 
 // Simple token counter (approximate: 1 token ≈ 4 characters in English, ~3-5 in Spanish)
 fn count_tokens(text: &str) -> i32 {
@@ -3798,6 +3799,14 @@ pub async fn get_lesson_feedback(
 
     let score_pct = (grade.score * 100.0) as i32;
 
+    let fallback_feedback = if score_pct >= 80 {
+        "Excelente trabajo. Tu rendimiento demuestra dominio de los conceptos clave de esta lección. Mantén ese nivel en la siguiente actividad.".to_string()
+    } else if score_pct >= 60 {
+        "Buen esfuerzo. Tienes una base sólida, pero conviene repasar los bloques clave para subir tu precisión en el próximo intento.".to_string()
+    } else {
+        "Vas avanzando. Te recomiendo revisar nuevamente los conceptos principales de la lección y volver a practicar los ejercicios para mejorar tu resultado.".to_string()
+    };
+
     let block_content = extract_block_content(&lesson.metadata);
 
     let context = format!(
@@ -3847,7 +3856,9 @@ pub async fn get_lesson_feedback(
         score_pct, context
     );
 
-    let response = client.post(&url)
+    let response_result = timeout(
+        Duration::from_secs(12),
+        client.post(&url)
         .header("Content-Type", "application/json")
         .header("Authorization", auth_header)
         .json(&serde_json::json!({
@@ -3858,28 +3869,58 @@ pub async fn get_lesson_feedback(
             ],
             "temperature": 0.7
         }))
-        .send()
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error en la solicitud de IA: {}", e)))?;
+        .send(),
+    )
+    .await;
+
+    let response = match response_result {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            tracing::warn!("Feedback IA: error solicitando proveedor: {}", e);
+            return Ok(Json(ChatResponse {
+                response: fallback_feedback,
+                session_id: Uuid::nil(),
+            }));
+        }
+        Err(_) => {
+            tracing::warn!("Feedback IA: timeout de proveedor externo");
+            return Ok(Json(ChatResponse {
+                response: fallback_feedback,
+                session_id: Uuid::nil(),
+            }));
+        }
+    };
 
     if !response.status().is_success() {
         let err_body = response.text().await.unwrap_or_default();
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error de la API de IA: {}", err_body),
-        ));
+        tracing::warn!("Feedback IA: proveedor devolvió error: {}", err_body);
+        return Ok(Json(ChatResponse {
+            response: fallback_feedback,
+            session_id: Uuid::nil(),
+        }));
     }
 
-    let ai_data: serde_json::Value = response.json().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error al analizar la respuesta de la IA: {}", e),
-        )
-    })?;
+    let ai_data: serde_json::Value = match timeout(Duration::from_secs(8), response.json()).await {
+        Ok(Ok(data)) => data,
+        Ok(Err(e)) => {
+            tracing::warn!("Feedback IA: error parseando respuesta: {}", e);
+            return Ok(Json(ChatResponse {
+                response: fallback_feedback,
+                session_id: Uuid::nil(),
+            }));
+        }
+        Err(_) => {
+            tracing::warn!("Feedback IA: timeout parseando respuesta");
+            return Ok(Json(ChatResponse {
+                response: fallback_feedback,
+                session_id: Uuid::nil(),
+            }));
+        }
+    };
 
     let tutor_response = ai_data["choices"][0]["message"]["content"]
         .as_str()
-        .unwrap_or("Buen trabajo completando la lección. Revisa tus resultados arriba.")
+        .unwrap_or(&fallback_feedback)
         .to_string();
 
     Ok(Json(ChatResponse {
