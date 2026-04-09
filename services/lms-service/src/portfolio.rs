@@ -12,7 +12,9 @@ pub async fn get_public_profile(
     Path(user_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<PublicProfile>, (StatusCode, String)> {
-    let user = sqlx::query("SELECT id, full_name, avatar_url, bio, level, xp, is_public_profile FROM users WHERE id = $1")
+    let user = sqlx::query(
+        "SELECT id, email, COALESCE(full_name, email) AS full_name, avatar_url, bio, level, xp, is_public_profile FROM users WHERE id = $1",
+    )
         .bind(user_id)
         .fetch_optional(&pool)
         .await
@@ -26,7 +28,15 @@ pub async fn get_public_profile(
 
     let badges = sqlx::query_as::<sqlx::Postgres, Badge>(
         r#"
-        SELECT b.* FROM badges b
+        SELECT 
+            b.id,
+            b.organization_id,
+            b.name,
+            COALESCE(b.description, '') AS description,
+            COALESCE(b.icon_url, '') AS icon_url,
+            b.criteria,
+            b.created_at
+        FROM badges b
         JOIN user_badges ub ON b.id = ub.badge_id
         WHERE ub.user_id = $1
         "#
@@ -36,7 +46,7 @@ pub async fn get_public_profile(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let completed_courses: i64 = sqlx::query("SELECT COUNT(*) FROM enrollments WHERE user_id = $1 AND progress_percentage >= 100")
+    let completed_courses: i64 = sqlx::query("SELECT COUNT(*) FROM enrollments WHERE user_id = $1 AND progress >= 100")
         .bind(user_id)
         .fetch_one(&pool)
         .await
@@ -61,7 +71,15 @@ pub async fn get_my_badges(
 ) -> Result<Json<Vec<Badge>>, (StatusCode, String)> {
     let badges = sqlx::query_as::<sqlx::Postgres, Badge>(
         r#"
-        SELECT b.* FROM badges b
+        SELECT 
+            b.id,
+            b.organization_id,
+            b.name,
+            COALESCE(b.description, '') AS description,
+            COALESCE(b.icon_url, '') AS icon_url,
+            b.criteria,
+            b.created_at
+        FROM badges b
         JOIN user_badges ub ON b.id = ub.badge_id
         WHERE ub.user_id = $1
         "#
