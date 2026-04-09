@@ -1324,19 +1324,98 @@ export interface UpdateQuestionBankPayload {
     audio_text?: string;
 }
 
+const toSafeQuestionBankText = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map((v) => toSafeQuestionBankText(v)).filter(Boolean).join(', ');
+    }
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        if (typeof obj.answer === 'string') return obj.answer;
+        if (typeof obj.text === 'string') return obj.text;
+        if (typeof obj.label === 'string') return obj.label;
+        try {
+            return JSON.stringify(obj);
+        } catch {
+            return '';
+        }
+    }
+    return '';
+};
+
+const normalizeQuestionBank = (q: QuestionBank): QuestionBank => {
+    const safeTags = Array.isArray(q.tags)
+        ? q.tags.map((tag) => toSafeQuestionBankText(tag)).filter(Boolean)
+        : [];
+
+    const safeOptions = Array.isArray(q.options)
+        ? q.options.map((opt) => toSafeQuestionBankText(opt))
+        : q.options;
+
+    const safeCorrectAnswer = (() => {
+        const raw = q.correct_answer;
+        if (Array.isArray(raw)) {
+            return raw.map((item) => toSafeQuestionBankText(item));
+        }
+        if (raw && typeof raw === 'object') {
+            const obj = raw as Record<string, unknown>;
+            if (Array.isArray(obj.pairs)) {
+                return obj.pairs.map((pair) => {
+                    if (pair && typeof pair === 'object') {
+                        const pairObj = pair as Record<string, unknown>;
+                        return {
+                            left: toSafeQuestionBankText(pairObj.left ?? pairObj[0]),
+                            right: toSafeQuestionBankText(pairObj.right ?? pairObj[1]),
+                        };
+                    }
+                    return {
+                        left: toSafeQuestionBankText(pair),
+                        right: '',
+                    };
+                });
+            }
+            if ('answer' in obj || 'keywords' in obj || 'text' in obj || 'label' in obj) {
+                return toSafeQuestionBankText(obj);
+            }
+        }
+        return raw;
+    })();
+
+    return {
+        ...q,
+        question_text: toSafeQuestionBankText(q.question_text),
+        tags: safeTags,
+        options: safeOptions,
+        correct_answer: safeCorrectAnswer,
+    };
+};
+
 export const questionBankApi = {
-    list: (filters?: QuestionBankFilters): Promise<QuestionBank[]> =>
-        apiFetch('/question-bank', { method: 'GET', query: filters as Record<string, string | number | boolean | undefined | null> }, false),
-    get: (id: string): Promise<QuestionBank> =>
-        apiFetch(`/question-bank/${id}`, {}, false),
-    create: (payload: CreateQuestionBankPayload): Promise<QuestionBank> =>
-        apiFetch('/question-bank', { method: 'POST', body: JSON.stringify(payload) }, false),
-    update: (id: string, payload: UpdateQuestionBankPayload): Promise<QuestionBank> =>
-        apiFetch(`/question-bank/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, false),
+    list: async (filters?: QuestionBankFilters): Promise<QuestionBank[]> => {
+        const questions = await apiFetch('/question-bank', { method: 'GET', query: filters as Record<string, string | number | boolean | undefined | null> }, false);
+        return (questions as QuestionBank[]).map(normalizeQuestionBank);
+    },
+    get: async (id: string): Promise<QuestionBank> => {
+        const question = await apiFetch(`/question-bank/${id}`, {}, false);
+        return normalizeQuestionBank(question as QuestionBank);
+    },
+    create: async (payload: CreateQuestionBankPayload): Promise<QuestionBank> => {
+        const question = await apiFetch('/question-bank', { method: 'POST', body: JSON.stringify(payload) }, false);
+        return normalizeQuestionBank(question as QuestionBank);
+    },
+    update: async (id: string, payload: UpdateQuestionBankPayload): Promise<QuestionBank> => {
+        const question = await apiFetch(`/question-bank/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, false);
+        return normalizeQuestionBank(question as QuestionBank);
+    },
     delete: (id: string): Promise<void> =>
         apiFetch(`/question-bank/${id}`, { method: 'DELETE' }, false),
-    importFromMySQL: (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> =>
-        apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false),
+    importFromMySQL: async (courseId?: number, questionIds?: number[], importAll?: boolean): Promise<QuestionBank[]> => {
+        const questions = await apiFetch('/question-bank/import-mysql', { method: 'POST', body: JSON.stringify({ mysql_course_id: courseId, question_ids: questionIds, import_all: importAll }) }, false);
+        return (questions as QuestionBank[]).map(normalizeQuestionBank);
+    },
     getMySQLPlans: async (): Promise<MySqlPlan[]> => {
         const plans = (await apiFetch('/question-bank/mysql-plans', {}, false)) as MySqlPlanRaw[];
         return plans.reduce((acc: MySqlPlan[], p: MySqlPlanRaw) => {

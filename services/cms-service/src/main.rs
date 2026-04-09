@@ -27,7 +27,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
@@ -114,8 +114,14 @@ async fn main() {
                 "http://192.168.0.254:3000",
                 "http://192.168.0.254:3003",
                 "http://192.168.0.254",
-                // Production - Norteamericano domains (HTTPS)
+                // Production - Norteamericano domains (.cl and .com)
+                "http://studio.norteamericano.com",
+                "https://studio.norteamericano.com",
+                "http://learning.norteamericano.com",
+                "https://learning.norteamericano.com",
+                "http://studio.norteamericano.cl",
                 "https://studio.norteamericano.cl",
+                "http://learning.norteamericano.cl",
                 "https://learning.norteamericano.cl",
             ];
             
@@ -124,17 +130,21 @@ async fn main() {
                 return true;
             }
             
-            // Check wildcard for subdomains: https://*.norteamericano.cl
-            if origin_str.starts_with("https://") && origin_str.ends_with(".norteamericano.cl") {
-                let subdomain = origin_str
-                    .strip_prefix("https://")
-                    .unwrap_or("")
-                    .strip_suffix(".norteamericano.cl")
-                    .unwrap_or("");
-                
-                // Allow any subdomain (e.g., api., cdn., admin., etc.)
-                if !subdomain.is_empty() && !subdomain.contains('/') {
-                    return true;
+            // Check wildcard for subdomains in norteamericano.cl/.com over HTTP(S)
+            for scheme in ["http://", "https://"] {
+                for domain in [".norteamericano.cl", ".norteamericano.com"] {
+                    if origin_str.starts_with(scheme) && origin_str.ends_with(domain) {
+                        let subdomain = origin_str
+                            .strip_prefix(scheme)
+                            .unwrap_or("")
+                            .strip_suffix(domain)
+                            .unwrap_or("");
+
+                        // Allow any subdomain (e.g., api., cdn., admin., etc.)
+                        if !subdomain.is_empty() && !subdomain.contains('/') {
+                            return true;
+                        }
+                    }
                 }
             }
             

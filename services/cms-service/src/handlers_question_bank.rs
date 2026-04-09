@@ -47,6 +47,47 @@ source_asset_id,
 unit_number
 "#;
 
+fn normalize_answer_keywords_value(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(normalize_answer_keywords_value)
+                .collect(),
+        ),
+        serde_json::Value::Object(map) => {
+            let answer_text = map
+                .get("answer")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            if map.contains_key("keywords") {
+                if let Some(answer) = answer_text {
+                    return serde_json::Value::String(answer);
+                }
+            }
+
+            let normalized_map = map
+                .into_iter()
+                .map(|(k, v)| (k, normalize_answer_keywords_value(v)))
+                .collect();
+
+            serde_json::Value::Object(normalized_map)
+        }
+        other => other,
+    }
+}
+
+fn normalize_question_bank_payload_values(
+    options: Option<serde_json::Value>,
+    correct_answer: Option<serde_json::Value>,
+) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+    (
+        options.map(normalize_answer_keywords_value),
+        correct_answer.map(normalize_answer_keywords_value),
+    )
+}
+
 async fn connect_mysql_pool(env_var: &str) -> Result<sqlx::MySqlPool, (StatusCode, String)> {
     use sqlx::mysql::MySqlPoolOptions;
 
@@ -288,6 +329,23 @@ pub async fn create_question(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateQuestionBankPayload>,
 ) -> Result<Json<QuestionBank>, (StatusCode, String)> {
+    let CreateQuestionBankPayload {
+        question_text,
+        question_type,
+        options,
+        correct_answer,
+        explanation,
+        points,
+        difficulty,
+        tags,
+        media_url,
+        media_type,
+        skill_assessed,
+    } = payload;
+
+    let (normalized_options, normalized_correct_answer) =
+        normalize_question_bank_payload_values(options, correct_answer);
+
     let create_question_sql = format!(
         r#"
         INSERT INTO question_bank (
@@ -306,17 +364,17 @@ pub async fn create_question(
     )
     .bind(org_ctx.id)
     .bind(claims.sub)
-    .bind(&payload.question_text)
-    .bind(&payload.question_type)
-    .bind(&payload.options)
-    .bind(&payload.correct_answer)
-    .bind(&payload.explanation)
-    .bind(payload.points.unwrap_or(1))
-    .bind(payload.difficulty.as_deref().unwrap_or("medium"))
-    .bind(payload.tags.as_deref())
-    .bind(payload.skill_assessed.as_deref())
-    .bind(payload.media_url.as_deref())
-    .bind(payload.media_type.as_deref())
+    .bind(&question_text)
+    .bind(&question_type)
+    .bind(&normalized_options)
+    .bind(&normalized_correct_answer)
+    .bind(&explanation)
+    .bind(points.unwrap_or(1))
+    .bind(difficulty.as_deref().unwrap_or("medium"))
+    .bind(tags.as_deref())
+    .bind(skill_assessed.as_deref())
+    .bind(media_url.as_deref())
+    .bind(media_type.as_deref())
     .fetch_one(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -486,6 +544,22 @@ pub async fn update_question(
     State(pool): State<PgPool>,
     Json(payload): Json<UpdateQuestionBankPayload>,
 ) -> Result<Json<QuestionBank>, (StatusCode, String)> {
+    let UpdateQuestionBankPayload {
+        question_text,
+        question_type,
+        options,
+        correct_answer,
+        explanation,
+        points,
+        difficulty,
+        tags,
+        is_active,
+        is_archived,
+    } = payload;
+
+    let (normalized_options, normalized_correct_answer) =
+        normalize_question_bank_payload_values(options, correct_answer);
+
     let update_question_sql = format!(
         r#"
         UPDATE question_bank
@@ -512,16 +586,16 @@ pub async fn update_question(
     )
     .bind(id)
     .bind(org_ctx.id)
-    .bind(payload.question_text)
-    .bind(payload.question_type.map(|t| t.to_string()))
-    .bind(&payload.options)
-    .bind(&payload.correct_answer)
-    .bind(&payload.explanation)
-    .bind(payload.points)
-    .bind(payload.difficulty)
-    .bind(payload.tags.as_deref())
-    .bind(payload.is_active)
-    .bind(payload.is_archived)
+    .bind(question_text)
+    .bind(question_type.map(|t| t.to_string()))
+    .bind(&normalized_options)
+    .bind(&normalized_correct_answer)
+    .bind(&explanation)
+    .bind(points)
+    .bind(difficulty)
+    .bind(tags.as_deref())
+    .bind(is_active)
+    .bind(is_archived)
     .fetch_one(&pool)
     .await
     .map_err(|e| match e {

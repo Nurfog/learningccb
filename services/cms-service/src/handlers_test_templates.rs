@@ -13,6 +13,47 @@ use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;
 
+fn normalize_answer_keywords_value(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(normalize_answer_keywords_value)
+                .collect(),
+        ),
+        serde_json::Value::Object(map) => {
+            let answer_text = map
+                .get("answer")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            if map.contains_key("keywords") {
+                if let Some(answer) = answer_text {
+                    return serde_json::Value::String(answer);
+                }
+            }
+
+            let normalized_map = map
+                .into_iter()
+                .map(|(k, v)| (k, normalize_answer_keywords_value(v)))
+                .collect();
+
+            serde_json::Value::Object(normalized_map)
+        }
+        other => other,
+    }
+}
+
+fn normalize_question_bank_payload_values(
+    options: Option<serde_json::Value>,
+    correct_answer: Option<serde_json::Value>,
+) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+    (
+        options.map(normalize_answer_keywords_value),
+        correct_answer.map(normalize_answer_keywords_value),
+    )
+}
+
 // ==================== Query Parameters ====================
 
 #[derive(Debug, Deserialize)]
@@ -1736,6 +1777,12 @@ pub async fn generate_questions_with_rag(
             _ => common::models::QuestionBankType::MultipleChoice,
         };
 
+        let (normalized_options, normalized_correct_answer) =
+            normalize_question_bank_payload_values(
+                question.options.clone(),
+                question.correct_answer.clone(),
+            );
+
         let result = sqlx::query(
             r#"
             INSERT INTO question_bank (
@@ -1750,8 +1797,8 @@ pub async fn generate_questions_with_rag(
         .bind(claims.sub)
         .bind(&question.question_text)
         .bind(&question_type)
-        .bind(&question.options)
-        .bind(&question.correct_answer)
+        .bind(&normalized_options)
+        .bind(&normalized_correct_answer)
         .bind(&question.explanation)
         .bind(question.points)
         .bind("medium")

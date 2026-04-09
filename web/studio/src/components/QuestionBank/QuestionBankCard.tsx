@@ -12,8 +12,34 @@ interface QuestionBankCardProps {
 export default function QuestionBankCard({ question, onEdit, onDelete }: QuestionBankCardProps): React.JSX.Element {
     const [isPlaying, setIsPlaying] = useState(false);
     const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
-    const safeQuestionText: React.ReactNode =
-        typeof question.question_text === 'string' ? question.question_text : '';
+
+    const toDisplayText = (value: any): string => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+        if (Array.isArray(value)) {
+            return value.map((v) => toDisplayText(v)).filter(Boolean).join(', ');
+        }
+        if (typeof value === 'object') {
+            if (typeof value.answer === 'string') return value.answer;
+            if (typeof value.text === 'string') return value.text;
+            if (typeof value.label === 'string') return value.label;
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return '';
+            }
+        }
+        return '';
+    };
+
+    const safeSourceText = toDisplayText(question.source);
+    const safeDifficultyText = toDisplayText(question.difficulty);
+    const safeSkillAssessedText = toDisplayText(question.skill_assessed);
+    const safePointsText = toDisplayText(question.points);
+    const safeQuestionTypeText = toDisplayText(question.question_type);
+    const safeQuestionText = toDisplayText(question.question_text);
 
     const getQuestionTypeLabel = (type: string) => {
         const labels: Record<string, string> = {
@@ -41,7 +67,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
     };
 
     const sourceBadge = (() => {
-        switch (question.source) {
+        switch (safeSourceText) {
             case 'imported-mysql':
             case 'sam-diagnostico':
                 return (
@@ -64,8 +90,8 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
             case 'manual':
                 return <span className="text-xs text-gray-500 dark:text-gray-400">Manual</span>;
             default:
-                return question.source ? (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{question.source}</span>
+                return safeSourceText ? (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{safeSourceText}</span>
                 ) : null;
         }
     })();
@@ -104,14 +130,14 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
                 <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium rounded">
-                            {getQuestionTypeLabel(question.question_type)}
+                            {getQuestionTypeLabel(safeQuestionTypeText)}
                         </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${getDifficultyColor(question.difficulty)}`}>
-                            {question.difficulty || 'Medium'}
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${getDifficultyColor(safeDifficultyText || undefined)}`}>
+                            {safeDifficultyText || 'Medium'}
                         </span>
-                        {question.skill_assessed && (
+                        {safeSkillAssessedText && (
                             <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded capitalize">
-                                📊 {question.skill_assessed}
+                                📊 {safeSkillAssessedText}
                             </span>
                         )}
                     </div>
@@ -145,7 +171,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
 
             {/* Question Text */}
             <p className="text-gray-900 dark:text-white font-medium mb-3 line-clamp-3">
-                {safeQuestionText as any}
+                {safeQuestionText}
             </p>
 
             {/* Matching Pairs Preview */}
@@ -163,9 +189,9 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
                         
                         return pairs.slice(0, 3).map((pair: any, idx: number) => (
                             <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-700/50 p-2 rounded flex items-center gap-2">
-                                <span className="flex-1 text-gray-700 dark:text-gray-300">{pair.left || pair[0]}</span>
+                                <span className="flex-1 text-gray-700 dark:text-gray-300">{toDisplayText(pair.left ?? pair[0])}</span>
                                 <span className="text-gray-400">→</span>
-                                <span className="flex-1 text-gray-600 dark:text-gray-400 line-clamp-1">{pair.right || pair[1]}</span>
+                                <span className="flex-1 text-gray-600 dark:text-gray-400 line-clamp-1">{toDisplayText(pair.right ?? pair[1])}</span>
                             </div>
                         ));
                     })()}
@@ -194,12 +220,12 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
             {/* Options Preview */}
             {question.options && (
                 <div className="mb-3 space-y-1">
-                    {Array.isArray(question.options) && question.options.slice(0, 3).map((opt: string, idx: number) => (
+                    {Array.isArray(question.options) && question.options.slice(0, 3).map((opt: any, idx: number) => (
                         <div key={idx} className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                             <span className="w-4 h-4 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center text-[10px]">
                                 {String.fromCharCode(65 + idx)}
                             </span>
-                            <span className="line-clamp-1">{opt}</span>
+                            <span className="line-clamp-1">{toDisplayText(opt)}</span>
                         </div>
                     ))}
                     {Array.isArray(question.options) && question.options.length > 3 && (
@@ -212,7 +238,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                        {question.points} pts
+                        {safePointsText || '0'} pts
                     </span>
                     {sourceBadge && <div className="flex items-center gap-1">{sourceBadge}</div>}
                 </div>

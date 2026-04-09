@@ -11,6 +11,20 @@ interface QuestionBankEditorProps {
 }
 
 export default function QuestionBankEditor({ question, onSuccess, onCancel }: QuestionBankEditorProps) {
+    const toDisplayText = (value: unknown): string => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (Array.isArray(value)) return value.map((v) => toDisplayText(v)).filter(Boolean).join(', ');
+        if (typeof value === 'object') {
+            const obj = value as Record<string, unknown>;
+            if (typeof obj.answer === 'string') return obj.answer;
+            if (typeof obj.text === 'string') return obj.text;
+            if (typeof obj.label === 'string') return obj.label;
+            try { return JSON.stringify(obj); } catch { return ''; }
+        }
+        return '';
+    };
+
     const [formData, setFormData] = useState<CreateQuestionBankPayload>({
         question_text: question?.question_text || '',
         question_type: question?.question_type || 'multiple-choice',
@@ -34,7 +48,7 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
     const [generatingAI, setGeneratingAI] = useState(false);
 
     const normalizedOptions = Array.isArray(formData.options)
-        ? (formData.options as string[])
+        ? (formData.options as unknown[]).map((opt) => toDisplayText(opt))
         : [];
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -476,10 +490,10 @@ export default function QuestionBankEditor({ question, onSuccess, onCancel }: Qu
                                     key={idx}
                                     className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-sm flex items-center gap-1"
                                 >
-                                    {tag}
+                                    {toDisplayText(tag)}
                                     <button
                                         type="button"
-                                        onClick={() => handleRemoveTag(tag)}
+                                        onClick={() => handleRemoveTag(toDisplayText(tag))}
                                         className="hover:text-blue-600"
                                     >
                                         <X className="w-3 h-3" />

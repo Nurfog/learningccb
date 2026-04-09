@@ -25,6 +25,28 @@ export default function QuizBlock({ id, title, quizData, editMode, onChange }: Q
     const [userAnswers, setUserAnswers] = useState<Record<string, number[]>>({});
     const [submitted, setSubmitted] = useState(false);
 
+    const toDisplayText = (value: unknown): string => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+        if (Array.isArray(value)) {
+            return value.map((v) => toDisplayText(v)).filter(Boolean).join(', ');
+        }
+        if (typeof value === 'object') {
+            const obj = value as Record<string, unknown>;
+            if (typeof obj.answer === 'string') return obj.answer;
+            if (typeof obj.text === 'string') return obj.text;
+            if (typeof obj.label === 'string') return obj.label;
+            try {
+                return JSON.stringify(obj);
+            } catch {
+                return '';
+            }
+        }
+        return '';
+    };
+
     const questions = quizData.questions || [];
 
     const addQuestion = () => {
@@ -133,7 +155,7 @@ export default function QuizBlock({ id, title, quizData, editMode, onChange }: Q
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest pl-1">Inquiry Description</label>
                                 <textarea
-                                    value={q.question}
+                                    value={toDisplayText(q.question)}
                                     onChange={(e) => updateQuestion(idx, { question: e.target.value })}
                                     className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-lg font-black tracking-tight focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all placeholder:text-slate-300 resize-none shadow-inner h-24"
                                     placeholder="What is the core problem being evaluated?"
@@ -172,7 +194,7 @@ export default function QuizBlock({ id, title, quizData, editMode, onChange }: Q
                                                     )}
                                                 </div>
                                                 <input
-                                                    value={opt}
+                                                    value={toDisplayText(opt)}
                                                     onChange={(e) => {
                                                         const newOpts = [...q.options];
                                                         newOpts[oIdx] = e.target.value;
@@ -221,7 +243,7 @@ export default function QuizBlock({ id, title, quizData, editMode, onChange }: Q
                     {questions.map((q) => (
                         <div key={q.id} className="space-y-6 p-10 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all duration-700 group/qitem relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover/qitem:bg-indigo-500/10 transition-colors"></div>
-                            <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-tight uppercase tracking-tight relative z-10">{q.question}</h4>
+                            <h4 className="font-black text-2xl text-slate-900 dark:text-white leading-tight uppercase tracking-tight relative z-10">{toDisplayText(q.question)}</h4>
                             <div className="grid gap-3">
                                 {q.options && q.options.length > 0 ? (
                                     q.options.map((opt, oIdx) => {
@@ -246,7 +268,7 @@ export default function QuizBlock({ id, title, quizData, editMode, onChange }: Q
                                                 className={`p-6 rounded-2xl border transition-all text-left text-sm font-black uppercase tracking-tight relative overflow-hidden group/optans ${style}`}
                                             >
                                                 <div className="flex items-center justify-between relative z-10">
-                                                    <span>{opt}</span>
+                                                    <span>{toDisplayText(opt)}</span>
                                                     {submitted ? (
                                                         <div className="flex items-center gap-2">
                                                             {isActuallyCorrect && <span className="text-green-600 dark:text-green-400"><CheckCircle2 size={18} /></span>}

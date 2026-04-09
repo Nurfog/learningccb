@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { questionBankApi, QuestionBank, QuestionBankFilters, QuestionBankType } from '@/lib/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { questionBankApi, QuestionBank, QuestionBankFilters } from '@/lib/api';
 import {
-    Plus, Search, Filter, Edit2, Trash2, Download,
-    Upload, Sparkles, ChevronDown, ChevronUp, X, Check, AlertCircle,
-    Headphones, BookOpen, Tag, Hash, Globe
+    Plus, Search, Filter,
+    Upload, BookOpen
 } from 'lucide-react';
 import QuestionBankEditor from '@/components/QuestionBank/QuestionBankEditor';
 import QuestionBankCard from '@/components/QuestionBank/QuestionBankCard';
@@ -14,6 +13,68 @@ import MySQLImportModal from '@/components/QuestionBank/MySQLImportModal';
 const isMySqlOrigin = (source?: string) => source === 'imported-mysql' || source === 'sam-diagnostico';
 const isMaterialsOrigin = (source?: string) => source === 'imported-material';
 const isAiOrigin = (source?: string) => source === 'ai-generated';
+
+const toSafeText = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map((v) => toSafeText(v)).filter(Boolean).join(', ');
+    }
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        if (typeof obj.answer === 'string') return obj.answer;
+        if (typeof obj.text === 'string') return obj.text;
+        if (typeof obj.label === 'string') return obj.label;
+        try {
+            return JSON.stringify(obj);
+        } catch {
+            return '';
+        }
+    }
+    return '';
+};
+
+const sanitizeQuestion = (q: QuestionBank): QuestionBank => {
+    const safeTags = Array.isArray(q.tags)
+        ? q.tags.map((t) => toSafeText(t)).filter(Boolean)
+        : [];
+
+    const safeOptions = Array.isArray(q.options)
+        ? q.options.map((opt) => {
+            if (typeof opt === 'object' && opt !== null) {
+                const item = opt as Record<string, unknown>;
+                if ('answer' in item || 'keywords' in item) {
+                    return toSafeText(item.answer ?? item.text ?? item.label ?? item);
+                }
+            }
+            return opt;
+        })
+        : q.options;
+
+    const safeCorrectAnswer = (() => {
+        const raw = q.correct_answer;
+        if (Array.isArray(raw)) {
+            return raw.map((item) => toSafeText(item));
+        }
+        if (raw && typeof raw === 'object') {
+            const item = raw as Record<string, unknown>;
+            if ('answer' in item || 'keywords' in item || 'text' in item || 'label' in item) {
+                return toSafeText(item);
+            }
+        }
+        return raw;
+    })();
+
+    return {
+        ...q,
+        question_text: toSafeText(q.question_text),
+        tags: safeTags,
+        options: safeOptions,
+        correct_answer: safeCorrectAnswer,
+    };
+};
 
 export default function QuestionBankPage() {
     const [questions, setQuestions] = useState<QuestionBank[]>([]);
@@ -24,22 +85,25 @@ export default function QuestionBankPage() {
     const [showEditor, setShowEditor] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionBank | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
-    const loadQuestions = async () => {
+    const loadQuestions = useCallback(async () => {
         try {
             setLoading(true);
             const data = await questionBankApi.list(filters);
-            setQuestions(data);
+            setQuestions(data.map(sanitizeQuestion));
+            setCurrentPage(1);
         } catch (error) {
             console.error('Failed to load questions:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters]);
 
     useEffect(() => {
         loadQuestions();
-    }, [filters]);
+    }, [loadQuestions]);
 
     const handleCreate = () => {
         setEditingQuestion(null);
@@ -66,31 +130,6 @@ export default function QuestionBankPage() {
     const handleImportSuccess = async () => {
         setShowImportModal(false);
         await loadQuestions();
-    };
-
-    const getQuestionTypeLabel = (type: QuestionBankType) => {
-        const labels: Record<QuestionBankType, string> = {
-            'multiple-choice': 'Opción Múltiple',
-            'true-false': 'Verdadero/Falso',
-            'short-answer': 'Respuesta Corta',
-            'essay': 'Ensayo',
-            'matching': 'Emparejamiento',
-            'ordering': 'Ordenar',
-            'fill-in-the-blanks': 'Completar',
-            'audio-response': 'Respuesta Audio',
-            'hotspot': 'Hotspot',
-            'code-lab': 'Código',
-        };
-        return labels[type] || type;
-    };
-
-    const getDifficultyColor = (difficulty?: string) => {
-        switch (difficulty) {
-            case 'easy': return 'bg-green-100 text-green-800';
-            case 'medium': return 'bg-yellow-100 text-yellow-800';
-            case 'hard': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
     };
 
     return (
@@ -187,7 +226,7 @@ export default function QuestionBankPage() {
                             </label>
                             <select
                                 value={filters.question_type || ''}
-                                onChange={(e) => setFilters({ ...filters, question_type: e.target.value as QuestionBankType || undefined })}
+                                onChange={(e) => setFilters({ ...filters, question_type: (e.target.value || undefined) as QuestionBankFilters['question_type'] })}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                             >
                                 <option value="">Todos los tipos</option>
@@ -280,18 +319,107 @@ export default function QuestionBankPage() {
                             </button>
                         </div>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {questions.map((question) => (
-                            <QuestionBankCard
-                                key={question.id}
-                                question={question}
-                                onEdit={() => handleEdit(question)}
-                                onDelete={() => handleDelete(question.id)}
-                            />
-                        ))}
-                    </div>
-                )}
+                ) : (() => {
+                    const totalPages = Math.ceil(questions.length / pageSize);
+                    const paginated = questions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                    return (
+                        <>
+                            {/* Page size + info */}
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Mostrando {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, questions.length)} de {questions.length} preguntas
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">Por página:</span>
+                                    {[20, 50, 100].map((size) => (
+                                        <button
+                                            key={size}
+                                            onClick={() => { setPageSize(size); setCurrentPage(1); }}
+                                            className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                                                pageSize === size
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            {size}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {paginated.map((question) => (
+                                    <QuestionBankCard
+                                        key={question.id}
+                                        question={question}
+                                        onEdit={() => handleEdit(question)}
+                                        onDelete={() => handleDelete(question.id)}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Pagination controls */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 mt-8">
+                                    <button
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
+                                    >
+                                        «
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
+                                    >
+                                        ‹
+                                    </button>
+
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                                        .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                                            if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
+                                            acc.push(p);
+                                            return acc;
+                                        }, [])
+                                        .map((p, idx) =>
+                                            p === '...' ? (
+                                                <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">…</span>
+                                            ) : (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setCurrentPage(p as number)}
+                                                    className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                                                        currentPage === p
+                                                            ? 'bg-blue-600 text-white border-blue-600'
+                                                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            )
+                                        )}
+
+                                    <button
+                                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
+                                    >
+                                        ›
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
+                                    >
+                                        »
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
 
             {/* Editor Modal */}
