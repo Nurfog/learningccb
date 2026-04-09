@@ -36,6 +36,7 @@ export function Navbar() {
     const platformName = branding?.platform_name || branding?.name || 'Studio';
 
     return (
+        <>
         <nav className="fixed top-0 w-full z-50 glass border-b border-black/5 dark:border-white/10 bg-gray-50/70 dark:bg-black/40 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
 
@@ -259,8 +260,11 @@ export function Navbar() {
                 </button>
             </div>
 
-            {/* Mobile Sidebar Overlay */}
-            {mobileOpen && (
+            </nav>
+
+                {/* Mobile Sidebar Overlay — fuera del <nav> para evitar que el
+                    backdrop-filter cree un stacking context que confine el fixed */}
+                {mobileOpen && (
                 <div
                     className="fixed inset-0 z-[150] md:hidden bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setMobileOpen(false)}
@@ -376,6 +380,6 @@ export function Navbar() {
                     </div>
                 </div>
             )}
-        </nav>
-    );
+            </>
+        );
 }

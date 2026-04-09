@@ -23,6 +23,7 @@ export default function AppHeader() {
     const platformName = branding?.platform_name || branding?.name || 'Academia';
 
     return (
+        <>
         <header className="h-16 glass sticky top-0 z-[100] px-4 md:px-6 flex items-center justify-between backdrop-blur-xl bg-gray-50/80 dark:bg-black/40 border-b border-black/8 dark:border-white/5">
             <Link href="/" className="flex items-center gap-2 md:gap-5 group" aria-label={`${platformName} - Dashboard`}>
                 <div className={`rounded-lg md:rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-all overflow-hidden relative border border-white/5 ${branding?.logo_variant === 'wide' ? 'w-36 h-9 md:w-56 md:h-12 px-2 bg-white' : 'w-8 h-8 md:w-12 md:h-12'}`}>
@@ -116,9 +117,11 @@ export default function AppHeader() {
                     </button>
                 </div>
             </div>
+            </header>
 
-            {/* Mobile Sidebar Overlay */}
-            {isMenuOpen && (
+                {/* Mobile Sidebar Overlay — fuera del <header> para que el
+                    backdrop-filter no cree un stacking context que confine el fixed */}
+                {isMenuOpen && (
                 <div
                     className="fixed inset-0 z-[150] md:hidden bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
                     onClick={() => setIsMenuOpen(false)}
@@ -221,6 +224,6 @@ export default function AppHeader() {
                     </div>
                 </div>
             )}
-        </header>
-    );
+            </>
+        );
 }
