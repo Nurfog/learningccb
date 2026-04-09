@@ -2037,6 +2037,8 @@ pub async fn get_recommendations(
     State(pool): State<PgPool>,
     Path(course_id): Path<Uuid>,
 ) -> Result<Json<RecommendationResponse>, (StatusCode, String)> {
+    use std::time::Duration;
+
     let user_id = claims.sub;
 
     // 1. Fetch performance data (recent grades)
@@ -2133,7 +2135,12 @@ pub async fn get_recommendations(
 
     // 4. Call Ollama
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
-    let client = reqwest::Client::new();
+    // Keep AI requests below proxy timeout so we can return fallback JSON instead of 504.
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(45))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
 
     let (url, auth_header, model) = if provider == "local" {
         let base_url = get_ai_url("OLLAMA_URL", "http://ollama:11434");
