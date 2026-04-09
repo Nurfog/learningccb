@@ -12,7 +12,7 @@ import MySQLImportModal from '@/components/QuestionBank/MySQLImportModal';
 
 const isMySqlOrigin = (source?: string) => source === 'imported-mysql' || source === 'sam-diagnostico';
 const isMaterialsOrigin = (source?: string) => source === 'imported-material';
-const isAiOrigin = (source?: string) => source === 'ai-generated';
+const isAiOrigin = (source?: string) => source === 'ai-generated' || source === 'rag-ai';
 
 const toSafeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';

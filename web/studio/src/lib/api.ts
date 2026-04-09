@@ -1272,7 +1272,7 @@ export interface QuestionBank {
     difficulty?: 'easy' | 'medium' | 'hard';
     tags?: string[];
     skill_assessed?: 'reading' | 'listening' | 'speaking' | 'writing';
-    source?: 'manual' | 'ai-generated' | 'imported-mysql' | 'imported-csv';
+    source?: 'manual' | 'ai-generated' | 'rag-ai' | 'imported-mysql' | 'imported-material' | 'imported-csv' | 'sam-diagnostico';
     source_metadata?: unknown;
     usage_count?: number;
     last_used_at?: string;

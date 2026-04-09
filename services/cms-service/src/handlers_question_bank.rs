@@ -456,7 +456,7 @@ pub async fn list_questions(
             "ai" => {
                 sqlx::query_as::<_, QuestionBank>(
                     &format!(
-                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source = 'ai-generated' ORDER BY created_at DESC",
+                        "SELECT {} FROM question_bank WHERE organization_id = $1 AND is_archived = false AND source IN ('ai-generated', 'rag-ai') ORDER BY created_at DESC",
                         QUESTION_BANK_SELECT_COLUMNS
                     )
                 )

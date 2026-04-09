@@ -82,6 +82,7 @@ export default function QuestionBankCard({ question, onEdit, onDelete }: Questio
                     </span>
                 );
             case 'ai-generated':
+            case 'rag-ai':
                 return (
                     <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
                         <Sparkles className="w-3 h-3" /> IA
