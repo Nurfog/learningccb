@@ -1,6 +1,6 @@
-/// SAM (Sistema de Administración Académica) Integration Handlers
+/// Manejadores de Integración con SAM (Sistema de Administración Académica)
 /// 
-/// This module handles synchronization between OpenCCB and the external SAM system.
+/// Este módulo maneja la sincronización entre OpenCCB y el sistema externo SAM.
 /// SAM tables: sige_sam_v3.alumnos, sige_sam_v3.detalle_contrato
 
 use axum::{
@@ -50,27 +50,27 @@ pub struct SamStudentFilters {
     pub nombre: Option<String>,
 }
 
-/// ==================== SAM Sync Handlers ====================
+/// ==================== Manejadores de Sincronización SAM ====================
 
 /// POST /api/sam/sync-students
-/// Sync students from sige_sam_v3.alumnos to OpenCCB users table
+/// Sincronizar estudiantes de sige_sam_v3.alumnos a la tabla de usuarios de OpenCCB
 pub async fn sync_sam_students(
     _org: Org,
     _claims: Claims,
     State(pool): State<PgPool>,
 ) -> Result<Json<SamSyncResponse>, (StatusCode, String)> {
-    // Connect to external SAM database
+    // Conectar a la base de datos externa de SAM
     let sam_url = std::env::var("SAM_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL not configured".to_string()))?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL no configurada".to_string()))?;
 
     let sam_pool = sqlx::PgPool::connect(&sam_url)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to SAM DB: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al conectar con la base de datos SAM: {}", e)))?;
 
     let mut errors = Vec::new();
     let mut students_synced = 0;
 
-    // Fetch active students from SAM using generic query
+    // Obtener estudiantes activos de SAM usando una consulta genérica
     let rows = sqlx::query(
         r#"
         SELECT 
@@ -85,9 +85,9 @@ pub async fn sync_sam_students(
     )
     .fetch_all(&sam_pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch SAM students: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener estudiantes de SAM: {}", e)))?;
 
-    // Convert to SamStudentInfo
+    // Convertir a SamStudentInfo
     let sam_students: Vec<SamStudentInfo> = rows.iter().map(|row| {
         SamStudentInfo {
             id_alumno: row.get("id_alumno"),
@@ -98,9 +98,9 @@ pub async fn sync_sam_students(
         }
     }).collect();
 
-    // Sync each student to OpenCCB
+    // Sincronizar cada estudiante con OpenCCB
     for sam_student in sam_students {
-        // Check if user exists by email
+        // Comprobar si el usuario existe por correo electrónico
         let existing_user: Option<(Uuid, Option<String>)> = sqlx::query_as(
             "SELECT id, sam_student_id FROM users WHERE email = $1"
         )
@@ -108,7 +108,7 @@ pub async fn sync_sam_students(
         .fetch_optional(&pool)
         .await
         .map_err(|e| {
-            errors.push(format!("Error checking user {}: {}", sam_student.email, e));
+            errors.push(format!("Error al comprobar el usuario {}: {}", sam_student.email, e));
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })
         .ok()
@@ -116,7 +116,7 @@ pub async fn sync_sam_students(
 
         match existing_user {
             Some((user_id, existing_sam_id)) => {
-                // Update existing user with SAM info
+                // Actualizar usuario existente con información de SAM
                 let update_result = sqlx::query(
                     r#"
                     UPDATE users 
@@ -136,11 +136,11 @@ pub async fn sync_sam_students(
                 if update_result.is_ok() {
                     students_synced += 1;
                 } else {
-                    errors.push(format!("Failed to update user {}", sam_student.email));
+                    errors.push(format!("Error al actualizar el usuario {}", sam_student.email));
                 }
             }
             None => {
-                // Create new user for SAM student
+                // Crear nuevo usuario para el estudiante de SAM
                 let insert_result = sqlx::query(
                     r#"
                     INSERT INTO users (
@@ -157,18 +157,18 @@ pub async fn sync_sam_students(
                     "#
                 )
                 .bind(&sam_student.email)
-                .bind(format!("sam_managed_{}", sam_student.id_alumno)) // Placeholder password
+                .bind(format!("sam_managed_{}", sam_student.id_alumno)) // Contraseña provisional
                 .bind(&sam_student.nombre)
                 .bind("student")
-                .bind(Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()) // Default org
+                .bind(Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()) // Organización por defecto
                 .bind(&sam_student.id_alumno)
                 .fetch_optional(&pool)
                 .await;
 
                 match insert_result {
                     Ok(Some(_)) => students_synced += 1,
-                    Ok(None) => errors.push(format!("Failed to create user for {}", sam_student.email)),
-                    Err(e) => errors.push(format!("Error creating user {}: {}", sam_student.email, e)),
+                    Ok(None) => errors.push(format!("Error al crear el usuario para {}", sam_student.email)),
+                    Err(e) => errors.push(format!("Error al crear el usuario {}: {}", sam_student.email, e)),
                 }
             }
         }
@@ -184,24 +184,24 @@ pub async fn sync_sam_students(
 }
 
 /// POST /api/sam/sync-assignments
-/// Sync course assignments from sige_sam_v3.detalle_contrato
+/// Sincronizar asignaciones de cursos desde sige_sam_v3.detalle_contrato
 pub async fn sync_sam_assignments(
     _org: Org,
     _claims: Claims,
     State(pool): State<PgPool>,
 ) -> Result<Json<SamSyncResponse>, (StatusCode, String)> {
-    // Connect to external SAM database
+    // Conectar a la base de datos externa de SAM
     let sam_url = std::env::var("SAM_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL not configured".to_string()))?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL no configurada".to_string()))?;
 
     let sam_pool = sqlx::PgPool::connect(&sam_url)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to SAM DB: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al conectar con la base de datos SAM: {}", e)))?;
 
     let mut errors = Vec::new();
     let mut assignments_synced = 0;
 
-    // Fetch active course assignments from SAM
+    // Obtener asignaciones de cursos activas de SAM
     let rows = sqlx::query(
         r#"
         SELECT 
@@ -215,9 +215,9 @@ pub async fn sync_sam_assignments(
     )
     .fetch_all(&sam_pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch assignments: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener asignaciones: {}", e)))?;
 
-    // Convert to SamAssignmentInfo
+    // Convertir a SamAssignmentInfo
     let sam_assignments: Vec<SamAssignmentInfo> = rows.iter().map(|row| {
         SamAssignmentInfo {
             id_contrato: row.get("id_contrato"),
@@ -227,10 +227,10 @@ pub async fn sync_sam_assignments(
         }
     }).collect();
 
-    // Sync each assignment
+    // Sincronizar cada asignación
     for assignment in sam_assignments {
-        // Get the OpenCCB course ID from SAM course ID
-        // This assumes you have a mapping table or the SAM course ID matches OpenCCB course external_id
+        // Obtener el ID del curso de OpenCCB a partir del ID del curso SAM
+        // Esto asume que tienes una tabla de mapeo o que el ID del curso SAM coincide con el external_id del curso en OpenCCB
         let course_result = sqlx::query_as::<_, (Uuid,)>(
             "SELECT id FROM courses WHERE external_sam_id = $1 OR id = $2"
         )
@@ -243,13 +243,13 @@ pub async fn sync_sam_assignments(
             Ok(Some((id,))) => Some(id),
             Ok(None) => None,
             Err(e) => {
-                errors.push(format!("Error finding course {}: {}", assignment.id_curso_abierto, e));
+                errors.push(format!("Error al encontrar el curso {}: {}", assignment.id_curso_abierto, e));
                 continue;
             }
         };
 
         if let Some(course_id) = course_id {
-            // Upsert assignment
+            // Actualizar o insertar asignación
             let upsert_result = sqlx::query(
                 r#"
                 INSERT INTO sam_course_assignments (sam_student_id, sam_contrato_id, course_id, is_active, synced_at)
@@ -270,7 +270,7 @@ pub async fn sync_sam_assignments(
             if upsert_result.is_ok() {
                 assignments_synced += 1;
             } else {
-                errors.push(format!("Failed to sync assignment for student {}", assignment.id_alumno));
+                errors.push(format!("Error al sincronizar la asignación para el estudiante {}", assignment.id_alumno));
             }
         }
     }
@@ -285,7 +285,7 @@ pub async fn sync_sam_assignments(
 }
 
 /// GET /api/sam/students
-/// List SAM students with optional filters
+/// Listar estudiantes de SAM con filtros opcionales
 pub async fn list_sam_students(
     _org: Org,
     _claims: Claims,
@@ -318,7 +318,7 @@ pub async fn list_sam_students(
     let rows = sqlx::query(&query)
         .fetch_all(&pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch students: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los estudiantes: {}", e)))?;
 
     let students: Vec<serde_json::Value> = rows.iter().map(|row| {
         serde_json::json!({
@@ -336,7 +336,7 @@ pub async fn list_sam_students(
 }
 
 /// GET /api/sam/students/{student_id}/courses
-/// Get courses assigned to a specific SAM student
+/// Obtener cursos asignados a un estudiante SAM específico
 pub async fn get_sam_student_courses(
     _org: Org,
     _claims: Claims,
@@ -355,7 +355,7 @@ pub async fn get_sam_student_courses(
     .bind(&sam_student_id)
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch courses: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los cursos: {}", e)))?;
 
     let courses: Vec<serde_json::Value> = rows.iter().map(|row| {
         serde_json::json!({
@@ -371,7 +371,7 @@ pub async fn get_sam_student_courses(
 }
 
 /// POST /api/sam/sync-all
-/// Full synchronization: students + assignments
+/// Sincronización completa: estudiantes + asignaciones
 pub async fn sync_all_sam(
     org: Org,
     claims: Claims,
@@ -381,17 +381,17 @@ pub async fn sync_all_sam(
     let mut students_synced = 0;
     let mut assignments_synced = 0;
 
-    // Connect to external SAM database
+    // Conectar a la base de datos externa de SAM
     let sam_url = std::env::var("SAM_DATABASE_URL")
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL not configured".to_string()))?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "SAM_DATABASE_URL no configurada".to_string()))?;
 
     let sam_pool = sqlx::PgPool::connect(&sam_url)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to connect to SAM DB: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al conectar con la base de datos SAM: {}", e)))?;
 
-    // Sync students first
+    // Sincronizar estudiantes primero
     {
-        // Fetch active students from SAM
+        // Obtener estudiantes activos de SAM
         let rows = sqlx::query(
             r#"
             SELECT id_alumno, nombre, email, telefono, activo
@@ -401,7 +401,7 @@ pub async fn sync_all_sam(
         )
         .fetch_all(&sam_pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch SAM students: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener estudiantes de SAM: {}", e)))?;
 
         let sam_students: Vec<SamStudentInfo> = rows.iter().map(|row| {
             SamStudentInfo {
@@ -413,7 +413,7 @@ pub async fn sync_all_sam(
             }
         }).collect();
 
-        // Sync each student
+        // Sincronizar cada estudiante
         for sam_student in sam_students {
             let existing_user: Option<(Uuid, Option<String>)> = sqlx::query_as(
                 "SELECT id, sam_student_id FROM users WHERE email = $1"
@@ -422,7 +422,7 @@ pub async fn sync_all_sam(
             .fetch_optional(&pool)
             .await
             .map_err(|e| {
-                errors.push(format!("Error checking user {}: {}", sam_student.email, e));
+                errors.push(format!("Error al comprobar el usuario {}: {}", sam_student.email, e));
                 (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
             })
             .ok()
@@ -439,7 +439,7 @@ pub async fn sync_all_sam(
                     .execute(&pool)
                     .await;
 
-                    if update_result.is_ok() { students_synced += 1; } else { errors.push(format!("Failed to update user {}", sam_student.email)); }
+                    if update_result.is_ok() { students_synced += 1; } else { errors.push(format!("Error al actualizar el usuario {}", sam_student.email)); }
                 }
                 None => {
                     let insert_result = sqlx::query(
@@ -456,22 +456,22 @@ pub async fn sync_all_sam(
 
                     match insert_result {
                         Ok(Some(_)) => students_synced += 1,
-                        Ok(None) => errors.push(format!("Failed to create user for {}", sam_student.email)),
-                        Err(e) => errors.push(format!("Error creating user {}: {}", sam_student.email, e)),
+                        Ok(None) => errors.push(format!("Error al crear el usuario para {}", sam_student.email)),
+                        Err(e) => errors.push(format!("Error al crear el usuario {}: {}", sam_student.email, e)),
                     }
                 }
             }
         }
     }
 
-    // Sync assignments
+    // Sincronizar asignaciones
     {
         let rows = sqlx::query(
             "SELECT id_contrato, id_alumno, id_curso_abierto, estado FROM sige_sam_v3.detalle_contrato WHERE estado = 'activo' OR estado = 'vigente'"
         )
         .fetch_all(&sam_pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch assignments: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener asignaciones: {}", e)))?;
 
         let sam_assignments: Vec<SamAssignmentInfo> = rows.iter().map(|row| {
             SamAssignmentInfo {
@@ -494,7 +494,7 @@ pub async fn sync_all_sam(
             let course_id = match course_result {
                 Ok(Some((id,))) => Some(id),
                 Ok(None) => continue,
-                Err(e) => { errors.push(format!("Error finding course {}: {}", assignment.id_curso_abierto, e)); continue; }
+                Err(e) => { errors.push(format!("Error al encontrar el curso {}: {}", assignment.id_curso_abierto, e)); continue; }
             };
 
             if let Some(course_id) = course_id {
@@ -507,7 +507,7 @@ pub async fn sync_all_sam(
                 .execute(&pool)
                 .await;
 
-                if upsert_result.is_ok() { assignments_synced += 1; } else { errors.push(format!("Failed to sync assignment for student {}", assignment.id_alumno)); }
+                if upsert_result.is_ok() { assignments_synced += 1; } else { errors.push(format!("Error al sincronizar la asignación para el estudiante {}", assignment.id_alumno)); }
             }
         }
     }

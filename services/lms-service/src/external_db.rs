@@ -11,16 +11,16 @@ pub async fn init_mysql_pool() -> Option<MySqlPool> {
             .await
         {
             Ok(pool) => {
-                tracing::info!("Connected to external MySQL database");
+                tracing::info!("Conectado a la base de datos MySQL externa");
                 Some(pool)
             }
             Err(e) => {
-                tracing::error!("Failed to connect to external MySQL database: {}", e);
+                tracing::error!("Error al conectar a la base de datos MySQL externa: {}", e);
                 None
             }
         }
     } else {
-        tracing::info!("MYSQL_DATABASE_URL not set, skipping external database integration");
+        tracing::info!("MYSQL_DATABASE_URL no establecida, omitiendo la integración con la base de datos externa");
         None
     }
 }

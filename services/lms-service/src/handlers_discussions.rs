@@ -10,7 +10,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ========== Request/Response DTOs ==========
+// ========== DTOs de Solicitud/Respuesta ==========
 
 #[derive(Deserialize)]
 pub struct CreateThreadPayload {
@@ -37,7 +37,7 @@ pub struct ThreadListQuery {
     pub page: Option<i64>,
 }
 
-// ========== THREAD HANDLERS ==========
+// ========== MANEJADORES DE HILOS ==========
 
 pub async fn list_threads(
     Org(org_ctx): Org,
@@ -141,7 +141,7 @@ pub async fn create_thread(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Auto-subscribe author to thread
+    // Suscribir automáticamente al autor al hilo
     let _ = sqlx::query(
         "INSERT INTO discussion_subscriptions (organization_id, thread_id, user_id)
          VALUES ($1, $2, $3)
@@ -162,13 +162,13 @@ pub async fn get_thread_detail(
     Path(thread_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Increment view count
+    // Incrementar el conteo de visualizaciones
     let _ = sqlx::query("UPDATE discussion_threads SET view_count = view_count + 1 WHERE id = $1")
         .bind(thread_id)
         .execute(&pool)
         .await;
 
-    // Get thread with author info
+    // Obtener el hilo con información del autor
     let thread = sqlx::query_as::<_, ThreadWithAuthor>(
         "SELECT 
             t.*, 
@@ -186,9 +186,9 @@ pub async fn get_thread_detail(
     .bind(org_ctx.id)
     .fetch_one(&pool)
     .await
-    .map_err(|_| (StatusCode::NOT_FOUND, "Thread not found".to_string()))?;
+    .map_err(|_| (StatusCode::NOT_FOUND, "Hilo no encontrado".to_string()))?;
 
-    // Get all posts with author info and user votes
+    // Obtener todos los mensajes con información del autor y votos del usuario
     let posts = get_thread_posts_recursive(&pool, thread_id, None, claims.sub, org_ctx.id).await?;
 
     Ok(Json(serde_json::json!({
@@ -197,7 +197,7 @@ pub async fn get_thread_detail(
     })))
 }
 
-// Recursive function to build nested post tree
+// Función recursiva para construir el árbol de mensajes anidados
 fn get_thread_posts_recursive<'a>(
     pool: &'a PgPool,
     thread_id: Uuid,
@@ -244,7 +244,7 @@ fn get_thread_posts_recursive<'a>(
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-        // Recursively fetch replies for each post
+        // Obtener respuestas recursivamente para cada mensaje
         for post in &mut posts {
             post.replies =
                 get_thread_posts_recursive(pool, thread_id, Some(post.id), user_id, org_id).await?;
@@ -260,17 +260,17 @@ pub async fn pin_thread(
     Path(thread_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Check if user is instructor
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can pin threads".to_string(),
+            "Solo los instructores pueden fijar hilos".to_string(),
         ));
     }
 
@@ -290,17 +290,17 @@ pub async fn lock_thread(
     Path(thread_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Check if user is instructor
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can lock threads".to_string(),
+            "Solo los instructores pueden bloquear hilos".to_string(),
         ));
     }
 
@@ -314,7 +314,7 @@ pub async fn lock_thread(
     Ok(StatusCode::OK)
 }
 
-// ========== POST HANDLERS ==========
+// ========== MANEJADORES DE MENSAJES ==========
 
 pub async fn create_post(
     Org(org_ctx): Org,
@@ -323,13 +323,13 @@ pub async fn create_post(
     State(pool): State<PgPool>,
     Json(payload): Json<CreatePostPayload>,
 ) -> Result<Json<DiscussionPost>, (StatusCode, String)> {
-    // Check if thread is locked
+    // Verificar si el hilo está bloqueado
     let thread =
         sqlx::query_as::<_, (bool,)>("SELECT is_locked FROM discussion_threads WHERE id = $1")
             .bind(thread_id)
             .fetch_one(&pool)
             .await
-            .map_err(|_| (StatusCode::NOT_FOUND, "Cohorte no encontrada".to_string()))?;
+            .map_err(|_| (StatusCode::NOT_FOUND, "Hilo no encontrado".to_string()))?;
 
     if thread.0 {
         return Err((StatusCode::FORBIDDEN, "El hilo está bloqueado".to_string()));
@@ -349,7 +349,7 @@ pub async fn create_post(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // TODO: Send notifications to subscribed users
+    // TODO: Enviar notificaciones a los usuarios suscritos
 
     Ok(Json(post))
 }
@@ -360,17 +360,17 @@ pub async fn endorse_post(
     Path(post_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Check if user is instructor
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can endorse posts".to_string(),
+            "Solo los instructores pueden recomendar mensajes".to_string(),
         ));
     }
 
@@ -395,7 +395,7 @@ pub async fn vote_post(
         return Err((StatusCode::BAD_REQUEST, "Tipo de voto inválido".to_string()));
     }
 
-    // Upsert vote
+    // Upsert de voto
     sqlx::query(
         "INSERT INTO discussion_votes (organization_id, post_id, user_id, vote_type)
          VALUES ($1, $2, $3, $4)
@@ -410,7 +410,7 @@ pub async fn vote_post(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Recalculate upvotes
+    // Recalcular votos positivos
     let upvote_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM discussion_votes WHERE post_id = $1 AND vote_type = 'upvote'",
     )
@@ -429,7 +429,7 @@ pub async fn vote_post(
     Ok(StatusCode::OK)
 }
 
-// ========== SUBSCRIPTION HANDLERS ==========
+// ========== MANEJADORES DE SUSCRIPCIONES ==========
 
 pub async fn subscribe_thread(
     Org(org_ctx): Org,

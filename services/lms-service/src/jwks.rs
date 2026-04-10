@@ -6,23 +6,23 @@ pub fn get_lti_private_key() -> jsonwebtoken::EncodingKey {
     let key_str = env::var("LTI_PRIVATE_KEY").unwrap_or_else(|_| {
         let dev_key_path = "services/lms-service/dev_keys/lti_private.pem";
         std::fs::read_to_string(dev_key_path).unwrap_or_else(|_| {
-            // Return a dummy key or handle error gracefully in production
-            // For now, we'll return a string that will likely fail decoding if used,
-            // but allows the service to start if LTI is not used.
-            tracing::warn!("LTI private key not found at {} and LTI_PRIVATE_KEY is not set.", dev_key_path);
+            // Devolver una clave ficticia o manejar el error de forma adecuada en producción
+            // Por ahora, devolveremos una cadena que probablemente fallará al decodificarse si se utiliza,
+            // pero permite que el servicio se inicie si no se utiliza LTI.
+            tracing::warn!("Clave privada LTI no encontrada en {} y LTI_PRIVATE_KEY no está establecida.", dev_key_path);
             String::new()
         })
     });
     
     if key_str.is_empty() {
-        // Handle the empty key case - maybe return a specialized error or a dummy key
-        // that fails later. jsonwebtoken::EncodingKey::from_rsa_pem usually expects valid PEM.
-        // We'll use a dummy valid-looking but useless PEM if it's empty to avoid panic on startup
-        // but it will fail on actual LTI usage.
+        // Manejar el caso de clave vacía; tal vez devolver un error especializado o una clave ficticia
+        // que falle más tarde. jsonwebtoken::EncodingKey::from_rsa_pem suele esperar un PEM válido.
+        // Utilizaremos un PEM ficticio con apariencia válida pero inútil si está vacío para evitar pánico al inicio,
+        // pero fallará en el uso real de LTI.
         return jsonwebtoken::EncodingKey::from_rsa_pem(b"-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA7f...dummy...\n-----END RSA PRIVATE KEY-----").expect("Dummy key failed");
     }
 
-    jsonwebtoken::EncodingKey::from_rsa_pem(key_str.as_bytes()).expect("Invalid LTI private key format")
+    jsonwebtoken::EncodingKey::from_rsa_pem(key_str.as_bytes()).expect("Formato de clave privada LTI inválido")
 }
 
 pub fn get_lti_jwks() -> JwkSet {

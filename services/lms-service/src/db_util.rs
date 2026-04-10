@@ -24,7 +24,7 @@ pub async fn set_session_context(
             .await?;
     }
     if let Some(user_agent) = ua {
-        // Use set_config for potentially long strings to avoid SQL injection/formatting issues
+        // Usar set_config para cadenas potencialmente largas para evitar inyección SQL o problemas de formato
         sqlx::query("SELECT set_config('app.user_agent', $1, true)")
             .bind(user_agent)
             .execute(&mut **tx)

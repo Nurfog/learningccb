@@ -18,7 +18,7 @@ pub async fn submit_assignment(
     Path((course_id, lesson_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<SubmitAssignmentPayload>,
 ) -> Result<Json<CourseSubmission>, (StatusCode, String)> {
-    // Check if submission already exists
+    // Verificar si la entrega ya existe
     let existing: Option<CourseSubmission> = sqlx::query_as(
         "SELECT * FROM course_submissions WHERE user_id = $1 AND lesson_id = $2"
     )
@@ -29,7 +29,7 @@ pub async fn submit_assignment(
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if let Some(_) = existing {
-        // Update existing submission
+        // Actualizar entrega existente
         let updated: CourseSubmission = sqlx::query_as(
             r#"
             UPDATE course_submissions 
@@ -48,7 +48,7 @@ pub async fn submit_assignment(
         return Ok(Json(updated));
     }
 
-    // Create new submission
+    // Crear nueva entrega
     let submission: CourseSubmission = sqlx::query_as(
         r#"
         INSERT INTO course_submissions (user_id, course_id, lesson_id, organization_id, content)
@@ -74,10 +74,10 @@ pub async fn get_peer_review_assignment(
     State(pool): State<PgPool>,
     Path((course_id, lesson_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Option<CourseSubmission>>, (StatusCode, String)> {
-    // Find a submission that:
-    // 1. Is not my own
-    // 2. Has fewer than 2 reviews (configurable, but hardcoded for now)
-    // 3. I haven't reviewed yet
+    // Buscar una entrega que:
+    // 1. No sea la mía propia
+    // 2. Tenga menos de 2 revisiones (configurable, pero hardcoded por ahora)
+    // 3. Yo no haya revisado aún
     let submission: Option<CourseSubmission> = sqlx::query_as(
         r#"
         SELECT s.* 
@@ -115,7 +115,7 @@ pub async fn submit_peer_review(
     Path((_course_id, _lesson_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<SubmitPeerReviewPayload>,
 ) -> Result<Json<PeerReview>, (StatusCode, String)> {
-    // Verify valid submission
+    // Verificar entrega válida
     let submission_row = sqlx::query(
         "SELECT user_id FROM course_submissions WHERE id = $1"
     )
@@ -126,17 +126,17 @@ pub async fn submit_peer_review(
 
     let submission_user_id = match submission_row {
         Some(row) => row.get::<Uuid, _>("user_id"),
-        None => return Err((StatusCode::NOT_FOUND, "Submission not found".to_string())),
+        None => return Err((StatusCode::NOT_FOUND, "Entrega no encontrada".to_string())),
     };
 
     if submission_user_id == claims.sub {
         return Err((
             StatusCode::BAD_REQUEST,
-            "Cannot review your own submission".to_string(),
+            "No puedes revisar tu propia entrega".to_string(),
         ));
     }
 
-    // Check if already reviewed
+    // Verificar si ya fue revisada
     let existing = sqlx::query(
         "SELECT id FROM peer_reviews WHERE submission_id = $1 AND reviewer_id = $2"
     )
@@ -149,11 +149,11 @@ pub async fn submit_peer_review(
     if existing.is_some() {
         return Err((
             StatusCode::CONFLICT,
-            "You have already reviewed this submission".to_string(),
+            "Ya has revisado esta entrega".to_string(),
         ));
     }
 
-    // Create review
+    // Crear revisión
     let review: PeerReview = sqlx::query_as(
         r#"
         INSERT INTO peer_reviews (submission_id, reviewer_id, score, feedback, organization_id)
@@ -179,7 +179,7 @@ pub async fn get_my_submission_feedback(
     State(pool): State<PgPool>,
     Path((_course_id, lesson_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Vec<PeerReview>>, (StatusCode, String)> {
-    // Get reviews for my submission on this lesson
+    // Obtener revisiones para mi entrega en esta lección
     let reviews: Vec<PeerReview> = sqlx::query_as(
         r#"
         SELECT pr.* 

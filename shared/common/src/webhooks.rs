@@ -23,7 +23,7 @@ impl WebhookService {
         .await {
             Ok(w) => w,
             Err(e) => {
-                tracing::error!("Failed to fetch webhooks for org {}: {}", org_id, e);
+                tracing::error!("Error al obtener los webhooks para la org {}: {}", org_id, e);
                 return;
             }
         };
@@ -54,7 +54,7 @@ impl WebhookService {
                 Ok(response) => {
                     if !response.status().is_success() {
                         tracing::warn!(
-                            "Webhook delivery to {} (event: {}) failed with status {}",
+                            "La entrega del webhook a {} (evento: {}) falló con el estado {}",
                             url,
                             event_type,
                             response.status()
@@ -63,7 +63,7 @@ impl WebhookService {
                 }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to deliver webhook to {} (event: {}): {}",
+                        "Error al entregar el webhook a {} (evento: {}): {}",
                         url,
                         event_type,
                         e

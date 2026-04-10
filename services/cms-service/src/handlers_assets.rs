@@ -158,7 +158,7 @@ async fn maybe_push_local_file_to_s3(
 
     let bytes = tokio::fs::read(local_path)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Read local file failed: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al leer el archivo local: {}", e)))?;
 
     let client = build_s3_client(&settings).await?;
     let key = build_s3_object_key(org_id, course_id, storage_filename);
@@ -189,7 +189,7 @@ async fn push_bytes_to_s3(
         .body(bytes.into())
         .send()
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("S3 upload failed: {}", e)))?;
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Error al subir a S3: {}", e)))?;
 
     let storage_path = format!("s3://{}/{}", settings.bucket, key);
     let public_url = build_s3_public_url(settings, key);
@@ -200,7 +200,7 @@ async fn delete_storage_path(storage_path: &str) -> Result<(), (StatusCode, Stri
     if let Some((bucket, key)) = parse_s3_storage_path(storage_path) {
         let settings = get_s3_settings().ok_or((
             StatusCode::INTERNAL_SERVER_ERROR,
-            "S3 storage path found but S3 is not configured".to_string(),
+            "Se encontró una ruta de almacenamiento S3 pero S3 no está configurado".to_string(),
         ))?;
         let client = build_s3_client(&settings).await?;
         client
@@ -209,7 +209,7 @@ async fn delete_storage_path(storage_path: &str) -> Result<(), (StatusCode, Stri
             .key(key)
             .send()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("S3 delete failed: {}", e)))?;
+            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Error al eliminar de S3: {}", e)))?;
         return Ok(());
     }
 
@@ -227,26 +227,26 @@ fn parse_s3_storage_path(path: &str) -> Option<(&str, &str)> {
 }
 
 /// GET /api/assets/s3-proxy/{bucket}/{*key}
-/// Proxies private S3 objects through CMS so frontend URLs do not depend on public-read ACLs.
+/// Realiza un proxy de objetos privados de S3 a través del CMS para que las URLs del frontend no dependan de ACLs de lectura pública.
 pub async fn public_s3_proxy(
     Path(params): Path<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let bucket = params
         .get("bucket")
         .cloned()
-        .ok_or((StatusCode::BAD_REQUEST, "Missing bucket".to_string()))?;
+        .ok_or((StatusCode::BAD_REQUEST, "Falta el cubo (bucket)".to_string()))?;
     let key = params
         .get("key")
         .cloned()
-        .ok_or((StatusCode::BAD_REQUEST, "Missing key".to_string()))?;
+        .ok_or((StatusCode::BAD_REQUEST, "Falta la clave (key)".to_string()))?;
 
     let settings = get_s3_settings().ok_or((
         StatusCode::NOT_FOUND,
-        "S3 storage is not configured".to_string(),
+        "El almacenamiento S3 no está configurado".to_string(),
     ))?;
 
     if bucket != settings.bucket {
-        return Err((StatusCode::FORBIDDEN, "Bucket not allowed".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Cubo (bucket) no permitido".to_string()));
     }
 
     let storage_path = format!("s3://{}/{}", bucket, key);
@@ -257,13 +257,13 @@ pub async fn public_s3_proxy(
         header::CONTENT_TYPE,
         "application/octet-stream"
             .parse()
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid header: {}", e)))?,
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Cabecera inválida: {}", e)))?,
     );
     headers.insert(
         header::CACHE_CONTROL,
         "public, max-age=3600"
             .parse()
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid header: {}", e)))?,
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Cabecera inválida: {}", e)))?,
     );
 
     Ok((headers, bytes))
@@ -282,18 +282,18 @@ async fn read_storage_bytes(storage_path: &str) -> Result<Vec<u8>, (StatusCode, 
             .key(key)
             .send()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("S3 read failed: {}", e)))?;
+            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Error al leer de S3: {}", e)))?;
         let data = output
             .body
             .collect()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("S3 stream read failed: {}", e)))?;
+            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Error al leer el flujo de S3: {}", e)))?;
         return Ok(data.into_bytes().to_vec());
     }
 
     tokio::fs::read(storage_path)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Read failed: {}", e)))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error de lectura: {}", e)))
 }
 
 /// POST /api/assets/upload - Subir un archivo a la biblioteca global
@@ -357,12 +357,12 @@ pub async fn upload_asset(
     }
 
     if data.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "No se subió ningún archivo".to_string()));
     }
 
     let asset_id = Uuid::new_v4();
 
-    // Ensure uploads directory exists
+    // Asegurar que el directorio de subidas existe
     tokio::fs::create_dir_all("uploads")
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -543,7 +543,7 @@ pub async fn delete_asset(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // 1. Get asset metadata to find file path
+    // 1. Obtener metadatos del activo para encontrar la ruta del archivo
     let asset: Asset = sqlx::query_as(
         "SELECT * FROM assets WHERE id = $1 AND organization_id = $2"
     )
@@ -552,16 +552,16 @@ pub async fn delete_asset(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Asset not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Activo no encontrado".to_string()))?;
 
-    // 2. Delete from DB
+    // 2. Eliminar de la base de datos
     sqlx::query("DELETE FROM assets WHERE id = $1")
         .bind(id)
         .execute(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Delete physical file or S3 object
+    // 3. Eliminar archivo físico u objeto de S3
     let _ = delete_storage_path(&asset.storage_path).await;
 
     Ok(StatusCode::NO_CONTENT)
@@ -582,7 +582,7 @@ pub async fn ingest_asset_for_rag(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Asset not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Activo no encontrado".to_string()))?;
 
     let extracted = extract_asset_text(&asset).await?;
     let content = extracted.trim();
@@ -668,7 +668,7 @@ pub async fn ingest_asset_for_rag(
 /// - file: ZIP requerido
 /// - course_id: UUID opcional
 /// - ingest_rag: true/false opcional (default false)
-/// Extracts a unit number from a ZIP entry path using the top-level folder name.
+/// Extrae un número de unidad de la ruta de una entrada ZIP usando el nombre de la carpeta de nivel superior.
 /// Supports: "Unit 1/...", "Unidad 1/...", "unit-01/...", "01/...", "1/..."
 fn extract_unit_number(entry_name: &str) -> Option<i32> {
     let parts: Vec<&str> = entry_name.splitn(2, '/').collect();
@@ -680,7 +680,7 @@ fn extract_unit_number(entry_name: &str) -> Option<i32> {
         return None;
     }
     let lower = folder.to_lowercase();
-    // Strip common textual prefixes, then parse leading digits
+    // Eliminar prefijos textuales comunes, luego analizar los dígitos iniciales
     let stripped = lower
         .trim_start_matches("unidad")
         .trim_start_matches("unit")
@@ -739,13 +739,13 @@ async fn process_zip_entry_without_rag(
         let temp_storage_path = format!("uploads/{}", temp_storage_filename);
         tokio::fs::write(&temp_storage_path, &content)
             .await
-            .map_err(|e| format!("{}: local write failed ({})", entry_name, e))?;
+            .map_err(|e| format!("{}: Error en la escritura local ({})", entry_name, e))?;
 
         let final_storage_filename = format!("{}.mp4", asset_id);
         let final_storage_path = format!("uploads/{}", final_storage_filename);
         if let Err((_, msg)) = transcode_flv_to_mp4(&temp_storage_path, &final_storage_path).await {
             let _ = tokio::fs::remove_file(&temp_storage_path).await;
-            return Err(format!("{}: flv transcode failed ({})", entry_name, msg));
+            return Err(format!("{}: la transcodificación de flv falló ({})", entry_name, msg));
         }
         let _ = tokio::fs::remove_file(&temp_storage_path).await;
 

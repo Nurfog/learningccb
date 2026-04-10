@@ -1,5 +1,5 @@
-//! Handlers for PGVector embeddings in Question Bank
-//! Enables semantic search and RAG with AI-powered embeddings
+//! Manejadores para incrustaciones (embeddings) de PGVector en el Banco de Preguntas
+//! Habilita la búsqueda semántica y RAG con incrustaciones impulsadas por IA
 
 use axum::{
     Json,
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ==================== Query Parameters ====================
+// ==================== Parámetros de Consulta ====================
 
 #[derive(Debug, Deserialize)]
 pub struct SemanticSearchFilters {
@@ -43,26 +43,26 @@ pub struct GenerateEmbeddingsResult {
     pub duration_ms: u64,
 }
 
-// ==================== Generate Embeddings ====================
+// ==================== Generar Incrustaciones (Embeddings) ====================
 
-/// POST /api/question-bank/embeddings/generate - Generate embeddings for all questions without them
+/// POST /api/question-bank/embeddings/generate - Generar incrustaciones para todas las preguntas que no las tengan
 pub async fn generate_question_embeddings(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
 ) -> Result<Json<GenerateEmbeddingsResult>, (StatusCode, String)> {
     let start = std::time::Instant::now();
     
-    // Create client that accepts invalid certificates (for dev with self-signed certs)
+    // Crear cliente que acepte certificados inválidos (para desarrollo con certificados autofirmados)
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
         .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error del cliente HTTP: {}", e)))?;
     
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Get questions without embeddings
+    // Obtener preguntas sin incrustaciones
     let questions: Vec<QuestionBank> = sqlx::query_as(
         r#"
         SELECT * FROM question_bank
@@ -82,7 +82,7 @@ pub async fn generate_question_embeddings(
     let mut failed = 0;
     
     for question in questions {
-        // Generate embedding text (combine question + options + explanation)
+        // Generar el texto de la incrustación (combinar pregunta + opciones + explicación)
         let mut embedding_text = question.question_text.clone();
         
         if let Some(options) = &question.options {
@@ -104,12 +104,12 @@ pub async fn generate_question_embeddings(
             embedding_text.push_str(explanation);
         }
         
-        // Generate embedding
+        // Generar incrustación
         match generate_embedding(&client, &ollama_url, &model, &embedding_text).await {
             Ok(response) => {
                 let pgvector = ai::embedding_to_pgvector(&response.embedding);
 
-                // Update question with embedding
+                // Actualizar pregunta con la incrustación
                 let result: Result<(i64,), sqlx::Error> = sqlx::query_as(
                     r#"
                     UPDATE question_bank
@@ -127,16 +127,16 @@ pub async fn generate_question_embeddings(
                 match result {
                     Ok(_) => {
                         processed += 1;
-                        tracing::debug!("Generated embedding for question {}", question.id);
+                        tracing::debug!("Incrustación generada para la pregunta {}", question.id);
                     }
                     Err(e) => {
                         failed += 1;
-                        tracing::error!("Failed to update embedding for question {}: {}", question.id, e);
+                        tracing::error!("Error al actualizar la incrustación para la pregunta {}: {}", question.id, e);
                     }
                 }
             }
             Err(e) => {
-                tracing::error!("Failed to generate embedding for question {}: {}", question.id, e);
+                tracing::error!("Error al generar la incrustación para la pregunta {}: {}", question.id, e);
                 failed += 1;
             }
         }
@@ -145,7 +145,7 @@ pub async fn generate_question_embeddings(
     let duration_ms = start.elapsed().as_millis() as u64;
     
     tracing::info!(
-        "Generated embeddings: {} processed, {} failed in {}ms",
+        "Incrustaciones generadas: {} procesadas, {} fallidas en {}ms",
         processed,
         failed,
         duration_ms
@@ -158,23 +158,23 @@ pub async fn generate_question_embeddings(
     }))
 }
 
-/// POST /api/question-bank/:id/embedding/regenerate - Regenerate embedding for a specific question
+/// POST /api/question-bank/:id/embedding/regenerate - Regenerar incrustación para una pregunta específica
 pub async fn regenerate_question_embedding(
     Org(org_ctx): Org,
     Path(question_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Create client that accepts invalid certificates
+    // Crear cliente que acepte certificados inválidos
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
         .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error del cliente HTTP: {}", e)))?;
     
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Get question
+    // Obtener pregunta
     let question: QuestionBank = sqlx::query_as(
         "SELECT * FROM question_bank WHERE id = $1 AND organization_id = $2"
     )
@@ -183,9 +183,9 @@ pub async fn regenerate_question_embedding(
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Question not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Pregunta no encontrada".to_string()))?;
     
-    // Generate embedding text
+    // Generar texto de la incrustación
     let mut embedding_text = question.question_text.clone();
     
     if let Some(options) = &question.options {
@@ -207,14 +207,14 @@ pub async fn regenerate_question_embedding(
         embedding_text.push_str(explanation);
     }
     
-    // Generate embedding
+    // Generar incrustación
     let response = generate_embedding(&client, &ollama_url, &model, &embedding_text)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("AI error: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error de IA: {}", e)))?;
     
     let pgvector = ai::embedding_to_pgvector(&response.embedding);
     
-    // Update question
+    // Actualizar pregunta
     sqlx::query(
         r#"
         UPDATE question_bank
@@ -232,35 +232,35 @@ pub async fn regenerate_question_embedding(
     Ok(StatusCode::OK)
 }
 
-// ==================== Semantic Search ====================
+// ==================== Búsqueda Semántica ====================
 
-/// GET /api/question-bank/semantic-search - Search questions by semantic similarity
+/// GET /api/question-bank/semantic-search - Buscar preguntas por similitud semántica
 pub async fn semantic_search(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     Query(filters): Query<SemanticSearchFilters>,
 ) -> Result<Json<Vec<SemanticSearchResult>>, (StatusCode, String)> {
-    // Create client that accepts invalid certificates
+    // Crear cliente que acepte certificados inválidos
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
         .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error del cliente HTTP: {}", e)))?;
     
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Generate embedding for query
+    // Generar incrustación para la consulta
     let embedding_response = generate_embedding(&client, &ollama_url, &model, &filters.query)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("AI error: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error de IA: {}", e)))?;
     
     let pgvector = ai::embedding_to_pgvector(&embedding_response.embedding);
     
     let limit = filters.limit.unwrap_or(20);
     let threshold = filters.threshold.unwrap_or(0.5);
     
-    // Build query with optional filters
+    // Construir consulta con filtros opcionales
     let mut query = String::from(
         r#"
         SELECT
@@ -316,7 +316,7 @@ pub async fn semantic_search(
     Ok(Json(results))
 }
 
-/// GET /api/question-bank/similar/:id - Find questions similar to a given question
+/// GET /api/question-bank/similar/:id - Encontrar preguntas similares a una pregunta dada
 pub async fn find_similar_questions(
     Org(org_ctx): Org,
     Path(question_id): Path<Uuid>,

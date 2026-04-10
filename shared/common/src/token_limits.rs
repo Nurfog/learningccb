@@ -1,5 +1,5 @@
-//! AI Token Limit Utilities
-//! Provides functions to check and enforce monthly token limits
+//! Utilidades de Límite de Tokens de IA
+//! Proporciona funciones para verificar y hacer cumplir los límites mensuales de tokens
 
 use sqlx::{PgPool, FromRow};
 use uuid::Uuid;
@@ -23,16 +23,16 @@ pub struct TokenLimitError {
     pub reset_date: DateTime<Utc>,
 }
 
-/// Verify if user has available tokens for AI operations
+/// Verificar si el usuario tiene tokens disponibles para operaciones de IA
 /// 
-/// # Arguments
-/// * `pool` - Database connection pool
-/// * `user_id` - User UUID
-/// * `estimated_tokens` - Estimated tokens for this operation (default: 1000)
+/// # Argumentos
+/// * `pool` - Pool de conexión a la base de datos
+/// * `user_id` - UUID del usuario
+/// * `estimated_tokens` - Tokens estimados para esta operación (por defecto: 1000)
 /// 
-/// # Returns
-/// * `Ok(TokenLimitCheck)` - User has available tokens
-/// * `Err(TokenLimitError)` - User exceeded limit
+/// # Retornos
+/// * `Ok(TokenLimitCheck)` - El usuario tiene tokens disponibles
+/// * `Err(TokenLimitError)` - El usuario excedió el límite
 pub async fn check_ai_token_limit(
     pool: &PgPool,
     user_id: Uuid,
@@ -46,9 +46,9 @@ pub async fn check_ai_token_limit(
     .fetch_one(pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to check token limit: {}", e);
+        tracing::error!("Error al verificar el límite de tokens: {}", e);
         TokenLimitError {
-            error: "Failed to verify token limit".to_string(),
+            error: "Error al verificar el límite de tokens".to_string(),
             monthly_limit: 0,
             used_tokens: 0,
             remaining_tokens: 0,
@@ -58,7 +58,7 @@ pub async fn check_ai_token_limit(
 
     if !result.has_available_tokens {
         tracing::warn!(
-            "User {} exceeded token limit: {}/{} (reset: {})",
+            "El usuario {} excedió el límite de tokens: {}/{} (reinicio: {})",
             user_id,
             result.used_tokens,
             result.monthly_limit,
@@ -67,7 +67,7 @@ pub async fn check_ai_token_limit(
         
         return Err(TokenLimitError {
             error: format!(
-                "Monthly AI token limit exceeded. Used: {} / Limit: {}. Reset date: {}",
+                "Límite mensual de tokens de IA excedido. Usados: {} / Límite: {}. Fecha de reinicio: {}",
                 result.used_tokens,
                 result.monthly_limit,
                 result.reset_date.format("%Y-%m-%d %H:%M UTC")
@@ -82,7 +82,7 @@ pub async fn check_ai_token_limit(
     Ok(result)
 }
 
-/// Get formatted token usage message for API responses
+/// Obtener el mensaje formateado de uso de tokens para las respuestas de la API
 pub fn format_token_limit_message(used: i64, limit: i32, reset: DateTime<Utc>) -> String {
     let percentage = (used as f64 / limit as f64 * 100.0).round();
     format!(

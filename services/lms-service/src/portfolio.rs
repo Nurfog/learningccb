@@ -19,11 +19,11 @@ pub async fn get_public_profile(
         .fetch_optional(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "User not found".to_string()))?;
+        .ok_or((StatusCode::NOT_FOUND, "Usuario no encontrado".to_string()))?;
 
     let is_public: bool = user.get("is_public_profile");
     if !is_public {
-        return Err((StatusCode::FORBIDDEN, "This profile is private".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Este perfil es privado".to_string()));
     }
 
     let badges = sqlx::query_as::<sqlx::Postgres, Badge>(
@@ -98,7 +98,7 @@ pub async fn award_badge(
     Json(payload): Json<UserBadge>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if claims.role == "student" {
-        return Err((StatusCode::FORBIDDEN, "Only admins can award badges manually".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Solo los administradores pueden otorgar insignias manualmente".to_string()));
     }
 
     sqlx::query("INSERT INTO user_badges (user_id, badge_id, awarded_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING")

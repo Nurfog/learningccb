@@ -26,18 +26,18 @@ pub async fn create_payment_preference(
     let user_id = claims.sub;
     let course_id = payload.course_id;
 
-    // 1. Get Course details
+    // 1. Obtener detalles del curso
     let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = $1")
         .bind(course_id)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::NOT_FOUND, "Course not found".into()))?;
+        .map_err(|_| (StatusCode::NOT_FOUND, "Curso no encontrado".into()))?;
 
     if course.price <= 0.0 {
-        return Err((StatusCode::BAD_REQUEST, "Course is free".into()));
+        return Err((StatusCode::BAD_REQUEST, "El curso es gratuito".into()));
     }
 
-    // 2. Create a pending transaction
+    // 2. Crear una transacción pendiente
     let transaction_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO transactions (id, organization_id, user_id, course_id, amount, currency, status)
@@ -53,7 +53,7 @@ pub async fn create_payment_preference(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Call Mercado Pago API
+    // 3. Llamar a la API de Mercado Pago
     let mp_access_token = std::env::var("MP_ACCESS_TOKEN").unwrap_or_default();
     let back_url_success = std::env::var("MP_BACK_URL_SUCCESS").unwrap_or_default();
     let back_url_failure = std::env::var("MP_BACK_URL_FAILURE").unwrap_or_default();
@@ -94,7 +94,7 @@ pub async fn create_payment_preference(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("MP Error: {}", e),
+                format!("Error de MP: {}", e),
             )
         })?;
 
@@ -102,14 +102,14 @@ pub async fn create_payment_preference(
         let err_text = mp_response.text().await.unwrap_or_default();
         return Err((
             StatusCode::BAD_GATEWAY,
-            format!("MP API Error: {}", err_text),
+            format!("Error de la API de MP: {}", err_text),
         ));
     }
 
     let mp_data: serde_json::Value = mp_response.json().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to parse MP response: {}", e),
+            format!("Error al analizar la respuesta de MP: {}", e),
         )
     })?;
 
@@ -119,7 +119,7 @@ pub async fn create_payment_preference(
         .unwrap_or_default()
         .to_string();
 
-    // Update transaction with provider reference
+    // Actualizar transacción con la referencia del proveedor
     sqlx::query("UPDATE transactions SET provider_reference = $1 WHERE id = $2")
         .bind(&preference_id)
         .bind(transaction_id)
@@ -155,7 +155,7 @@ pub async fn mercadopago_webhook(
     let payment_id = payload.data.id;
     let mp_access_token = std::env::var("MP_ACCESS_TOKEN").unwrap_or_default();
 
-    // 1. Fetch payment details from Mercado Pago to verify status
+    // 1. Obtener detalles del pago de Mercado Pago para verificar el estado
     let client = reqwest::Client::new();
     let mp_response = client
         .get(format!(
@@ -181,27 +181,27 @@ pub async fn mercadopago_webhook(
         .unwrap_or_default();
 
     if status != "approved" {
-        return Ok(StatusCode::OK); // Payment not yet approved, wait for next notification
+        return Ok(StatusCode::OK); // El pago aún no ha sido aprobado, esperar a la siguiente notificación
     }
 
-    // 2. Find transaction by external reference (transaction_id)
+    // 2. Buscar transacción por referencia externa (transaction_id)
     let transaction: Option<(Uuid, Uuid, Uuid)> = sqlx::query_as(
         "SELECT id, user_id, course_id FROM transactions WHERE id = $1 OR provider_reference = $1",
     )
-    .bind(&external_reference) // Try by external reference first
+    .bind(&external_reference) // Intentar por referencia externa primero
     .fetch_optional(&pool)
     .await
     .unwrap_or(None);
 
     if let Some((trans_id, user_id, course_id)) = transaction {
-        // Mark transaction as success
+        // Marcar transacción como exitosa
         sqlx::query("UPDATE transactions SET status = 'success', updated_at = NOW() WHERE id = $1")
             .bind(trans_id)
             .execute(&pool)
             .await
             .ok();
 
-        // Auto-enroll the user
+        // Inscribir automáticamente al usuario
         sqlx::query("INSERT INTO enrollments (id, user_id, course_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
             .bind(Uuid::new_v4())
             .bind(user_id)

@@ -13,7 +13,7 @@ use uuid::Uuid;
 pub struct LibraryBlockFilters {
     #[serde(rename = "type")]
     pub block_type: Option<String>,
-    pub tags: Option<String>, // Comma-separated list
+    pub tags: Option<String>, // Lista separada por comas
     pub search: Option<String>,
 }
 
@@ -51,7 +51,7 @@ pub async fn list_library_blocks(
     State(pool): State<PgPool>,
     Query(filters): Query<LibraryBlockFilters>,
 ) -> Result<Json<Vec<LibraryBlock>>, (StatusCode, String)> {
-    // Base query
+    // Consulta base
     let mut query = String::from("SELECT * FROM library_blocks WHERE organization_id = $1");
     let mut param_count = 1;
 
@@ -78,7 +78,7 @@ pub async fn list_library_blocks(
 
     query.push_str(" ORDER BY created_at DESC");
 
-    // Build query con bind dinámico
+    // Construir consulta con bind dinámico
     let mut sql_query = sqlx::query_as::<_, LibraryBlock>(&query).bind(org_ctx.id);
 
     if let Some(block_type) = &filters.block_type {
@@ -120,7 +120,7 @@ pub async fn get_library_block(
 
     match block {
         Some(b) => Ok(Json(b)),
-        None => Err((StatusCode::NOT_FOUND, "Block not found".to_string())),
+        None => Err((StatusCode::NOT_FOUND, "Bloque no encontrado".to_string())),
     }
 }
 
@@ -140,7 +140,7 @@ pub async fn update_library_block(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if existing.is_none() {
-        return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Bloque no encontrado".to_string()));
     }
 
     // Update dinámico basado en campos provistos
@@ -201,7 +201,7 @@ pub async fn delete_library_block(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Bloque no encontrado".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
@@ -221,7 +221,7 @@ pub async fn increment_block_usage(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Block not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Bloque no encontrado".to_string()));
     }
 
     Ok(StatusCode::OK)

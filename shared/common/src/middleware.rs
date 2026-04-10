@@ -28,7 +28,7 @@ pub async fn org_extractor_middleware(
     let token = if let Some(token_str) = auth_header.and_then(|s: &str| s.strip_prefix("Bearer ")) {
         token_str.to_string()
     } else {
-        // Check for preview_token in query string
+        // Verificar si hay preview_token en la cadena de consulta
         let query = req.uri().query().unwrap_or_default();
         let preview_token = query
             .split('&')

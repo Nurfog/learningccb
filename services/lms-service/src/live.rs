@@ -42,7 +42,7 @@ pub async fn create_meeting(
     Json(payload): Json<CreateMeetingPayload>,
 ) -> Result<Json<Meeting>, (StatusCode, String)> {
     if claims.role == "student" {
-        return Err((StatusCode::FORBIDDEN, "Only instructors can create meetings".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Solo los instructores pueden crear reuniones".to_string()));
     }
 
     let meeting_id = format!("openccb-{}", Uuid::new_v4());
@@ -76,7 +76,7 @@ pub async fn delete_meeting(
     claims: Claims,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if claims.role == "student" {
-        return Err((StatusCode::FORBIDDEN, "Only instructors can delete meetings".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Solo los instructores pueden eliminar reuniones".to_string()));
     }
 
     sqlx::query("DELETE FROM meetings WHERE id = $1 AND organization_id = $2")

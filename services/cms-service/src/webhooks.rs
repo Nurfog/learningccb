@@ -15,7 +15,7 @@ impl WebhookService {
     }
 
     pub async fn dispatch(&self, org_id: Uuid, event_type: &str, payload: &serde_json::Value) {
-        // 1. Fetch active webhooks for this org that are interested in this event
+        // 1. Obtener webhooks activos para esta org que estén interesados en este evento
         let webhooks = match sqlx::query_as::<_, Webhook>(
             "SELECT * FROM webhooks WHERE organization_id = $1 AND is_active = TRUE AND $2 = ANY(events)"
         )
@@ -25,7 +25,7 @@ impl WebhookService {
         .await {
             Ok(w) => w,
             Err(e) => {
-                tracing::error!("Failed to fetch webhooks for org {}: {}", org_id, e);
+                tracing::error!("Error al obtener los webhooks para la org {}: {}", org_id, e);
                 return;
             }
         };
@@ -44,7 +44,7 @@ impl WebhookService {
                 .header("X-OpenCCB-Event", event_type)
                 .header("X-OpenCCB-Delivery", Uuid::new_v4().to_string());
 
-            // Add signature if secret exists
+            // Añadir firma si existe el secreto
             if let Some(secret) = &webhook.secret {
                 let signature = generate_signature(secret, &payload_str);
                 request = request.header("X-OpenCCB-Signature", signature);
@@ -56,15 +56,14 @@ impl WebhookService {
             match res {
                 Ok(response) => {
                     if !response.status().is_success() {
-                        tracing::warn!(
-                            "Webhook delivery to {} (event: {}) failed with status {}",
+                            "El envío del webhook a {} (evento: {}) falló con estado {}",
                             url,
                             event_type,
                             response.status()
                         );
                     } else {
                         tracing::info!(
-                            "Successfully delivered webhook to {} (event: {})",
+                            "Webhook enviado con éxito a {} (evento: {})",
                             url,
                             event_type
                         );
@@ -72,7 +71,7 @@ impl WebhookService {
                 }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to deliver webhook to {} (event: {}): {}",
+                        "Error al enviar el webhook a {} (evento: {}): {}",
                         url,
                         event_type,
                         e

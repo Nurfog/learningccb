@@ -16,7 +16,7 @@ pub async fn get_course_dropout_risks(
     claims: Claims,
 ) -> Result<Json<Vec<DropoutRisk>>, (StatusCode, String)> {
     if claims.role == "student" {
-        return Err((StatusCode::FORBIDDEN, "Only instructors can view risk reports".to_string()));
+        return Err((StatusCode::FORBIDDEN, "Solo los instructores pueden ver informes de riesgo".to_string()));
     }
 
     calculate_risks_for_course(&pool, course_id, claims.org).await
@@ -34,7 +34,7 @@ pub async fn get_course_dropout_risks(
     .bind(claims.org)
     .fetch_all(&pool)
     .await
-    .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch risks: {}", e)))?;
+    .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los riesgos: {}", e)))?;
 
     let risks: Vec<DropoutRisk> = rows.into_iter().map(|row| {
         DropoutRisk {
@@ -106,8 +106,8 @@ pub async fn calculate_risks_for_course(
         };
 
         let reasons = vec![
-            DropoutRiskReason { metric: "performance".to_string(), value: avg_grade, description: format!("Grade: {:.0}%", avg_grade * 100.0) },
-            DropoutRiskReason { metric: "activity".to_string(), value: last_activity_count as f32, description: format!("{} actions in last week", last_activity_count) },
+            DropoutRiskReason { metric: "performance".to_string(), value: avg_grade, description: format!("Calificación: {:.0}%", avg_grade * 100.0) },
+            DropoutRiskReason { metric: "activity".to_string(), value: last_activity_count as f32, description: format!("{} acciones en la última semana", last_activity_count) },
         ];
 
         sqlx::query(

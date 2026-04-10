@@ -11,7 +11,7 @@ pub struct Course {
     pub title: String,
     pub description: Option<String>,
     pub instructor_id: Uuid,
-    pub pacing_mode: String, // "self_paced" or "instructor_led"
+    pub pacing_mode: String, // "self_paced" o "instructor_led"
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
     pub passing_percentage: i32,
@@ -121,7 +121,7 @@ pub struct GradingCategory {
     pub name: String,
     pub weight: i32, // 0-100
     pub drop_count: i32,
-    pub tipo_nota_id: Option<i32>, // Maps to idTipoNota in external MySQL system
+    pub tipo_nota_id: Option<i32>, // Se mapea con idTipoNota en el sistema MySQL externo
     pub created_at: DateTime<Utc>,
 }
 
@@ -131,7 +131,7 @@ pub struct UserGrade {
     pub user_id: Uuid,
     pub course_id: Uuid,
     pub lesson_id: Uuid,
-    pub score: f32, // 0.0 to 1.0
+    pub score: f32, // 0.0 a 1.0
     pub attempts_count: i32,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
@@ -187,7 +187,7 @@ pub struct Enrollment {
     pub user_id: Uuid,
     pub organization_id: Uuid,
     pub course_id: Uuid,
-    pub external_id: Option<i32>, // idDetalleContrato from the external system
+    pub external_id: Option<i32>, // idDetalleContrato del sistema externo
     pub enrolled_at: DateTime<Utc>,
 }
 
@@ -242,7 +242,7 @@ pub struct LtiLaunchClaims {
     #[serde(rename = "sub")]
     pub subject: String,
     #[serde(rename = "aud")]
-    pub audience: serde_json::Value, // Can be string or array
+    pub audience: serde_json::Value, // Puede ser una cadena o un array
     #[serde(rename = "exp")]
     pub expires_at: i64,
     #[serde(rename = "iat")]
@@ -363,7 +363,7 @@ pub struct Transaction {
     pub course_id: Uuid,
     pub amount: f64,
     pub currency: String,
-    pub status: String, // "pending", "success", "failure"
+    pub status: String, // "pending", "success", "failure" (pendiente, éxito, falla)
     pub provider_reference: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -377,7 +377,7 @@ pub struct User {
     pub email: String,
     pub password_hash: String,
     pub full_name: String,
-    pub role: String, // admin, instructor, student
+    pub role: String, // admin (administrador), instructor, student (estudiante)
     pub xp: i32,
     pub level: i32,
     pub avatar_url: Option<String>,
@@ -538,7 +538,7 @@ pub struct Recommendation {
     pub title: String,
     pub description: String,
     pub lesson_id: Option<Uuid>,
-    pub priority: String, // "high", "medium", "low"
+    pub priority: String, // "high", "medium", "low" (alta, media, baja)
     pub reason: String,
 }
 
@@ -596,7 +596,7 @@ pub struct AuditLog {
 }
 
 
-// Discussion Forums Models
+// Modelos de Foros de Discusión
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct DiscussionThread {
     pub id: Uuid,
@@ -633,7 +633,7 @@ pub struct DiscussionVote {
     pub organization_id: Uuid,
     pub post_id: Uuid,
     pub user_id: Uuid,
-    pub vote_type: String, // 'upvote' or 'downvote'
+    pub vote_type: String, // 'upvote' o 'downvote'
     pub created_at: DateTime<Utc>,
 }
 
@@ -646,10 +646,10 @@ pub struct DiscussionSubscription {
     pub created_at: DateTime<Utc>,
 }
 
-// Response DTOs for Discussion APIs
+// DTOs de respuesta para las APIs de Discusión
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct ThreadWithAuthor {
-    // Thread fields
+    // Campos del hilo
     pub id: Uuid,
     pub organization_id: Uuid,
     pub course_id: Uuid,
@@ -662,17 +662,17 @@ pub struct ThreadWithAuthor {
     pub view_count: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    // Author info
+    // Información del autor
     pub author_name: String,
     pub author_avatar: Option<String>,
-    // Aggregated data
+    // Datos agregados
     pub post_count: i64,
     pub has_endorsed_answer: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct PostWithAuthor {
-    // Post fields
+    // Campos de la publicación
     pub id: Uuid,
     pub organization_id: Uuid,
     pub thread_id: Uuid,
@@ -686,14 +686,14 @@ pub struct PostWithAuthor {
     // Author info
     pub author_name: String,
     pub author_avatar: Option<String>,
-    // User interaction
-    pub user_vote: Option<String>, // 'upvote', 'downvote', or null
-    // Nested replies (not from DB, populated manually)
+    // Interacción del usuario
+    pub user_vote: Option<String>, // 'upvote', 'downvote' o nulo
+    // Respuestas anidadas (no desde la BD, pobladas manualmente)
     #[sqlx(skip)]
     pub replies: Vec<PostWithAuthor>,
 }
 
-// Course Announcements
+// Anuncios del Curso
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct CourseAnnouncement {
     pub id: Uuid,
@@ -711,7 +711,7 @@ pub struct CourseAnnouncement {
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct AnnouncementWithAuthor {
-    // Announcement fields
+    // Campos del anuncio
     pub id: Uuid,
     pub organization_id: Uuid,
     pub course_id: Uuid,
@@ -728,7 +728,7 @@ pub struct AnnouncementWithAuthor {
     pub cohort_ids: Option<Vec<Uuid>>,
 }
 
-// Student Notes
+// Notas del Estudiante
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct StudentNote {
     pub id: Uuid,
@@ -744,7 +744,7 @@ pub struct SaveNotePayload {
     pub content: String,
 }
 
-// Cohorts & Groups
+// Cohortes y Grupos
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Cohort {
     pub id: Uuid,
@@ -784,7 +784,7 @@ pub struct StudentGradeReport {
     pub last_active_at: Option<DateTime<Utc>>,
 }
 
-// Peer Assessment
+// Evaluación por Pares
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct CourseSubmission {
     pub id: Uuid,
@@ -832,7 +832,7 @@ pub struct SubmissionWithReviews {
     pub average_score: Option<f64>,
 }
 
-// Content Libraries
+// Librerías de Contenido
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct LibraryBlock {
     pub id: Uuid,
@@ -894,8 +894,8 @@ pub struct DropoutRisk {
     pub course_id: Uuid,
     pub user_id: Uuid,
     pub risk_level: DropoutRiskLevel,
-    pub score: f32, // 0.0 to 1.0 (Higher means higher risk)
-    pub reasons: Option<serde_json::Value>, // e.g., ["low_grades", "inactivity"]
+    pub score: f32, // 0.0 a 1.0 (Más alto significa mayor riesgo)
+    pub reasons: Option<serde_json::Value>, // ej., ["low_grades", "inactivity"]
     pub last_calculated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -921,7 +921,7 @@ mod tests {
 
         let lesson = Lesson {
             id: lesson_id,
-            organization_id: course_id, // Use course_id as proxy for org_id in test
+            organization_id: course_id, // Usar course_id como proxi para org_id en la prueba
             module_id,
             title: "Test Lesson".to_string(),
             content_type: "activity".to_string(),
@@ -1040,7 +1040,7 @@ mod tests {
     }
 }
 
-// ==================== Advanced Grading / Rubrics ====================
+// ==================== Calificación Avanzada / Rúbricas ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Rubric {
@@ -1112,7 +1112,7 @@ pub struct AssessmentScore {
     pub feedback: Option<String>,
     pub created_at: DateTime<Utc>,
 }
-// ==================== Learning Sequences / Dependencies ====================
+// ==================== Secuencias de Aprendizaje / Dependencias ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct LessonDependency {
@@ -1124,7 +1124,7 @@ pub struct LessonDependency {
     pub created_at: DateTime<Utc>,
 }
 
-// ==================== Live Learning (Meetings) ====================
+// ==================== Aprendizaje en Vivo (Reuniones) ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Meeting {
@@ -1134,7 +1134,7 @@ pub struct Meeting {
     pub title: String,
     pub description: Option<String>,
     pub provider: String, // "jitsi" | "bbb"
-    pub meeting_id: String, // Room name or external ID
+    pub meeting_id: String, // Nombre de la sala o ID externo
     pub start_at: DateTime<Utc>,
     pub duration_minutes: i32,
     pub join_url: Option<String>,
@@ -1143,7 +1143,7 @@ pub struct Meeting {
     pub updated_at: DateTime<Utc>,
 }
 
-// ==================== Student portfolio & Badges ====================
+// ==================== Portafolio del Estudiante e Insignias ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct Badge {
@@ -1177,7 +1177,7 @@ pub struct PublicProfile {
     pub completed_courses_count: i64,
 }
 
-// ==================== Test Templates ====================
+// ==================== Plantillas de Examen ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 #[sqlx(type_name = "course_level", rename_all = "lowercase")]
@@ -1206,15 +1206,15 @@ pub enum CourseType {
 #[sqlx(type_name = "test_type")]
 pub enum TestType {
     #[sqlx(rename = "CA")]
-    CA,   // Continuous Assessment
+    CA,   // Evaluación Continua
     #[sqlx(rename = "MWT")]
-    MWT,  // Midterm Written Test
+    MWT,  // Examen Escrito de Mitad de Ciclo
     #[sqlx(rename = "MOT")]
-    MOT,  // Midterm Oral Test
+    MOT,  // Examen Oral de Mitad de Ciclo
     #[sqlx(rename = "FOT")]
-    FOT,  // Final Oral Test
+    FOT,  // Examen Oral Final
     #[sqlx(rename = "FWT")]
-    FWT,  // Final Written Test
+    FWT,  // Examen Escrito Final
 }
 
 impl std::fmt::Display for TestType {
@@ -1233,17 +1233,17 @@ impl std::fmt::Display for TestType {
 pub struct TestTemplate {
     pub id: Uuid,
     pub organization_id: Uuid,
-    pub mysql_course_id: Option<i32>, // Reference to imported MySQL course
+    pub mysql_course_id: Option<i32>, // Referencia al curso de MySQL importado
     pub name: String,
     pub description: Option<String>,
-    pub level: Option<CourseLevel>, // Deprecated: use mysql_course_id instead
-    pub course_type: Option<CourseType>, // Deprecated: use mysql_course_id instead
+    pub level: Option<CourseLevel>, // Depreciado: use mysql_course_id en su lugar
+    pub course_type: Option<CourseType>, // Depreciado: use mysql_course_id en su lugar
     pub test_type: TestType,
     pub duration_minutes: i32,
-    pub passing_score: i32, // 0-100 percentage
+    pub passing_score: i32, // Porcentaje 0-100
     pub total_points: i32,
     pub instructions: Option<String>,
-    pub template_data: serde_json::Value, // Complete test structure with sections and questions
+    pub template_data: serde_json::Value, // Estructura completa del examen con secciones y preguntas
     pub tags: Option<Vec<String>>,
     pub is_active: bool,
     pub usage_count: i32,
@@ -1261,7 +1261,7 @@ pub struct TestTemplateSection {
     pub section_order: i32,
     pub points: i32,
     pub instructions: Option<String>,
-    pub section_data: Option<serde_json::Value>, // Section-specific configuration
+    pub section_data: Option<serde_json::Value>, // Configuración específica de la sección
     pub created_at: DateTime<Utc>,
 }
 
@@ -1277,7 +1277,7 @@ pub struct TestTemplateQuestion {
     pub correct_answer: Option<serde_json::Value>, // Can be index, array of indices, or text
     pub explanation: Option<String>,
     pub points: i32,
-    pub metadata: Option<serde_json::Value>, // Additional question metadata
+    pub metadata: Option<serde_json::Value>, // Metadatos adicionales de la pregunta
     pub created_at: DateTime<Utc>,
 }
 
@@ -1285,9 +1285,9 @@ pub struct TestTemplateQuestion {
 pub struct CreateTestTemplatePayload {
     pub name: String,
     pub description: Option<String>,
-    pub mysql_course_id: Option<i32>, // Reference to imported MySQL course (preferred)
-    pub level: Option<CourseLevel>, // Fallback if mysql_course_id not provided
-    pub course_type: Option<CourseType>, // Fallback if mysql_course_id not provided
+    pub mysql_course_id: Option<i32>, // Referencia al curso de MySQL importado (preferido)
+    pub level: Option<CourseLevel>, // Alternativa si no se proporciona mysql_course_id
+    pub course_type: Option<CourseType>, // Alternativa si no se proporciona mysql_course_id
     pub test_type: TestType,
     pub duration_minutes: i32,
     pub passing_score: i32,
@@ -1327,7 +1327,7 @@ pub struct ApplyTemplatePayload {
     pub grading_category_id: Option<Uuid>,
 }
 
-// ==================== Question Bank ====================
+// ==================== Banco de Preguntas ====================
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "question_bank_type")]
@@ -1389,7 +1389,7 @@ pub struct QuestionBank {
     pub points: i32,
     pub difficulty: Option<String>,
     pub tags: Option<Vec<String>>,
-    pub skill_assessed: Option<String>, // reading, listening, speaking, writing
+    pub skill_assessed: Option<String>, // lectura (reading), escucha (listening), habla (speaking), escritura (writing)
     pub source: Option<String>,
     pub source_metadata: Option<serde_json::Value>,
     pub imported_mysql_id: Option<i32>,
@@ -1401,10 +1401,10 @@ pub struct QuestionBank {
     pub created_by: Option<Uuid>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
-    pub embedding: Option<String>, // PGVector embedding for semantic search
+    pub embedding: Option<String>, // Embedding de PGVector para búsqueda semántica
     pub embedding_updated_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub source_asset_id: Option<Uuid>, // audio/video asset that originated this RAG chunk
-    pub unit_number: Option<i32>,      // syllabus unit number from ZIP folder structure
+    pub source_asset_id: Option<Uuid>, // Activo de audio/video que originó este fragmento RAG
+    pub unit_number: Option<i32>,      // Número de unidad del sílabo desde la estructura de carpetas ZIP
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1419,7 +1419,7 @@ pub struct CreateQuestionBankPayload {
     pub tags: Option<Vec<String>>,
     pub media_url: Option<String>,
     pub media_type: Option<String>,
-    pub skill_assessed: Option<String>, // reading, listening, speaking, writing
+    pub skill_assessed: Option<String>, // lectura (reading), escucha (listening), habla (speaking), escritura (writing)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1453,8 +1453,8 @@ pub struct QuestionBankFilters {
     pub has_audio: Option<bool>,
 }
 
-// ==================== AUDIO RESPONSE MODELS ====================
-// For speaking practice exercises with AI + Teacher evaluation
+// ==================== MODELOS DE RESPUESTA DE AUDIO ====================
+// Para ejercicios de práctica de habla con evaluación de IA + Profesor
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]

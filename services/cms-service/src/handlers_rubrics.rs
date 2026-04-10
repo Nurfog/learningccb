@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-// ==================== Payload Structs ====================
+// ==================== Estructuras de Carga Útil (Payload) ====================
 
 #[derive(Debug, Deserialize)]
 pub struct CreateRubricPayload {
@@ -97,9 +97,9 @@ pub struct CriterionWithLevels {
     pub levels: Vec<RubricLevel>,
 }
 
-// ==================== Rubric Management ====================
+// ==================== Gestión de Rúbricas ====================
 
-/// Create a new rubric
+/// Crear una nueva rúbrica
 pub async fn create_rubric(
     Org(org_ctx): Org,
     claims: Claims,
@@ -126,7 +126,7 @@ pub async fn create_rubric(
     Ok(Json(rubric))
 }
 
-/// List all rubrics for a course
+/// Listar todas las rúbricas de un curso
 pub async fn list_course_rubrics(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -149,7 +149,7 @@ pub async fn list_course_rubrics(
     Ok(Json(rubrics))
 }
 
-/// Get a rubric with all criteria and levels
+/// Obtener una rúbrica con todos los criterios y niveles
 pub async fn get_rubric_with_details(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -168,7 +168,7 @@ pub async fn get_rubric_with_details(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Rubric not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Rúbrica no encontrada".to_string()))?;
 
     // Get criteria
     let criteria: Vec<RubricCriterion> = sqlx::query_as(
@@ -209,7 +209,7 @@ pub async fn get_rubric_with_details(
     }))
 }
 
-/// Update a rubric
+/// Actualizar una rúbrica
 pub async fn update_rubric(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -233,12 +233,12 @@ pub async fn update_rubric(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Rubric not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Rúbrica no encontrada".to_string()))?;
 
     Ok(Json(rubric))
 }
 
-/// Delete a rubric
+/// Eliminar una rúbrica
 pub async fn delete_rubric(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -252,15 +252,15 @@ pub async fn delete_rubric(
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Rubric not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Rúbrica no encontrada".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Criterion Management ====================
+// ==================== Gestión de Criterios ====================
 
-/// Add a criterion to a rubric
+/// Añadir un criterio a una rúbrica
 pub async fn create_criterion(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -274,7 +274,7 @@ pub async fn create_criterion(
         .fetch_optional(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Rubric not found".to_string()))?;
+        .ok_or((StatusCode::NOT_FOUND, "Rúbrica no encontrada".to_string()))?;
 
     let position = payload.position.unwrap_or(0);
 
@@ -311,7 +311,7 @@ pub async fn create_criterion(
     Ok(Json(criterion))
 }
 
-/// Update a criterion
+/// Actualizar un criterio
 pub async fn update_criterion(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -339,7 +339,7 @@ pub async fn update_criterion(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Criterion not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Criterio no encontrado".to_string()))?;
 
     // Update rubric total_points if max_points changed
     if payload.max_points.is_some() {
@@ -360,7 +360,7 @@ pub async fn update_criterion(
     Ok(Json(criterion))
 }
 
-/// Delete a criterion
+/// Eliminar un criterio
 pub async fn delete_criterion(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -372,7 +372,7 @@ pub async fn delete_criterion(
         .fetch_optional(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Criterion not found".to_string()))?;
+        .ok_or((StatusCode::NOT_FOUND, "Criterio no encontrado".to_string()))?;
     
     let rubric_id: Uuid = criterion_row.get("rubric_id");
 
@@ -390,7 +390,7 @@ pub async fn delete_criterion(
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Criterion not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Criterio no encontrado".to_string()));
     }
 
     // Update rubric total_points
@@ -410,9 +410,9 @@ pub async fn delete_criterion(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Performance Level Management ====================
+// ==================== Gestión de Niveles de Desempeño ====================
 
-/// Add a performance level to a criterion
+/// Añadir un nivel de desempeño a un criterio
 pub async fn create_level(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -426,7 +426,7 @@ pub async fn create_level(
         .fetch_optional(&pool)
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or((StatusCode::NOT_FOUND, "Criterion not found".to_string()))?;
+        .ok_or((StatusCode::NOT_FOUND, "Criterio no encontrado".to_string()))?;
 
     let position = payload.position.unwrap_or(0);
 
@@ -449,7 +449,7 @@ pub async fn create_level(
     Ok(Json(level))
 }
 
-/// Update a performance level
+/// Actualizar un nivel de desempeño
 pub async fn update_level(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -480,12 +480,12 @@ pub async fn update_level(
     .fetch_optional(&pool)
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Level not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Nivel no encontrado".to_string()))?;
 
     Ok(Json(level))
 }
 
-/// Delete a performance level
+/// Eliminar un nivel de desempeño
 pub async fn delete_level(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
@@ -508,15 +508,15 @@ pub async fn delete_level(
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Level not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Nivel no encontrado".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Lesson-Rubric Association ====================
+// ==================== Asociación Lección-Rúbrica ====================
 
-/// Assign a rubric to a lesson
+/// Asignar una rúbrica a una lección
 pub async fn assign_rubric_to_lesson(
     Org(_org_ctx): Org,
     State(pool): State<PgPool>,
@@ -539,7 +539,7 @@ pub async fn assign_rubric_to_lesson(
     Ok(Json(lesson_rubric))
 }
 
-/// Unassign a rubric from a lesson
+/// Desasignar una rúbrica de una lección
 pub async fn unassign_rubric_from_lesson(
     Org(_org_ctx): Org,
     State(pool): State<PgPool>,
@@ -553,13 +553,13 @@ pub async fn unassign_rubric_from_lesson(
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Lesson rubric not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Vínculo lección-rúbrica no encontrado".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Get rubrics assigned to a lesson
+/// Obtener rúbricas asignadas a una lección
 pub async fn get_lesson_rubrics(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,

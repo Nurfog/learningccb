@@ -10,7 +10,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ========== Request/Response DTOs ==========
+// ========== DTOs de Solicitud/Respuesta ==========
 
 #[derive(Deserialize)]
 pub struct CreateAnnouncementPayload {
@@ -27,7 +27,7 @@ pub struct UpdateAnnouncementPayload {
     pub is_pinned: Option<bool>,
 }
 
-// ========== HANDLERS ==========
+// ========== MANEJADORES ==========
 
 pub async fn list_announcements(
     Org(org_ctx): Org,
@@ -50,7 +50,7 @@ pub async fn list_announcements(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Attach cohort_ids to each announcement
+    // Adjuntar cohort_ids a cada anuncio
     for a in &mut announcements {
         let cohorts: Vec<(Uuid,)> = sqlx::query_as(
             "SELECT cohort_id FROM announcement_cohorts WHERE announcement_id = $1"
@@ -75,17 +75,17 @@ pub async fn create_announcement(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateAnnouncementPayload>,
 ) -> Result<Json<CourseAnnouncement>, (StatusCode, String)> {
-    // Check if user is instructor or admin
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can create announcements".to_string(),
+            "Solo los instructores pueden crear anuncios".to_string(),
         ));
     }
 
@@ -94,7 +94,7 @@ pub async fn create_announcement(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 1. Create announcement
+    // 1. Crear anuncio
     let mut announcement = sqlx::query_as::<_, CourseAnnouncement>(
         "INSERT INTO course_announcements (organization_id, course_id, author_id, title, content, is_pinned)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -110,7 +110,7 @@ pub async fn create_announcement(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 2. Link cohorts if provided
+    // 2. Vincular cohortes si se proporcionan
     if let Some(ref cohort_ids) = payload.cohort_ids {
         for cohort_id in cohort_ids {
             sqlx::query(
@@ -129,7 +129,7 @@ pub async fn create_announcement(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Get target students for notifications
+    // 3. Obtener estudiantes objetivo para notificaciones
     let enrolled_students = if let Some(ref cohort_ids) = payload.cohort_ids {
         if !cohort_ids.is_empty() {
             sqlx::query_as::<_, (Uuid,)>(
@@ -144,7 +144,7 @@ pub async fn create_announcement(
             .fetch_all(&pool)
             .await
         } else {
-            // Fallback to everyone if empty list provided (though UI should prevent)
+            // Recurrir a todos si se proporciona una lista vacía (aunque la interfaz debería evitarlo)
             sqlx::query_as::<_, (Uuid,)>(
                 "SELECT user_id FROM enrollments WHERE course_id = $1 AND user_id != $2",
             )
@@ -154,7 +154,7 @@ pub async fn create_announcement(
             .await
         }
     } else {
-        // No segment provided -> everyone in the course
+        // No se proporcionó segmento -> todos en el curso
         sqlx::query_as::<_, (Uuid,)>(
             "SELECT user_id FROM enrollments WHERE course_id = $1 AND user_id != $2",
         )
@@ -165,7 +165,7 @@ pub async fn create_announcement(
     }
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Create notification for each enrolled student
+    // Crear notificación para cada estudiante inscrito
     for (student_id,) in enrolled_students {
         let notification_title = format!("Nuevo Anuncio: {}", payload.title);
         let notification_message = if payload.content.len() > 100 {
@@ -198,21 +198,21 @@ pub async fn update_announcement(
     State(pool): State<PgPool>,
     Json(payload): Json<UpdateAnnouncementPayload>,
 ) -> Result<Json<CourseAnnouncement>, (StatusCode, String)> {
-    // Check if user is instructor or admin
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can update announcements".to_string(),
+            "Solo los instructores pueden actualizar anuncios".to_string(),
         ));
     }
 
-    // Get current announcement to verify ownership
+    // Obtener el anuncio actual para verificar la propiedad
     let current = sqlx::query_as::<_, CourseAnnouncement>(
         "SELECT * FROM course_announcements WHERE id = $1 AND organization_id = $2",
     )
@@ -220,7 +220,7 @@ pub async fn update_announcement(
     .bind(org_ctx.id)
     .fetch_one(&pool)
     .await
-    .map_err(|_| (StatusCode::NOT_FOUND, "Announcement not found".to_string()))?;
+    .map_err(|_| (StatusCode::NOT_FOUND, "Anuncio no encontrado".to_string()))?;
 
     let title = payload.title.unwrap_or(current.title);
     let content = payload.content.unwrap_or(current.content);
@@ -250,17 +250,17 @@ pub async fn delete_announcement(
     Path(announcement_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Check if user is instructor or admin
+    // Verificar si el usuario es instructor o administrador
     let user = sqlx::query_as::<_, (String,)>("SELECT role FROM users WHERE id = $1")
         .bind(claims.sub)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "User not found".to_string()))?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Usuario no encontrado".to_string()))?;
 
     if user.0 != "instructor" && user.0 != "admin" {
         return Err((
             StatusCode::FORBIDDEN,
-            "Only instructors can delete announcements".to_string(),
+            "Solo los instructores pueden eliminar anuncios".to_string(),
         ));
     }
 

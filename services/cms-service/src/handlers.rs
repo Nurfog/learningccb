@@ -54,12 +54,12 @@ fn get_ai_url(var_base: &str, default: &str) -> String {
     }
 }
 
-/// Simple token counter (approximate: 1 token ≈ 4 characters in English)
+/// Contador de tokens simple (aproximado: 1 token ≈ 4 caracteres en inglés)
 fn count_tokens(text: &str) -> i32 {
-    // More accurate for English: split by whitespace and count words * 1.3
-    // For Spanish/other languages, character-based is more reliable
+    // Más preciso para inglés: dividir por espacios en blanco y contar palabras * 1.3
+    // Para el español y otros idiomas, el conteo basado en caracteres es más fiable
     let char_count = text.len();
-    // OpenAI estimate: ~4 chars per token
+    // Estimación de OpenAI: ~4 caracteres por token
     ((char_count as f64) / 4.0).ceil() as i32
 }
 
@@ -73,7 +73,7 @@ pub async fn publish_course(
     let is_super_admin = claims.role == "admin"
         && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
-    // 1. Fetch Course (Super admin can publish any course, others only their org's)
+    // 1. Obtener curso (El superadministrador puede publicar cualquier curso, otros solo los de su organización)
     let course = if is_super_admin {
         sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = $1")
             .bind(id)
@@ -88,14 +88,14 @@ pub async fn publish_course(
     }
     .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Determine target organization
+    // Determinar la organización de destino
     let target_org_id = if is_super_admin && payload_params.target_organization_id.is_some() {
         payload_params.target_organization_id.unwrap()
     } else {
         course.organization_id
     };
 
-    // 2. Fetch Modules
+    // 2. Obtener módulos
     let modules =
         sqlx::query_as::<_, Module>("SELECT * FROM modules WHERE course_id = $1 ORDER BY position")
             .bind(id)
@@ -105,7 +105,7 @@ pub async fn publish_course(
 
     let mut pub_modules = Vec::new();
 
-    // 3. Fetch Grading Categories
+    // 3. Obtener categorías de calificación
     let grading_categories = sqlx::query_as::<_, common::models::GradingCategory>(
         "SELECT * FROM grading_categories WHERE course_id = $1",
     )
@@ -114,7 +114,7 @@ pub async fn publish_course(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 4. Fetch Target Organization
+    // 4. Obtener organización de destino
     let organization = sqlx::query_as::<_, common::models::Organization>(
         "SELECT * FROM organizations WHERE id = $1",
     )
@@ -123,7 +123,7 @@ pub async fn publish_course(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 5. Fetch Lessons for each Module
+    // 5. Obtener lecciones de cada módulo
     for module in modules {
         let lessons = sqlx::query_as::<_, Lesson>(
             "SELECT * FROM lessons WHERE module_id = $1 ORDER BY position",
@@ -136,11 +136,11 @@ pub async fn publish_course(
         pub_modules.push(PublishedModule { module, lessons });
     }
 
-    // Overwrite the course's organization_id in the payload if publishing to a different org
+    // Sobrescribir el organization_id del curso en la carga útil si se publica en una organización diferente
     let mut course_for_pub = course.clone();
     course_for_pub.organization_id = target_org_id;
 
-    // 5. Fetch Course Team
+    // 5. Obtener equipo del curso
     let instructors = sqlx::query_as::<_, CourseInstructor>(
         "SELECT ci.*, u.email, u.full_name FROM course_instructors ci 
          JOIN users u ON ci.user_id = u.id 
@@ -160,7 +160,7 @@ pub async fn publish_course(
         dependencies: None,
     };
 
-    // 4. Send to LMS
+    // 4. Enviar al LMS
     let lms_url =
         env::var("LMS_INTERNAL_URL").unwrap_or_else(|_| "http://experience:3002".to_string());
     let client = reqwest::Client::new();
@@ -170,12 +170,12 @@ pub async fn publish_course(
         .send()
         .await
         .map_err(|e| {
-            tracing::error!("Failed to reach LMS service: {}", e);
+            tracing::error!("Error al contactar con el servicio LMS: {}", e);
             StatusCode::BAD_GATEWAY
         })?;
 
     if !res.status().is_success() {
-        tracing::error!("LMS ingestion failed with status: {}", res.status());
+        tracing::error!("La ingesta del LMS falló con estado: {}", res.status());
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
@@ -190,7 +190,7 @@ pub async fn publish_course(
     )
     .await;
 
-    // 5. Trigger Webhook
+    // 5. Ejecutar webhook
     let webhook_service = WebhookService::new(pool.clone());
     webhook_service
         .dispatch(
@@ -225,7 +225,7 @@ pub struct GradingPayload {
     pub name: String,
     pub weight: i32,
     pub drop_count: i32,
-    pub tipo_nota_id: Option<i32>, // idTipoNota from tiponota table
+    pub tipo_nota_id: Option<i32>, // idTipoNota de la tabla tiponota
 }
 
 #[derive(Deserialize)]
@@ -258,11 +258,11 @@ pub async fn create_course(
         .unwrap_or("self_paced");
 
     let mut tx = pool.begin().await.map_err(|e| {
-        tracing::error!("Failed to start transaction: {}", e);
+        tracing::error!("Error al iniciar la transacción: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // Set session context for the DB trigger to find
+    // Establecer el contexto de la sesión para que el disparador de la BD lo encuentre
     let ip = headers
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
@@ -284,7 +284,7 @@ pub async fn create_course(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to set session context: {}", e);
+        tracing::error!("Error al establecer el contexto de la sesión: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -320,12 +320,12 @@ pub async fn create_course(
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| {
-            tracing::error!("Create course failed: {}", e);
+            tracing::error!("Error al crear el curso: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     tx.commit().await.map_err(|e| {
-        tracing::error!("Failed to commit transaction: {}", e);
+        tracing::error!("Error al confirmar la transacción: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -339,7 +339,7 @@ pub async fn get_courses(
     let is_super_admin = claims.role == "admin"
         && claims.org == Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
 
-    // Check if user is a SAM student
+    // Comprobar si el usuario es un estudiante de SAM
     let is_sam_student: bool = sqlx::query_scalar(
         "SELECT COALESCE(is_sam_student, false) FROM users WHERE id = $1"
     )
@@ -349,18 +349,18 @@ pub async fn get_courses(
     .unwrap_or(false);
 
     let courses: Vec<Course> = if is_super_admin {
-        // Super admin sees all courses
+        // El superadministrador ve todos los cursos
         sqlx::query_as::<_, Course>("SELECT * FROM courses")
             .fetch_all(&pool)
             .await
     } else if claims.role == "admin" || claims.role == "instructor" {
-        // Admins and instructors see all courses in their organization
+        // Los administradores e instructores ven todos los cursos de su organización
         sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE organization_id = $1")
             .bind(org_ctx.id)
             .fetch_all(&pool)
             .await
     } else if is_sam_student {
-        // SAM students only see courses they are enrolled in via SAM
+        // Los estudiantes de SAM solo ven los cursos en los que están matriculados a través de SAM
         sqlx::query_as::<_, Course>(
             "SELECT c.* FROM courses c
              INNER JOIN sam_course_assignments sca ON c.id = sca.course_id
@@ -373,7 +373,7 @@ pub async fn get_courses(
         .fetch_all(&pool)
         .await
     } else {
-        // Non-SAM students see NO courses (empty list)
+        // Los estudiantes que no son de SAM no ven NINGÚN curso (lista vacía)
         return Ok(Json(Vec::new()));
     }
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -464,7 +464,7 @@ pub async fn update_course(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Set auditing context
+    // Establecer contexto de auditoría
     sqlx::query(
         "SELECT set_config('app.current_user_id', $1, true), set_config('app.org_id', $2, true)",
     )
@@ -562,7 +562,7 @@ pub async fn create_module(
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| {
-            tracing::error!("Create module failed: {}", e);
+            tracing::error!("Error al crear el módulo: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -678,7 +678,7 @@ pub async fn create_lesson(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
-        tracing::error!("Create lesson failed: {}", e);
+        tracing::error!("Error al crear la lección: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -686,7 +686,7 @@ pub async fn create_lesson(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Trigger auto-transcription if it's a video or audio lesson with a URL
+    // Activar la autotranscripción si es una lección de vídeo o audio con una URL
     if (content_type == "video" || content_type == "audio") && content_url.is_some() {
         trigger_transcription(pool, lesson.id).await;
     }
@@ -695,16 +695,16 @@ pub async fn create_lesson(
 }
 
 async fn trigger_transcription(pool: PgPool, lesson_id: Uuid) {
-    // Set status to queued
+    // Establecer estado como en cola
     let _ = sqlx::query("UPDATE lessons SET transcription_status = 'queued' WHERE id = $1")
         .bind(lesson_id)
         .execute(&pool)
         .await;
 
-    // Spawn background task
+    // Iniciar tarea en segundo plano
     tokio::spawn(async move {
         if let Err(e) = run_transcription_task(pool, lesson_id).await {
-            tracing::error!("Auto-transcription task failed for lesson {}: {}", lesson_id, e);
+            tracing::error!("La tarea de autotranscripción falló para la lección {}: {}", lesson_id, e);
         }
     });
 }
@@ -715,8 +715,8 @@ pub async fn process_transcription(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Lesson>, StatusCode> {
-    tracing::info!("Received transcription request for lesson: {}", id);
-    // 1. Fetch lesson
+    tracing::info!("Recibida solicitud de transcripción para la lección: {}", id);
+    // 1. Obtener lección
     let lesson =
         sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
             .bind(id)
@@ -724,7 +724,7 @@ pub async fn process_transcription(
             .fetch_one(&pool)
             .await
             .map_err(|e| {
-                tracing::error!("Lesson fetch failed: {}", e);
+                tracing::error!("Error al obtener la lección: {}", e);
                 StatusCode::NOT_FOUND
             })?;
 
@@ -734,13 +734,13 @@ pub async fn process_transcription(
 
     let url = lesson.content_url.ok_or(StatusCode::BAD_REQUEST)?;
 
-    // 2. Validate media is reachable (local /assets or absolute URL)
+    // 2. Validar que el medio sea accesible (assets locales o URL absoluta)
     if read_lesson_media_bytes(&url).await.is_err() {
-        tracing::error!("Media not accessible for transcription: {}", url);
+        tracing::error!("Medio no accesible para transcripción: {}", url);
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    // 3. Set status to queued
+    // 3. Establecer estado como en cola
     let updated_lesson = sqlx::query_as::<_, Lesson>(
         "UPDATE lessons SET transcription_status = 'queued' WHERE id = $1 RETURNING *",
     )
@@ -748,7 +748,7 @@ pub async fn process_transcription(
     .fetch_one(&pool)
     .await
     .map_err(|e| {
-        tracing::error!("Database update failed (queued): {}", e);
+        tracing::error!("Error en la actualización de la base de datos (en cola): {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -763,11 +763,11 @@ pub async fn process_transcription(
     )
     .await;
 
-    // 4. Spawn background task
+    // 4. Iniciar tarea en segundo plano
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         if let Err(e) = run_transcription_task(pool_clone, id).await {
-            tracing::error!("Transcription task failed for lesson {}: {}", id, e);
+            tracing::error!("La tarea de transcripción falló para la lección {}: {}", id, e);
         }
     });
 

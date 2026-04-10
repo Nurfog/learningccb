@@ -150,7 +150,7 @@ pub struct ApiDoc;
     tag = "Cursos",
     request_body = IngestCourseRequest,
     responses(
-        (status = 200, description = "Curso ingestada exitosamente"),
+        (status = 200, description = "Curso ingestado exitosamente"),
         (status = 400, description = "Payload inválido o JSON mal formado"),
         (status = 500, description = "Error interno del servidor"),
     )
@@ -227,11 +227,11 @@ pub fn get_course_outline() {}
 ///
 /// | id | nombre | descripcion |
 /// |----|--------|-------------|
-/// | 1 | CA | Continuous Assessment |
-/// | 2 | MWT | Midterm Written Test |
-/// | 3 | MOT | Midterm Oral Test |
-/// | 5 | FOT | Final Oral Test |
-/// | 6 | FWT | Final written test |
+/// | 1 | CA | Evaluación Continua (Continuous Assessment) |
+/// | 2 | MWT | Examen Escrito de Mitad de Ciclo (Midterm Written Test) |
+/// | 3 | MOT | Examen Oral de Mitad de Ciclo (Midterm Oral Test) |
+/// | 5 | FOT | Examen Oral Final (Final Oral Test) |
+/// | 6 | FWT | Examen Escrito Final (Final Written Test) |
 #[utoipa::path(
     get,
     path = "/tipo-nota",

@@ -9,15 +9,15 @@ use sqlx::PgPool;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-// ==================== Token Usage Tracking ====================
+// ==================== Seguimiento del Uso de Tokens ====================
 
-/// GET /api/admin/token-usage - Get token usage statistics for all users
+/// GET /api/admin/token-usage - Obtener estadísticas de uso de tokens para todos los usuarios
 pub async fn get_token_usage(
     _org_ctx: Org,
     _claims: Claims,
     State(pool): State<PgPool>,
 ) -> Result<Json<TokenUsageResponse>, (StatusCode, String)> {
-    // Get user token usage from database
+    // Obtener el uso de tokens de usuario de la base de datos
     let usage: Vec<TokenUsageRecord> = sqlx::query_as(
         r#"
         SELECT
@@ -38,9 +38,9 @@ pub async fn get_token_usage(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso: {}", e)))?;
 
-    // Calculate stats
+    // Calcular estadísticas
     let total_tokens: i64 = usage.iter().map(|u| u.total_tokens).sum();
     let total_input: i64 = usage.iter().map(|u| u.input_tokens).sum();
     let total_output: i64 = usage.iter().map(|u| u.output_tokens).sum();
@@ -48,7 +48,7 @@ pub async fn get_token_usage(
     let top_user_tokens = usage.first().map(|u| u.total_tokens).unwrap_or(0);
     let avg_tokens = if !usage.is_empty() { total_tokens / usage.len() as i64 } else { 0 };
 
-    // Estimate cost (using approximate OpenAI pricing: $0.001/1K input, $0.003/1K output)
+    // Estimación de coste (usando precios aproximados de OpenAI: $0.001/1K entrada, $0.003/1K salida)
     let estimated_cost = (total_input as f64 * 0.000001) + (total_output as f64 * 0.000003);
 
     let stats = TokenUsageStats {
@@ -61,7 +61,7 @@ pub async fn get_token_usage(
         avg_tokens_per_user: avg_tokens,
     };
 
-    // Convert to response format with USD estimation per user
+    // Convertir al formato de respuesta con estimación en USD por usuario
     let usage_with_cost: Vec<TokenUsage> = usage
         .into_iter()
         .map(|u| {
@@ -78,7 +78,7 @@ pub async fn get_token_usage(
                 last_used: u
                     .last_used
                     .map(|ts| ts.to_rfc3339())
-                    .unwrap_or_else(|| "Never".to_string()),
+                    .unwrap_or_else(|| "Nunca".to_string()),
                 estimated_cost_usd: user_cost,
             }
         })
@@ -90,14 +90,14 @@ pub async fn get_token_usage(
     }))
 }
 
-/// GET /api/admin/ai-usage-dashboard - Comprehensive AI usage dashboard data
+/// GET /api/admin/ai-usage-dashboard - Datos exhaustivos del panel de uso de IA
 pub async fn get_ai_usage_dashboard(
     Org(org_ctx): Org,
     _claims: Claims,
     State(pool): State<PgPool>,
     Query(filters): Query<DashboardFilters>,
 ) -> Result<Json<DashboardResponse>, (StatusCode, String)> {
-    // Get daily usage for charts
+    // Obtener el uso diario para gráficos
     let daily_usage: Vec<DailyUsage> = sqlx::query_as(
         r#"
         SELECT
@@ -121,9 +121,9 @@ pub async fn get_ai_usage_dashboard(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch daily usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso diario: {}", e)))?;
 
-    // Get usage by endpoint/feature
+    // Obtener uso por punto de conexión/función
     let by_endpoint: Vec<UsageByEndpoint> = sqlx::query_as(
         r#"
         SELECT
@@ -147,9 +147,9 @@ pub async fn get_ai_usage_dashboard(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch endpoint usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso del punto de conexión: {}", e)))?;
 
-    // Get top users
+    // Obtener usuarios principales
     let top_users: Vec<TopUserUsage> = sqlx::query_as(
         r#"
         SELECT
@@ -177,18 +177,18 @@ pub async fn get_ai_usage_dashboard(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch top users: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los usuarios principales: {}", e)))?;
 
-    // Calculate summary stats
+    // Calcular estadísticas de resumen
     let total_tokens: i64 = daily_usage.iter().map(|d| d.total_tokens).sum();
     let total_input: i64 = daily_usage.iter().map(|d| d.input_tokens).sum();
     let total_output: i64 = daily_usage.iter().map(|d| d.output_tokens).sum();
     let total_cost: f64 = daily_usage.iter().map(|d| d.cost_usd).sum();
     let total_requests: i64 = daily_usage.iter().map(|d| d.requests).sum();
 
-    // Calculate savings estimate (vs OpenAI GPT-4 pricing)
+    // Calcular estimación de ahorros (frente a precios de OpenAI GPT-4)
     // GPT-4: ~$0.03/1K input, ~$0.06/1K output
-    // Our local AI: ~$0.001/1K input, ~$0.003/1K output
+    // Nuestra IA local: ~$0.001/1K entrada, ~$0.003/1K salida
     let openai_equivalent_cost = (total_input as f64 * 0.00003) + (total_output as f64 * 0.00006);
     let savings_vs_openai = openai_equivalent_cost - total_cost;
 
@@ -208,7 +208,7 @@ pub async fn get_ai_usage_dashboard(
     }))
 }
 
-/// GET /api/admin/ai-usage/logs - Get detailed AI usage logs with pagination
+/// GET /api/admin/ai-usage/logs - Obtener logs detallados de uso de IA con paginación
 pub async fn get_ai_usage_logs(
     Org(org_ctx): Org,
     _claims: Claims,
@@ -254,9 +254,9 @@ pub async fn get_ai_usage_logs(
     .bind(offset as i64)
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch logs: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los logs: {}", e)))?;
 
-    // Get total count for pagination
+    // Obtener el conteo total para la paginación
     let count: (i64,) = sqlx::query_as(
         r#"
         SELECT COUNT(*) FROM ai_usage_logs
@@ -272,7 +272,7 @@ pub async fn get_ai_usage_logs(
     .bind(filters.user_id.clone())
     .fetch_one(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to count logs: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al contar los logs: {}", e)))?;
 
     Ok(Json(UsageLogsResponse {
         logs,
@@ -427,15 +427,15 @@ pub struct TokenUsageResponse {
     pub stats: TokenUsageStats,
 }
 
-// ==================== Global AI Usage Dashboard (Root Only) ====================
+// ==================== Panel de Uso Global de IA (Solo Root) ====================
 
-/// GET /api/admin/ai-usage/global - Global AI usage dashboard for root users
+/// GET /api/admin/ai-usage/global - Panel de uso global de IA para usuarios root
 pub async fn get_ai_usage_global(
     _claims: Claims,
     State(pool): State<PgPool>,
     Query(filters): Query<DashboardFilters>,
 ) -> Result<Json<GlobalAiUsageResponse>, (StatusCode, String)> {
-    // Get daily usage for charts (all organizations)
+    // Obtener el uso diario para gráficos (todas las organizaciones)
     let daily_usage: Vec<DailyUsage> = sqlx::query_as(
         r#"
         SELECT
@@ -457,9 +457,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch daily usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso diario: {}", e)))?;
 
-    // Get usage by endpoint/feature
+    // Obtener uso por punto de conexión/función
     let by_endpoint: Vec<UsageByEndpoint> = sqlx::query_as(
         r#"
         SELECT
@@ -481,9 +481,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch endpoint usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso del punto de conexión: {}", e)))?;
 
-    // Get usage by organization
+    // Obtener uso por organización
     let by_organization: Vec<UsageByOrganization> = sqlx::query_as(
         r#"
         SELECT
@@ -507,9 +507,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch org usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso de la organización: {}", e)))?;
 
-    // Get top users across all organizations
+    // Obtener usuarios principales en todas las organizaciones
     let top_users: Vec<TopUserUsage> = sqlx::query_as(
         r#"
         SELECT
@@ -537,9 +537,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch top users: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener los usuarios principales: {}", e)))?;
 
-    // Get usage by request type (for pie chart)
+    // Obtener uso por tipo de solicitud (para gráfico circular)
     let by_request_type: Vec<UsageByRequestType> = sqlx::query_as(
         r#"
         SELECT
@@ -558,18 +558,18 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch request type usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso del tipo de solicitud: {}", e)))?;
 
-    // Calculate summary stats
+    // Calcular estadísticas de resumen
     let total_tokens: i64 = daily_usage.iter().map(|d| d.total_tokens).sum();
     let total_input: i64 = daily_usage.iter().map(|d| d.input_tokens).sum();
     let total_output: i64 = daily_usage.iter().map(|d| d.output_tokens).sum();
     let total_cost: f64 = daily_usage.iter().map(|d| d.cost_usd).sum();
     let total_requests: i64 = daily_usage.iter().map(|d| d.requests).sum();
 
-    // Calculate savings estimate (vs OpenAI GPT-4 pricing)
+    // Calcular estimación de ahorros (frente a precios de OpenAI GPT-4)
     // GPT-4: ~$0.03/1K input, ~$0.06/1K output
-    // Our local AI: ~$0.001/1K input, ~$0.003/1K output
+    // Nuestra IA local: ~$0.001/1K entrada, ~$0.003/1K salida
     let openai_equivalent_cost = (total_input as f64 * 0.00003) + (total_output as f64 * 0.00006);
     let savings_vs_openai = openai_equivalent_cost - total_cost;
     let savings_percentage = if openai_equivalent_cost > 0.0 {
@@ -578,7 +578,7 @@ pub async fn get_ai_usage_global(
         0.0
     };
 
-    // Get total active users count
+    // Obtener el conteo total de usuarios activos
     let total_active_users: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT au.user_id)
@@ -591,9 +591,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_one(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to count users: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al contar los usuarios: {}", e)))?;
 
-    // Calculate student-specific usage (chat interactions)
+    // Calcular uso específico por estudiante (interacciones de chat)
     let student_chat_usage: Vec<StudentChatUsage> = sqlx::query_as(
         r#"
         SELECT
@@ -621,9 +621,9 @@ pub async fn get_ai_usage_global(
     .bind(filters.end_date.clone())
     .fetch_all(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch student chat usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso de chat de estudiantes: {}", e)))?;
 
-    // Calculate student chat totals
+    // Calcular totales de chat de estudiantes
     let total_student_chat_tokens: i64 = student_chat_usage.iter().map(|s| s.total_tokens).sum();
     let total_student_chat_cost: f64 = student_chat_usage.iter().map(|s| s.cost_usd).sum();
     let total_student_chat_requests: i64 = student_chat_usage.iter().map(|s| s.chat_requests).sum();
@@ -722,7 +722,7 @@ pub struct GlobalAiUsageResponse {
     pub student_chat_usage: Vec<StudentChatUsage>,
 }
 
-// ==================== User Token Limits ====================
+// ==================== Límites de Tokens de Usuario ====================
 
 #[derive(Debug, Deserialize)]
 pub struct SetTokenLimitPayload {
@@ -730,7 +730,7 @@ pub struct SetTokenLimitPayload {
     pub token_limit_reset_day: Option<i32>,
 }
 
-/// PUT /admin/users/{user_id}/token-limit - Set monthly token limit for user
+/// PUT /admin/users/{user_id}/token-limit - Establecer límite mensual de tokens para el usuario
 pub async fn set_user_token_limit(
     _org: Org,
     _claims: Claims,
@@ -738,7 +738,7 @@ pub async fn set_user_token_limit(
     Path(user_id): Path<Uuid>,
     Json(payload): Json<SetTokenLimitPayload>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Validate reset day (1-28 to avoid month-end issues)
+    // Validar día de reinicio (1-28 para evitar problemas a fin de mes)
     let reset_day = payload.token_limit_reset_day.unwrap_or(1).clamp(1, 28);
     
     sqlx::query(
@@ -755,19 +755,19 @@ pub async fn set_user_token_limit(
     .bind(user_id)
     .execute(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to set limit: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al establecer el límite: {}", e)))?;
     
     Ok(StatusCode::OK)
 }
 
-/// GET /admin/users/{user_id}/token-usage - Get token usage for specific user
+/// GET /admin/users/{user_id}/token-usage - Obtener uso de tokens para un usuario específico
 pub async fn get_user_token_usage(
     _org: Org,
     _claims: Claims,
     State(pool): State<PgPool>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<UserTokenUsageDetail>, (StatusCode, String)> {
-    // Get current month usage
+    // Obtener uso del mes actual
     let usage: UserTokenUsageDetail = sqlx::query_as(
         r#"
         SELECT
@@ -790,12 +790,12 @@ pub async fn get_user_token_usage(
     .bind(user_id)
     .fetch_one(&pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch usage: {}", e)))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener el uso: {}", e)))?;
     
     Ok(Json(usage))
 }
 
-/// GET /admin/users/{user_id}/token-limit/check - Check if user has available tokens
+/// GET /admin/users/{user_id}/token-limit/check - Comprobar si el usuario tiene tokens disponibles
 pub async fn check_user_token_limit(
     _org: Org,
     _claims: Claims,

@@ -25,12 +25,12 @@ use serde_json::json;
 use base64::Engine;
 use tokio::time::{Duration, timeout};
 
-// Simple token counter (approximate: 1 token ≈ 4 characters in English, ~3-5 in Spanish)
+// Contador simple de tokens (aproximado: 1 token ≈ 4 caracteres en inglés, ~3-5 en español)
 fn count_tokens(text: &str) -> i32 {
     if text.is_empty() {
         return 0;
     }
-    // Spanish average: ~4 chars per token
+    // Promedio en español: ~4 caracteres por token
     (text.len() / 4) as i32 + 1
 }
 
@@ -58,8 +58,8 @@ pub async fn get_me(
     }))
 }
 
-/// Get course language configuration
-/// Returns whether the course uses auto-detection or fixed language
+/// Obtener configuración de idioma del curso
+/// Devuelve si el curso usa autodetección o un idioma fijo
 pub async fn get_course_language_config(
     State(pool): State<PgPool>,
     Path(course_id): Path<Uuid>,
@@ -77,7 +77,7 @@ pub async fn get_course_language_config(
     .fetch_optional(&pool)
     .await
     .map_err(|e| {
-        tracing::error!("Error fetching course language config: {}", e);
+        tracing::error!("Error al obtener la configuración de idioma del curso: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -233,7 +233,7 @@ pub async fn bulk_enroll_users(
     let mut already_enrolled_emails = Vec::new();
 
     for email in payload.emails {
-        // 1. Find user by email in the organization
+        // 1. Buscar usuario por email en la organización
         let user: Option<User> = sqlx::query_as("SELECT * FROM users WHERE email = $1")
             .bind(&email)
             .fetch_optional(&pool)
@@ -242,7 +242,7 @@ pub async fn bulk_enroll_users(
 
         match user {
             Some(user) => {
-                // 2. Check if already enrolled
+                // 2. Comprobar si ya está inscrito
                 let is_enrolled: bool = sqlx::query_scalar(
                     "SELECT EXISTS(SELECT 1 FROM enrollments WHERE user_id = $1 AND course_id = $2)"
                 )
@@ -257,13 +257,13 @@ pub async fn bulk_enroll_users(
                     continue;
                 }
 
-                // 3. Enroll (Admin enrollment ignores payment)
+                // 3. Inscribir (La inscripción por administrador ignora el pago)
                 let mut tx = pool
                     .begin()
                     .await
                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-                // Set session context for audit
+                // Establecer contexto de sesión para auditoría
                 crate::db_util::set_session_context(
                     &mut tx,
                     Some(claims.sub),
@@ -311,10 +311,10 @@ pub async fn export_course_grades(
     Path(course_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     if claims.role != "admin" && claims.role != "instructor" {
-        return Err((StatusCode::FORBIDDEN, "Unauthorized".to_string()));
+        return Err((StatusCode::FORBIDDEN, "No autorizado".to_string()));
     }
 
-    // 1. Get Categories
+    // 1. Obtener categorías
     #[derive(sqlx::FromRow)]
     struct Cat { id: Uuid, name: String }
     let categories: Vec<Cat> = sqlx::query_as(
@@ -325,7 +325,7 @@ pub async fn export_course_grades(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 2. Get Student general data
+    // 2. Obtener datos generales de los estudiantes
     #[derive(sqlx::FromRow)]
     struct StudentRow {
         id: Uuid,
@@ -358,7 +358,7 @@ pub async fn export_course_grades(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Get detailed grades per user/category
+    // 3. Obtener calificaciones detalladas por usuario/categoría
     #[derive(sqlx::FromRow)]
     struct UserCategoryGrade {
         user_id: Uuid,
@@ -383,7 +383,7 @@ pub async fn export_course_grades(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 4. Build CSV
+    // 4. Construir CSV
     let mut csv = "Name,Email,Cohort,Progress,Overall Score".to_string();
     for cat in &categories {
         csv.push_str(&format!(",{}", cat.name));
@@ -426,7 +426,7 @@ pub async fn export_course_grades(
         .map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Response building failed".to_string(),
+                "Error al construir la respuesta".to_string(),
             )
         })?
         .into_response())
@@ -446,10 +446,10 @@ pub async fn enroll_user(
     let course_id = Uuid::parse_str(course_id_str).map_err(|_| StatusCode::BAD_REQUEST)?;
     let user_id = claims.sub;
 
-    // Optional: ID from the external system (idDetalleContrato)
+    // Opcional: ID del sistema externo (idDetalleContrato)
     let external_id: Option<i32> = payload.get("external_id").and_then(|v| v.as_i64()).map(|v| v as i32);
 
-    // 1. Check if course exists and get its price
+    // 1. Comprobar si el curso existe y obtener su precio
     let course_info: (f64, String) =
         sqlx::query_as("SELECT price, currency FROM courses WHERE id = $1")
             .bind(course_id)
@@ -457,7 +457,7 @@ pub async fn enroll_user(
             .await
             .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // 2. If it's a paid course, check for a successful transaction
+    // 2. Si es un curso de pago, comprobar si hay una transacción exitosa
     if course_info.0 > 0.0 {
         let has_paid: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM transactions WHERE user_id = $1 AND course_id = $2 AND status = 'success')"
@@ -507,11 +507,11 @@ pub async fn enroll_user(
         .fetch_one(&mut *tx)
         .await
         .map_err(|e: sqlx::Error| {
-            tracing::error!("Enrollment failed: {}", e);
+            tracing::error!("La inscripción falló: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // If an external_id was provided, persist it on the enrollment now
+    // Si se proporcionó un external_id, persistirlo en la inscripción ahora
     if let Some(ext_id) = external_id {
         sqlx::query("UPDATE enrollments SET external_id = $1 WHERE id = $2")
             .bind(ext_id)
@@ -519,7 +519,7 @@ pub async fn enroll_user(
             .execute(&mut *tx)
             .await
             .map_err(|e: sqlx::Error| {
-                tracing::error!("Failed to set external_id on enrollment: {}", e);
+                tracing::error!("Error al establecer el external_id en la inscripción: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
     }
@@ -528,7 +528,7 @@ pub async fn enroll_user(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Dispatch Webhook
+    // Enviar Webhook
     let webhook_service = common::webhooks::WebhookService::new(pool.clone());
     webhook_service
         .dispatch(
@@ -606,7 +606,7 @@ pub async fn register(
             .to_string()
     });
 
-    // Use provided organization name or Default Organization
+    // Usar nombre de organización proporcionado u Organización por Defecto
     let mut tx = pool
         .begin()
         .await
@@ -695,7 +695,7 @@ pub async fn login(
     let token = create_jwt(user.id, user.organization_id, "student").map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "JWT generation failed".into(),
+            "Error al generar el JWT".into(),
         )
     })?;
 
@@ -761,7 +761,7 @@ pub async fn ingest_course(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 1. Upsert Organization
+    // 1. Insertar o actualizar (Upsert) Organización
     let org_id = payload.course.organization_id;
     sqlx::query(
         "INSERT INTO organizations (id, name, domain, logo_url, primary_color, secondary_color, certificate_template, created_at, updated_at)
@@ -791,7 +791,7 @@ pub async fn ingest_course(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Upsert Course
+    // 2. Insertar o actualizar (Upsert) Curso
     sqlx::query(
         "INSERT INTO courses (id, title, description, instructor_id, start_date, end_date, passing_percentage, certificate_template, updated_at, organization_id, pacing_mode, price, currency)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -825,11 +825,11 @@ pub async fn ingest_course(
     .execute(&mut *tx)
     .await
     .map_err(|e: sqlx::Error| {
-        tracing::error!("Failed to upsert course during ingestion: {}", e);
+        tracing::error!("Error al realizar el upsert del curso durante la ingesta: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Clear existing grading categories, modules and lessons (cascading handles lessons/categories)
+    // 2. Limpiar categorías de calificación, módulos y lecciones existentes (la cascada maneja lecciones/categorías)
     sqlx::query("DELETE FROM grading_categories WHERE course_id = $1")
         .bind(payload.course.id)
         .execute(&mut *tx)
@@ -848,7 +848,7 @@ pub async fn ingest_course(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 3. Insert Grading Categories
+    // 3. Insertar categorías de calificación
     for cat in payload.grading_categories {
         sqlx::query(
             "INSERT INTO grading_categories (id, course_id, name, weight, drop_count, created_at, organization_id)
@@ -866,7 +866,7 @@ pub async fn ingest_course(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
-    // 4. Insert Instructors
+    // 4. Insertar instructores
     if let Some(instructors) = payload.instructors {
         for instructor in instructors {
             sqlx::query(
@@ -882,13 +882,13 @@ pub async fn ingest_course(
             .execute(&mut *tx)
             .await
             .map_err(|e: sqlx::Error| {
-                tracing::error!("Failed to insert instructor: {}", e);
+                tracing::error!("Error al insertar el instructor: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
         }
     }
 
-    // 4. Insert Modules and Lessons
+    // 4. Insertar módulos y lecciones
     for pub_module in &payload.modules {
         sqlx::query(
             "INSERT INTO modules (id, course_id, title, position, created_at, organization_id)
@@ -932,7 +932,7 @@ pub async fn ingest_course(
             .execute(&mut *tx)
             .await
             .map_err(|e: sqlx::Error| {
-                tracing::error!("Failed to insert lesson: {}", e);
+                tracing::error!("Error al insertar la lección: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
         }
@@ -942,15 +942,15 @@ pub async fn ingest_course(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 5. Background Ingestion of Knowledge Base
-    // We do this after commit to ensure lesson IDs are persistent
+    // 5. Ingesta en segundo plano de la base de conocimientos
+    // Hacemos esto después del commit para asegurar que los IDs de las lecciones sean persistentes
     for pub_module in &payload.modules {
         for lesson in &pub_module.lessons {
             let block_content = extract_block_content(&lesson.metadata);
             if !block_content.trim().is_empty() {
                 let _ = ingest_lesson_knowledge(&pool, org_id, lesson.id, &block_content).await;
             }
-            // Also ingest summary as a high-relevance chunk
+            // También ingerir el resumen como un fragmento de alta relevancia
             if let Some(summary) = &lesson.summary {
                 let _ = ingest_lesson_knowledge(&pool, org_id, lesson.id, summary).await;
             }
@@ -973,7 +973,7 @@ pub async fn get_course_outline(
         org_ctx.id
     );
 
-    // If it's a preview token, ensure it's for the correct course
+    // Si es un token de vista previa, asegurar que es para el curso correcto
     if claims.token_type.as_deref() == Some("preview") {
         if claims.course_id != Some(id) {
             tracing::warn!(
@@ -988,7 +988,7 @@ pub async fn get_course_outline(
             id
         );
     }
-    // 1. Fetch Course
+    // 1. Obtener curso
     let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = $1")
         .bind(id)
         .fetch_one(&pool)
@@ -1000,7 +1000,7 @@ pub async fn get_course_outline(
 
     tracing::info!("get_course_outline: course found, title='{}'", course.title);
 
-    // 2. Fetch Modules
+    // 2. Obtener módulos
     let modules =
         sqlx::query_as::<_, Module>("SELECT * FROM modules WHERE course_id = $1 ORDER BY position")
             .bind(id)
@@ -1013,7 +1013,7 @@ pub async fn get_course_outline(
 
     tracing::info!("get_course_outline: found {} modules", modules.len());
 
-    // 3. Fetch Organization
+    // 3. Obtener organización
     let organization = sqlx::query_as::<_, common::models::Organization>(
         "SELECT * FROM organizations WHERE id = $1",
     )
@@ -1034,7 +1034,7 @@ pub async fn get_course_outline(
         organization.name
     );
 
-    // 4. Fetch Grading Categories
+    // 4. Obtener categorías de calificación
     let grading_categories = sqlx::query_as::<_, common::models::GradingCategory>(
         "SELECT * FROM grading_categories WHERE course_id = $1 ORDER BY created_at",
     )
@@ -1046,7 +1046,7 @@ pub async fn get_course_outline(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 5. Fetch Lessons
+    // 5. Obtener lecciones
     let mut pub_modules = Vec::new();
     for module in modules {
         let lessons = sqlx::query_as::<_, Lesson>(
@@ -1067,7 +1067,7 @@ pub async fn get_course_outline(
         pub_modules.push(common::models::PublishedModule { module, lessons });
     }
 
-    // 6. Fetch all dependencies for this course
+    // 6. Obtener todas las dependencias para este curso
     let dependencies: Vec<LessonDependency> = sqlx::query_as(
         r#"
         SELECT ld.* 
@@ -1085,7 +1085,7 @@ pub async fn get_course_outline(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 7. Fetch Course Team
+    // 7. Obtener equipo del curso
     let instructors = sqlx::query_as::<_, common::models::CourseInstructor>(
         "SELECT ci.*, u.email, u.full_name FROM course_instructors ci 
          JOIN users u ON ci.user_id = u.id 
@@ -1118,13 +1118,13 @@ pub async fn get_lesson_content(
         claims.sub
     );
 
-    // 1. Check for preview token override
+    // 1. Comprobar anulación por token de vista previa
     let is_preview = claims.token_type.as_deref() == Some("preview");
 
     let lesson = if is_preview {
         tracing::info!("get_lesson_content: Using preview token for lesson {}", id);
-        // Ensure the preview token is for the correct course (if we want to be strict)
-        // or just fetch the lesson and verify it belongs to the same org.
+        // Asegurar que el token de vista previa sea para el curso correcto (si queremos ser estrictos)
+        // o simplemente obtener la lección y verificar que pertenece a la misma organización.
         sqlx::query_as::<_, Lesson>(
             "SELECT l.* FROM lessons l 
              JOIN modules m ON l.module_id = m.id 
@@ -1167,11 +1167,11 @@ pub async fn get_lesson_content(
         }
     };
 
-    // 2. Enforce Prerequisites (Skip for previews)
+    // 2. Aplicar prerrequisitos (Omitir para vistas previas)
     if is_preview {
         return Ok(Json(lesson));
     }
-    // We check if there are any prerequisites that the user hasn't completed yet.
+    // Comprobamos si hay prerrequisitos que el usuario aún no haya completado.
     #[derive(sqlx::FromRow)]
     struct UnmetDep { 
         prereq_title: String, 
@@ -1269,12 +1269,12 @@ pub async fn submit_lesson_score(
         Some(org_ctx.id),
         ip,
         ua,
-        Some("SYSTEM_EVENT".to_string()),
+        Some("EVENTO_DEL_SISTEMA".to_string()),
     )
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 1. Get lesson attempt rules
+    // 1. Obtener reglas de intentos de la lección
     let max_attempts: Option<Option<i32>> =
         sqlx::query_scalar("SELECT max_attempts FROM lessons WHERE id = $1")
             .bind(payload.lesson_id)
@@ -1287,7 +1287,7 @@ pub async fn submit_lesson_score(
     }
     let max_attempts = max_attempts.flatten();
 
-    // 2. Check existing grade/attempts
+    // 2. Comprobar calificación/intentos existentes
     let existing_attempts: Option<i32> = sqlx::query_scalar("SELECT attempts_count FROM user_grades WHERE user_id = $1 AND lesson_id = $2 AND organization_id = $3")
         .bind(payload.user_id)
         .bind(payload.lesson_id)
@@ -1307,7 +1307,7 @@ pub async fn submit_lesson_score(
         }
     }
 
-    // 3. Upsert with automated DB logic (XP, Badges)
+    // 3. Upsert con lógica de BD automatizada (XP, insignias)
     let grade = sqlx::query_as::<_, common::models::UserGrade>(
         "SELECT * FROM fn_upsert_user_grade($1, $2, $3, $4, $5, $6)",
     )
@@ -1321,9 +1321,9 @@ pub async fn submit_lesson_score(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3.1 Synchronize with external MySQL if available
+    // 3.1 Sincronizar con MySQL externo si está disponible
     if let Some(mysql_pool) = mysql_pool {
-        // Fetch the external_id (idDetalleContrato) from the enrollment record
+        // Obtener el external_id (idDetalleContrato) del registro de inscripción
         let external_id: Option<i32> = sqlx::query_scalar(
             "SELECT external_id FROM enrollments WHERE user_id = $1 AND course_id = $2"
         )
@@ -1337,11 +1337,11 @@ pub async fn submit_lesson_score(
         if let Some(id_detalle_contrato) = external_id {
             let table = env::var("EXTERNAL_TABLE_GRADES").unwrap_or_else(|_| "notas".to_string());
 
-            // The external MySQL table uses the exact same 0-100 scale.
+            // La tabla MySQL externa usa exactamente la misma escala 0-100.
             let nota = payload.score.round() as i32;
 
-            // Resolve idTipoNota from the lesson's grading category (tipo_nota_id),
-            // falling back to the EXTERNAL_ID_TIPO_NOTA env var.
+            // Resolver idTipoNota desde la categoría de calificación de la lección (tipo_nota_id),
+            // recurriendo a la variable de entorno EXTERNAL_ID_TIPO_NOTA.
             let tipo_nota_from_category: Option<i32> = sqlx::query_scalar(
                 "SELECT gc.tipo_nota_id FROM grading_categories gc \
                  JOIN lessons l ON l.grading_category_id = gc.id \
@@ -1357,7 +1357,7 @@ pub async fn submit_lesson_score(
                 .or_else(|| {
                     env::var("EXTERNAL_ID_TIPO_NOTA").ok().and_then(|v| v.parse().ok())
                 })
-                .unwrap_or(1); // Default: CA (Continuous Assessment)
+                .unwrap_or(1); // Por defecto: CA (Evaluación Continua)
 
             let query = format!(
                 "INSERT INTO {} (idDetalleContrato, FechaIngresoNota, idTipoNota, Nota, Activo) VALUES (?, NOW(), ?, ?, 1)",
@@ -1371,11 +1371,11 @@ pub async fn submit_lesson_score(
                 .execute(&mysql_pool)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to sync grade to external MySQL (notas): {}", e);
+                    tracing::error!("Error al sincronizar la calificación con MySQL externo (notas): {}", e);
                 });
         } else {
             tracing::warn!(
-                "No external_id found for enrollment (user_id={}, course_id={}). Grade not synced to MySQL.",
+                "No se encontró external_id para la inscripción (user_id={}, course_id={}). Calificación no sincronizada con MySQL.",
                 payload.user_id,
                 payload.course_id
             );
@@ -1386,7 +1386,7 @@ pub async fn submit_lesson_score(
         .await
         .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 4. Dispatch Webhooks
+    // 4. Enviar Webhooks
     let webhook_service = common::webhooks::WebhookService::new(pool.clone());
 
     // lesson.completed
@@ -1403,7 +1403,7 @@ pub async fn submit_lesson_score(
         )
         .await;
 
-    // Detect course completion logic
+    // Lógica de detección de finalización de curso
     let total_lessons: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM lessons WHERE module_id IN (SELECT id FROM modules WHERE course_id = $1)")
         .bind(payload.course_id)
         .fetch_one(&pool).await.unwrap_or(0);
@@ -1493,7 +1493,7 @@ pub async fn get_leaderboard(
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| {
-        tracing::error!("Failed to fetch leaderboard: {}", e);
+        tracing::error!("Error al obtener la tabla de clasificación: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -1549,7 +1549,7 @@ pub async fn get_course_grades(
     .fetch_all(&pool)
     .await
     .map_err(|e: sqlx::Error| {
-        tracing::error!("Failed to fetch course grades: {}", e);
+        tracing::error!("Error al obtener las calificaciones del curso: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
@@ -1583,7 +1583,7 @@ pub async fn get_course_analytics(
     Path(course_id): Path<Uuid>,
     Query(filter): Query<AnalyticsFilter>,
 ) -> Result<Json<CourseAnalytics>, (StatusCode, String)> {
-    // 1. Total Enrollments
+    // 1. Inscripciones totales
     let total_enrollments: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(*) 
@@ -1602,7 +1602,7 @@ pub async fn get_course_analytics(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 2. Average Course Score (Overall)
+    // 2. Puntaje promedio del curso (General)
     let average_score: Option<f32> = sqlx::query_scalar(
         r#"
         SELECT AVG(score)::float4 
@@ -1621,8 +1621,8 @@ pub async fn get_course_analytics(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Per-Lesson Analytics
-    // Note: We cast AVG to float4 for PostgreSQL compatibility
+    // 3. Analítica por lección
+    // Nota: Convertimos AVG a float4 para compatibilidad con PostgreSQL
     let rows = sqlx::query(
         r#"
         SELECT 
@@ -1673,7 +1673,7 @@ pub async fn get_student_progress_stats(
 ) -> Result<Json<common::models::ProgressStats>, (StatusCode, String)> {
     let user_id = claims.sub;
 
-    // 1. Total Lessons
+    // 1. Lecciones totales
     let total_lessons: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM lessons WHERE organization_id = $1 AND module_id IN (SELECT id FROM modules WHERE course_id = $2)"
     )
@@ -1683,7 +1683,7 @@ pub async fn get_student_progress_stats(
     .await
     .unwrap_or(0);
 
-    // 2. Completed Lessons
+    // 2. Lecciones completadas
     let completed_lessons: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_grades WHERE user_id = $1 AND course_id = $2 AND organization_id = $3",
     )
@@ -1694,7 +1694,7 @@ pub async fn get_student_progress_stats(
     .await
     .unwrap_or(0);
 
-    // 3. Daily Progress (Last 30 days)
+    // 3. Progreso diario (Últimos 30 días)
     let daily_completions = sqlx::query_as::<_, common::models::DailyProgress>(
         r#"
         SELECT 
@@ -1714,7 +1714,7 @@ pub async fn get_student_progress_stats(
     .await
     .unwrap_or_default();
 
-    // 4. Prediction Logic
+    // 4. Lógica de predicción
     let first_entry: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
         "SELECT MIN(created_at) FROM user_grades WHERE user_id = $1 AND course_id = $2"
     )
@@ -1759,7 +1759,7 @@ pub async fn get_advanced_analytics(
     State(pool): State<PgPool>,
     Path(course_id): Path<Uuid>,
 ) -> Result<Json<common::models::AdvancedAnalytics>, StatusCode> {
-    // 1. Cohort Analysis using DB function
+    // 1. Análisis de cohorte usando función de BD
     let cohort_data = sqlx::query_as::<_, common::models::CohortData>(
         "SELECT period, student_count as count, completion_rate FROM fn_get_cohort_analytics($1, $2)",
     )
@@ -1772,7 +1772,7 @@ pub async fn get_advanced_analytics(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Retention Analysis using DB function
+    // 2. Análisis de retención usando función de BD
     let retention_data = sqlx::query_as::<_, common::models::RetentionData>(
         "SELECT lesson_id, lesson_title, student_count, completion_rate FROM fn_get_retention_data($1, $2)",
     )
@@ -1911,7 +1911,7 @@ pub async fn check_deadlines_and_notify(pool: PgPool) {
     .await;
 
     if let Err(e) = result {
-        tracing::error!("Failed to run deadline notifications: {}", e);
+        tracing::error!("Error al ejecutar las notificaciones de fecha límite: {}", e);
     }
 }
 
@@ -1923,7 +1923,7 @@ pub async fn toggle_bookmark(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let user_id = claims.sub;
 
-    // 1. Get course_id from lesson
+    // 1. Obtener course_id de la lección
     let course_id: Uuid = sqlx::query_scalar(
         "SELECT m.course_id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE l.id = $1"
     )
@@ -1932,7 +1932,7 @@ pub async fn toggle_bookmark(
     .await
     .map_err(|_| (StatusCode::NOT_FOUND, "Lección no encontrada".to_string()))?;
 
-    // 2. Check if already bookmarked
+    // 2. Comprobar si ya está marcado como favorito
     let existing_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM user_bookmarks WHERE user_id = $1 AND lesson_id = $2"
     )
@@ -1943,7 +1943,7 @@ pub async fn toggle_bookmark(
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if let Some(id) = existing_id {
-        // Remove bookmark
+        // Eliminar marcador
         sqlx::query("DELETE FROM user_bookmarks WHERE id = $1")
             .bind(id)
             .execute(&pool)
@@ -1951,7 +1951,7 @@ pub async fn toggle_bookmark(
             .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         Ok(StatusCode::NO_CONTENT)
     } else {
-        // Add bookmark
+        // Añadir marcador
         sqlx::query(
             "INSERT INTO user_bookmarks (organization_id, user_id, course_id, lesson_id) VALUES ($1, $2, $3, $4)"
         )
@@ -2041,7 +2041,7 @@ pub async fn get_recommendations(
 
     let user_id = claims.sub;
 
-    // 1. Fetch performance data (recent grades)
+    // 1. Obtener datos de desempeño (calificaciones recientes)
     let grades: Vec<common::models::UserGrade> = sqlx::query_as::<_, common::models::UserGrade>(
         "SELECT * FROM user_grades WHERE user_id = $1 AND course_id = $2 ORDER BY created_at DESC LIMIT 10"
     )
@@ -2051,7 +2051,7 @@ pub async fn get_recommendations(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 2. Fetch lesson metadata (titles and tags) for context
+    // 2. Obtener metadatos de la lección (títulos y etiquetas) para contexto
     #[derive(sqlx::FromRow)]
     struct LessonContext {
         id: Uuid,
@@ -2059,10 +2059,10 @@ pub async fn get_recommendations(
         metadata: Option<sqlx::types::Json<serde_json::Value>>,
     }
 
-    // We need to join with modules to filter by course_id because lessons table doesn't always have course_id in all schemas (it references module)
-    // But the current query uses `WHERE course_id = $1`. Let's assume the schema is correct or update the query if needed.
-    // Based on previous context, lessons table has `module_id`. It might not have `course_id` directly unless denormalized.
-    // However, the existing code I'm replacing used `FROM lessons WHERE course_id = $1`. If that worked, I'll keep it.
+    // Necesitamos unir con módulos para filtrar por course_id porque la tabla de lecciones no siempre tiene course_id en todos los esquemas (hace referencia al módulo)
+    // Pero la consulta actual usa `WHERE course_id = $1`. Asumiremos que el esquema es correcto o actualizaremos la consulta si es necesario.
+    // Basado en el contexto anterior, la tabla de lecciones tiene `module_id`. Podría no tener `course_id` directamente a menos que esté desnormalizada.
+    // Sin embargo, el código existente que estoy modificando usaba `WHERE course_id = $1`. Si eso funcionaba, lo mantendré.
     // Wait, the previous `get_recommendations` used: `SELECT id, title FROM lessons WHERE course_id = $1`.
     // Let's verify schema. If `course_id` exists on lessons, good. If not, it might error.
     // Given the migration 20260115000001_add_org_to_all_tables.sql might have added some fields, but `course_id` is usually on modules.
@@ -2083,9 +2083,9 @@ pub async fn get_recommendations(
     .await
     .map_err(|e: sqlx::Error| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. Prepare AI context with Skills Analysis
+    // 3. Preparar contexto de IA con Análisis de Habilidades
     use std::collections::HashMap;
-    let mut skill_scores: HashMap<String, (f32, i32)> = HashMap::new(); // Tag -> (Total Score, Count)
+    let mut skill_scores: HashMap<String, (f32, i32)> = HashMap::new(); // Etiqueta -> (Puntaje Total, Conteo)
 
     let mut performance_summary = String::new();
     for grade in &grades {
@@ -2133,9 +2133,9 @@ pub async fn get_recommendations(
         performance_summary.push_str(&skills_summary);
     }
 
-    // 4. Call Ollama
+    // 4. Llamar a Ollama
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
-    // Keep AI requests below proxy timeout so we can return fallback JSON instead of 504.
+    // Mantener las solicitudes de IA por debajo del tiempo de espera del proxy para que podamos devolver un JSON de respaldo en lugar de un 504.
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(45))
@@ -2222,7 +2222,7 @@ pub async fn evaluate_audio_response(
     State(pool): State<PgPool>,
     Json(payload): Json<AudioGradingPayload>,
 ) -> Result<Json<AudioGradingResponse>, (StatusCode, String)> {
-    // Check token limit before proceeding (estimate 1500 tokens for audio evaluation)
+    // Comprobar el límite de tokens antes de continuar (se estiman 1500 tokens para la evaluación de audio)
     if let Err(_) = common::token_limits::check_ai_token_limit(&pool, claims.sub, 1500).await {
         return Err((StatusCode::TOO_MANY_REQUESTS, "Token limit exceeded".to_string()));
     }
@@ -2375,7 +2375,7 @@ pub async fn evaluate_audio_file(
     .await
     .map_err(|_| (StatusCode::NOT_FOUND, "Lesson not found".into()))?;
 
-    // 1. Send to Whisper
+    // 1. Enviar a Whisper
     let whisper_url =
         env::var("LOCAL_WHISPER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let client = reqwest::Client::new();
@@ -2402,7 +2402,7 @@ pub async fn evaluate_audio_file(
 
     if !response.status().is_success() {
         let err_body = response.text().await.unwrap_or_default();
-        tracing::error!("Whisper error: {}", err_body);
+        tracing::error!("Error de Whisper: {}", err_body);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Error de la API de Whisper: {}", err_body),
@@ -2439,7 +2439,7 @@ pub async fn evaluate_audio_file(
             .collect()
     };
 
-    // 2. Perform AI Grading
+    // 2. Realizar calificación por IA
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let (url, auth_header, model) = if provider == "local" {
         let base_url =
@@ -2512,12 +2512,12 @@ pub async fn evaluate_audio_file(
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Mapping failed: {}", e)))?;
     grading.transcript = Some(transcript.clone());
 
-    // 3. Save audio response to database
-    // Determine status based on evaluation
+    // 3. Guardar respuesta de audio en la base de datos
+    // Determinar estado basado en la evaluación
     let status = "ai_evaluated";
     let response_id = Uuid::new_v4();
     
-    // Get attempt number (check if there's a previous response for this block)
+    // Obtener número de intento (comprobar si hay una respuesta previa para este bloque)
     let attempt_number: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(attempt_number), 0) + 1 FROM audio_responses WHERE user_id = $1 AND lesson_id = $2 AND block_id = $3"
     )
@@ -2528,7 +2528,7 @@ pub async fn evaluate_audio_file(
     .await
     .unwrap_or(1);
 
-    // Store in S3 when configured; otherwise keep legacy DB storage for compatibility.
+    // Almacenar en S3 cuando esté configurado; de lo contrario, mantener almacenamiento en BD heredado por compatibilidad.
     let mut audio_url: Option<String> = None;
     let mut audio_data_db: Option<Vec<u8>> = None;
 
@@ -2563,7 +2563,7 @@ pub async fn evaluate_audio_file(
                 if put_result.is_ok() {
                     audio_url = Some(build_s3_audio_public_url(&settings, &key));
                 } else {
-                    // Fallback to DB storage if S3 upload fails.
+                    // Respaldo al almacenamiento en BD si falla la carga en S3.
                     audio_data_db = Some(
                         base64::engine::general_purpose::STANDARD
                             .encode(&audio_data)
@@ -2616,7 +2616,7 @@ pub async fn evaluate_audio_file(
     Ok(Json(grading))
 }
 
-// ==================== AUDIO RESPONSE TEACHER ENDPOINTS ====================
+// ==================== ENDPOINTS DE PROFESOR PARA RESPUESTA DE AUDIO ====================
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AudioResponseListItem {
@@ -2680,22 +2680,22 @@ async fn instructor_has_course_access(
     Ok(has_access)
 }
 
-/// Get all audio responses for teachers
-/// Filters: course_id, lesson_id, status (pending, ai_evaluated, teacher_evaluated, both_evaluated), user_id
+/// Obtener todas las respuestas de audio para profesores
+/// Filtros: course_id, lesson_id, estado (pending, ai_evaluated, teacher_evaluated, both_evaluated), user_id
 pub async fn get_audio_responses(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Query(filters): Query<AudioResponseFilters>,
 ) -> Result<Json<Vec<AudioResponseListItem>>, StatusCode> {
-    // Only instructors and admins can access
+    // Solo instructores y administradores pueden acceder
     if claims.role != "admin" && claims.role != "instructor" {
         return Err(StatusCode::FORBIDDEN);
     }
 
     let is_instructor = claims.role == "instructor";
 
-    // Use static query with optional filters + instructor scoping
+    // Usar consulta estática con filtros opcionales + alcance de instructor
     let responses = sqlx::query_as::<_, AudioResponseListItem>(
         r#"
         SELECT 
@@ -2761,14 +2761,14 @@ pub async fn get_audio_responses(
     Ok(Json(responses))
 }
 
-/// Get single audio response with full details including audio data
+/// Obtener una única respuesta de audio con detalles completos, incluidos los datos de audio
 pub async fn get_audio_response_detail(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Path(response_id): Path<Uuid>,
 ) -> Result<Json<AudioResponseListItem>, StatusCode> {
-    // Only instructors and admins can access
+    // Solo instructores y administradores pueden acceder
     if claims.role != "admin" && claims.role != "instructor" {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -2824,7 +2824,7 @@ pub async fn get_audio_response_detail(
     }
 }
 
-/// Get audio data as base64 for playback
+/// Obtener datos de audio como base64 para reproducción
 pub async fn get_audio_response_audio(
     Org(org_ctx): Org,
     claims: Claims,
@@ -2835,7 +2835,7 @@ pub async fn get_audio_response_audio(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // Only instructors, admins, and the owner can access
+    // Solo instructores, administradores y el propietario pueden acceder
     let row: Option<(Option<Vec<u8>>, Option<String>, Uuid, Uuid)> = sqlx::query_as(
         "SELECT audio_data, audio_url, user_id, course_id FROM audio_responses WHERE id = $1 AND organization_id = $2"
     )
@@ -2850,7 +2850,7 @@ pub async fn get_audio_response_audio(
 
     match row {
         Some((audio_data, audio_url, owner_user_id, course_id)) => {
-            // Access rules: admin always, instructor only their courses, student only own response.
+            // Reglas de acceso: administrador siempre, instructor solo sus cursos, estudiante solo su propia respuesta.
             if claims.role == "student" && claims.sub != owner_user_id {
                 return Err(StatusCode::FORBIDDEN);
             }
@@ -2861,7 +2861,7 @@ pub async fn get_audio_response_audio(
             }
 
             if let Some(data) = audio_data {
-            // Legacy path: DB contains base64 bytes.
+            // Ruta heredada: la BD contiene bytes base64.
             let audio_bytes = base64::engine::general_purpose::STANDARD
                 .decode(&data)
                 .unwrap_or(data);
@@ -2946,7 +2946,7 @@ async fn read_audio_response_from_url(url: &str) -> Result<(Vec<u8>, String), St
     Ok((bytes, content_type))
 }
 
-/// Teacher evaluates an audio response
+/// El profesor evalúa una respuesta de audio
 pub async fn teacher_evaluate_audio(
     Org(org_ctx): Org,
     claims: Claims,
@@ -2954,17 +2954,17 @@ pub async fn teacher_evaluate_audio(
     Path(response_id): Path<Uuid>,
     Json(payload): Json<common::models::UpdateAudioResponsePayload>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Only instructors and admins can evaluate
+    // Solo instructores y administradores pueden evaluar
     if claims.role != "admin" && claims.role != "instructor" {
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // Validate score
+    // Validar puntaje
     if payload.teacher_score < 0 || payload.teacher_score > 100 {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Get current response to determine new status
+    // Obtener respuesta actual para determinar el nuevo estado
     let response_meta: Option<(String, Uuid)> = sqlx::query_as(
         "SELECT status::text, course_id FROM audio_responses WHERE id = $1 AND organization_id = $2"
     )
@@ -2986,14 +2986,14 @@ pub async fn teacher_evaluate_audio(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // Determine new status
+    // Determinar nuevo estado
     let new_status = if current_status == "ai_evaluated" {
         "both_evaluated"
     } else {
         "teacher_evaluated"
     };
 
-    // Update the response
+    // Actualizar la respuesta
     let updated = sqlx::query(
         r#"
         UPDATE audio_responses 
@@ -3030,14 +3030,14 @@ pub async fn teacher_evaluate_audio(
     }
 }
 
-/// Get audio response statistics for a course
+/// Obtener estadísticas de respuestas de audio para un curso
 pub async fn get_audio_response_stats(
     Org(org_ctx): Org,
     claims: Claims,
     State(pool): State<PgPool>,
     Path(course_id): Path<Uuid>,
 ) -> Result<Json<common::models::AudioResponseStats>, StatusCode> {
-    // Only instructors and admins can access
+    // Solo instructores y administradores pueden acceder
     if claims.role != "admin" && claims.role != "instructor" {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -3125,9 +3125,9 @@ pub async fn get_code_hint(
     Path(lesson_id): Path<Uuid>,
     Json(payload): Json<CodeHintPayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    tracing::info!("Code hint request for lesson_id={}", lesson_id);
+    tracing::info!("Solicitud de pista de código para lesson_id={}", lesson_id);
 
-    // Access check: enrolled or preview
+    // Verificación de acceso: inscrito o vista previa
     let is_enrolled = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM enrollments WHERE user_id = $1 AND course_id = (SELECT course_id FROM modules WHERE id = (SELECT module_id FROM lessons WHERE id = $2)))"
     )
@@ -3240,7 +3240,7 @@ pub async fn chat_with_tutor(
         return Err((StatusCode::TOO_MANY_REQUESTS, "Monthly AI token limit exceeded. Please contact your administrator.".to_string()));
     }
     
-    // 1. Fetch lesson context with access check (matches get_lesson_content)
+    // 1. Obtener contexto de la lección con verificación de acceso (coincide con get_lesson_content)
     let is_preview = claims.token_type.as_deref() == Some("preview");
 
     let lesson = if is_preview {
@@ -3271,7 +3271,7 @@ pub async fn chat_with_tutor(
     })?
     .ok_or((StatusCode::NOT_FOUND, "Lección no encontrada o acceso denegado".into()))?;
 
-    // 1.5 Fetch previous lessons in the course for context
+    // 1.5 Obtener lecciones anteriores del curso para contexto
     let module = sqlx::query_as::<_, Module>("SELECT * FROM modules WHERE id = $1")
         .bind(lesson.module_id)
         .fetch_one(&pool)
@@ -3307,13 +3307,13 @@ pub async fn chat_with_tutor(
 
     let mut history_context = String::new();
     if !previous_lessons.is_empty() {
-        history_context.push_str("\n--- PAST LESSONS HISTORY (FOR CONTEXT) ---\n");
+        history_context.push_str("\n--- HISTORIAL DE LECCIONES PASADAS (PARA CONTEXTO) ---\n");
         for prev in previous_lessons {
             use sqlx::Row;
             let title: String = prev.get("title");
             let summary: Option<String> = prev.get("summary");
             history_context.push_str(&format!(
-                "Past Lesson: {}\nSummary: {}\n\n",
+                "Lección Pasada: {}\nResumen: {}\n\n",
                 title,
                 summary.as_deref().unwrap_or("No hay resumen disponible.")
             ));
@@ -3335,11 +3335,11 @@ pub async fn chat_with_tutor(
         history_context
     );
 
-    // 2. Setup AI request
+    // 2. Configurar solicitud de IA
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let _client = reqwest::Client::new();
 
-    // 2.1 Handle Session and Memory
+    // 2.1 Manejar Sesión y Memoria
     let session_id = if let Some(sid) = payload.session_id {
         sid
     } else {
@@ -3362,7 +3362,7 @@ pub async fn chat_with_tutor(
         sid
     };
 
-    // Save user message
+    // Guardar mensaje del usuario
     sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
         .bind(session_id)
         .bind("user")
@@ -3376,7 +3376,7 @@ pub async fn chat_with_tutor(
             )
         })?;
 
-    // Fetch last 6 messages for context
+    // Obtener los últimos 6 mensajes para contexto
     let history_rows = sqlx::query(
         "SELECT role, content FROM chat_messages WHERE session_id = $1 ORDER BY created_at DESC LIMIT 6"
     )
@@ -3396,16 +3396,16 @@ pub async fn chat_with_tutor(
         }
     }
 
-    // 2.2 Knowledge Base Retrieval (RAG) - Hybrid Search
-    // First try semantic search with embeddings (more accurate)
-    // Fall back to full-text search if embeddings not available
+    // 2.2 Recuperación de Base de Conocimientos (RAG) - Búsqueda Híbrida
+    // Primero intentar búsqueda semántica con embeddings (más precisa)
+    // Recurrir a la búsqueda de texto completo si los embeddings no están disponibles
     
     use common::ai::{self, generate_embedding};
     
     let mut kb_context = String::new();
     
-    // Try semantic search with embeddings first
-    // Create client that accepts invalid certificates (for dev with self-signed certs)
+    // Intentar búsqueda semántica con embeddings primero
+    // Crear cliente que acepte certificados inválidos (para desarrollo con certificados autofirmados)
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
@@ -3422,7 +3422,7 @@ pub async fn chat_with_tutor(
         Ok(response) => {
             let pgvector = ai::embedding_to_pgvector(&response.embedding);
             
-            // Semantic search with pgvector
+            // Búsqueda semántica con pgvector
             let search_results = sqlx::query(
                 r#"
                 SELECT content_chunk, 1 - (embedding <=> $1::vector) AS similarity
@@ -3439,7 +3439,7 @@ pub async fn chat_with_tutor(
             .await
             .unwrap_or_default();
             
-            // Filter by similarity threshold (0.5)
+            // Filtrar por umbral de similitud (0.5)
             let relevant_results: Vec<_> = search_results
                 .into_iter()
                 .filter(|row| {
@@ -3459,7 +3459,7 @@ pub async fn chat_with_tutor(
         Err(e) => {
             tracing::warn!("Semantic search failed, falling back to full-text search: {}", e);
             
-            // Fall back to full-text search
+            // Recurrir a la búsqueda de texto completo
             let search_results = sqlx::query(
                 r#"
                 SELECT content_chunk
@@ -3562,7 +3562,7 @@ pub async fn chat_with_tutor(
         .unwrap_or("Lo siento, tuve un problema procesando tu pregunta.")
         .to_string();
 
-    // Calculate and log token usage
+    // Calcular y registrar el uso de tokens
     let input_tokens = count_tokens(&system_prompt) + count_tokens(&payload.message);
     let output_tokens = count_tokens(&tutor_response);
     let total_tokens = input_tokens + output_tokens;
@@ -3586,7 +3586,7 @@ pub async fn chat_with_tutor(
         .execute(&pool)
         .await;
 
-    // Save assistant response
+    // Guardar respuesta del asistente
     let _ =
         sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
             .bind(session_id)
@@ -3609,7 +3609,7 @@ pub async fn chat_role_play(
     Json(payload): Json<ChatRolePlayPayload>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
     tracing::info!("Chat Role Play: lesson_id={}, org_id={}, user_id={}, role={}", lesson_id, org_ctx.id, claims.sub, claims.role);
-    // 1. Fetch lesson with access check (matches get_lesson_content logic)
+    // 1. Obtener lección con verificación de acceso (coincide con la lógica de get_lesson_content)
     let is_preview = claims.token_type.as_deref() == Some("preview");
     
     let lesson = if is_preview {
@@ -3640,7 +3640,7 @@ pub async fn chat_role_play(
     })?
     .ok_or((StatusCode::NOT_FOUND, "Lección no encontrada o acceso denegado".into()))?;
 
-    // 2. Find the specific role-playing block in metadata or content_blocks
+    // 2. Encontrar el bloque específico de juego de rol en metadata o content_blocks
     let blocks = lesson.content_blocks
         .or_else(|| lesson.metadata.as_ref().and_then(|m| m.get("blocks").cloned()))
         .and_then(|b| b.as_array().cloned())
@@ -3655,10 +3655,10 @@ pub async fn chat_role_play(
     let user_role = block.get("user_role").and_then(|s| s.as_str()).unwrap_or("");
     let objectives = block.get("objectives").and_then(|s| s.as_str()).unwrap_or("");
 
-    // Try to parse block_id as Uuid for DB storage, if it's not a Uuid (legacy), we store None
+    // Intentar analizar block_id como Uuid para almacenamiento en BD; si no es un Uuid (heredado), almacenamos None
     let block_uuid = Uuid::parse_str(&payload.block_id).ok();
 
-    // 3. Handle Session
+    // 3. Manejar Sesión
     let session_id = if let Some(sid) = payload.session_id {
         sid
     } else {
@@ -3681,7 +3681,7 @@ pub async fn chat_role_play(
         row.get::<Uuid, _>(0)
     };
 
-    // 4. Save user message
+    // 4. Guardar mensaje del usuario
     sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
         .bind(session_id)
         .bind("user")
@@ -3690,7 +3690,7 @@ pub async fn chat_role_play(
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Error al guardar el mensaje del usuario".into()))?;
 
-    // 5. Fetch history (last 10 messages for context)
+    // 5. Obtener historial (últimos 10 mensajes para contexto)
     let history_rows = sqlx::query(
         "SELECT role, content FROM chat_messages WHERE session_id = $1 ORDER BY created_at DESC LIMIT 10"
     )
@@ -3707,7 +3707,7 @@ pub async fn chat_role_play(
         conversation_history.push_str(&format!("{}: {}\n", role.to_uppercase(), content));
     }
 
-    // 6. AI Request
+    // 6. Solicitud de IA
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let client = reqwest::Client::new();
 
@@ -3760,7 +3760,7 @@ pub async fn chat_role_play(
     let ai_data: serde_json::Value = response.json().await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Error al analizar la respuesta de la IA".into()))?;
     let ai_response = ai_data["choices"][0]["message"]["content"].as_str().unwrap_or("Lo siento, tuve un problema procesando la simulación.").to_string();
 
-    // 7. Save assistant response
+    // 7. Guardar respuesta del asistente
     let _ = sqlx::query("INSERT INTO chat_messages (session_id, role, content) VALUES ($1, $2, $3)")
         .bind(session_id)
         .bind("assistant")
@@ -3781,7 +3781,7 @@ pub async fn get_lesson_feedback(
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
     let user_id = claims.sub;
 
-    // 1. Fetch lesson context
+    // 1. Obtener contexto de la lección
     let lesson =
         sqlx::query_as::<_, Lesson>("SELECT * FROM lessons WHERE id = $1 AND organization_id = $2")
             .bind(lesson_id)
@@ -3790,7 +3790,7 @@ pub async fn get_lesson_feedback(
             .await
             .map_err(|_| (StatusCode::NOT_FOUND, "Lección no encontrada".into()))?;
 
-    // 2. Fetch user's grade for this lesson
+    // 2. Obtener la calificación del usuario para esta lección
     let grade = sqlx::query_as::<_, common::models::UserGrade>(
         "SELECT * FROM user_grades WHERE user_id = $1 AND lesson_id = $2",
     )
@@ -3806,7 +3806,7 @@ pub async fn get_lesson_feedback(
 
     let score_pct = (grade.score * 100.0) as i32;
 
-    // Reuse cached feedback when it was generated for the same attempt count.
+    // Reutilizar retroalimentación almacenada cuando fue generada para el mismo conteo de intentos.
     if let Some(metadata) = grade.metadata.as_ref() {
         let cached_attempts = metadata
             .get("ai_lesson_feedback_attempts")
@@ -3845,7 +3845,7 @@ pub async fn get_lesson_feedback(
         block_content
     );
 
-    // 3. Setup AI request
+    // 3. Configurar solicitud de IA
     let provider = env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string());
     let client = reqwest::Client::new();
 
@@ -3934,7 +3934,7 @@ pub async fn get_lesson_feedback(
         }
     };
 
-    // Persist feedback so repeated views do not trigger AI every time.
+    // Persistir retroalimentación para que las visualizaciones repetidas no activen la IA cada vez.
     let mut new_metadata = grade.metadata.clone().unwrap_or_else(|| json!({}));
     if !new_metadata.is_object() {
         new_metadata = json!({});
@@ -3979,7 +3979,7 @@ pub async fn ingest_lesson_knowledge(
     lesson_id: Uuid,
     content: &str,
 ) -> Result<(), sqlx::Error> {
-    // Split content into chunks of ~1000 characters for better RAG granularity
+    // Dividir contenido en fragmentos de ~1000 caracteres para una mejor granularidad de RAG
     let chunks: Vec<&str> = content
         .as_bytes()
         .chunks(1000)
@@ -4013,7 +4013,7 @@ fn extract_block_content(metadata: &Option<serde_json::Value>) -> String {
                 let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 let title = block.get("title").and_then(|t| t.as_str()).unwrap_or("");
 
-                block_content.push_str(&format!("\n--- Block: {} ({}) ---\n", title, block_type));
+                block_content.push_str(&format!("\n--- Bloque: {} ({}) ---\n", title, block_type));
 
                 match block_type {
                     "description" | "fill-in-the-blanks" => {
@@ -4040,7 +4040,7 @@ fn extract_block_content(metadata: &Option<serde_json::Value>) -> String {
                                 let left = p.get("left").and_then(|l| l.as_str()).unwrap_or("");
                                 let right = p.get("right").and_then(|r| r.as_str()).unwrap_or("");
                                 block_content.push_str(&format!(
-                                    "Pair {}: {} <-> {}\n",
+                                    "Par {}: {} <-> {}\n",
                                     i + 1,
                                     left,
                                     right
@@ -4071,19 +4071,19 @@ fn extract_block_content(metadata: &Option<serde_json::Value>) -> String {
                         if let Some(instructions) =
                             block.get("instructions").and_then(|i| i.as_str())
                         {
-                            block_content.push_str(&format!("Instructions: {}\n", instructions));
+                            block_content.push_str(&format!("Instrucciones: {}\n", instructions));
                         }
                     }
                     "document" => {
                         if let Some(desc) = block.get("description").and_then(|d| d.as_str()) {
-                            block_content.push_str(&format!("Document Description: {}\n", desc));
+                            block_content.push_str(&format!("Descripción del Documento: {}\n", desc));
                         }
                     }
                     "hotspot" => {
                         if let Some(description) = block.get("description").and_then(|d| d.as_str())
                         {
                             block_content.push_str(&format!(
-                                "Hotspot Activity Description: {}\n",
+                                "Descripción de la Actividad de Hotspot: {}\n",
                                 description
                             ));
                         }

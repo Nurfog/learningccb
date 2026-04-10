@@ -1,5 +1,5 @@
-//! Handlers for PGVector embeddings in Knowledge Base (LMS)
-//! Enables semantic search for AI tutor chat with RAG
+//! Manejadores para embeddings de PGVector en la Base de Conocimientos (LMS)
+//! Habilita la búsqueda semántica para el chat del tutor de IA con RAG
 
 use axum::{
     Json,
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ==================== Query Parameters ====================
+// ==================== Parámetros de Consulta ====================
 
 #[derive(Debug, Deserialize)]
 pub struct KnowledgeSearchFilters {
@@ -41,7 +41,7 @@ pub struct GenerateKnowledgeEmbeddingsResult {
     pub duration_ms: u64,
 }
 
-// ==================== Generate Embeddings ====================
+// ==================== Generar Embeddings ====================
 
 /// POST /api/knowledge-base/embeddings/generate - Generate embeddings for all knowledge base entries
 pub async fn generate_knowledge_embeddings(
@@ -50,7 +50,7 @@ pub async fn generate_knowledge_embeddings(
 ) -> Result<Json<GenerateKnowledgeEmbeddingsResult>, (StatusCode, String)> {
     let start = std::time::Instant::now();
     
-    // Create client that accepts invalid certificates (for dev with self-signed certs)
+    // Crear cliente que acepte certificados inválidos (para desarrollo con certificados autofirmados)
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
@@ -60,7 +60,7 @@ pub async fn generate_knowledge_embeddings(
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Get knowledge base entries without embeddings
+    // Obtener entradas de la base de conocimientos sin embeddings
     let entries: Vec<KnowledgeBaseEntry> = sqlx::query_as(
         r#"
         SELECT * FROM knowledge_base
@@ -80,12 +80,12 @@ pub async fn generate_knowledge_embeddings(
     let mut failed = 0;
     
     for entry in entries {
-        // Generate embedding from content chunk
+        // Generar embedding desde el fragmento de contenido
         match generate_embedding(&client, &ollama_url, &model, &entry.content_chunk).await {
             Ok(response) => {
                 let pgvector = ai::embedding_to_pgvector(&response.embedding);
                 
-                // Update entry with embedding
+                // Actualizar entrada con embedding
                 let result: Result<(i64,), sqlx::Error> = sqlx::query_as(
                     r#"
                     UPDATE knowledge_base
@@ -108,7 +108,7 @@ pub async fn generate_knowledge_embeddings(
             }
             Err(e) => {
                 tracing::error!(
-                    "Failed to generate embedding for knowledge entry {}: {}",
+                    "Error al generar el embedding para la entrada de conocimiento {}: {}",
                     entry.id,
                     e
                 );
@@ -133,13 +133,13 @@ pub async fn generate_knowledge_embeddings(
     }))
 }
 
-/// POST /api/knowledge-base/{id}/embedding/regenerate - Regenerate embedding for a specific entry
+/// POST /api/knowledge-base/{id}/embedding/regenerate - Regenerar embedding para una entrada específica
 pub async fn regenerate_knowledge_embedding(
     Org(org_ctx): Org,
     Path(entry_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Create client that accepts invalid certificates
+    // Crear cliente que acepte certificados inválidos
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
@@ -149,7 +149,7 @@ pub async fn regenerate_knowledge_embedding(
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Get entry
+    // Obtener entrada
     let entry: KnowledgeBaseEntry = sqlx::query_as(
         "SELECT * FROM knowledge_base WHERE id = $1 AND organization_id = $2"
     )
@@ -158,16 +158,16 @@ pub async fn regenerate_knowledge_embedding(
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "Knowledge base entry not found".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Entrada de la base de conocimientos no encontrada".to_string()))?;
     
-    // Generate embedding
+    // Generar embedding
     let response = generate_embedding(&client, &ollama_url, &model, &entry.content_chunk)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("AI error: {}", e)))?;
     
     let pgvector = ai::embedding_to_pgvector(&response.embedding);
     
-    // Update entry
+    // Actualizar entrada
     sqlx::query(
         r#"
         UPDATE knowledge_base
@@ -185,7 +185,7 @@ pub async fn regenerate_knowledge_embedding(
     Ok(StatusCode::OK)
 }
 
-// ==================== Semantic Search ====================
+// ==================== Búsqueda Semántica ====================
 
 /// GET /api/knowledge-base/semantic-search - Search knowledge base by semantic similarity
 pub async fn semantic_search_knowledge(
@@ -193,7 +193,7 @@ pub async fn semantic_search_knowledge(
     State(pool): State<PgPool>,
     Query(filters): Query<KnowledgeSearchFilters>,
 ) -> Result<Json<Vec<KnowledgeSearchResult>>, (StatusCode, String)> {
-    // Create client that accepts invalid certificates
+    // Crear cliente que acepte certificados inválidos
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
@@ -203,7 +203,7 @@ pub async fn semantic_search_knowledge(
     let ollama_url = ai::get_ollama_url();
     let model = ai::get_embedding_model();
     
-    // Generate embedding for query
+    // Generar embedding para la consulta
     let embedding_response = generate_embedding(&client, &ollama_url, &model, &filters.query)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("AI error: {}", e)))?;
@@ -213,7 +213,7 @@ pub async fn semantic_search_knowledge(
     let limit = filters.limit.unwrap_or(10);
     let threshold = filters.threshold.unwrap_or(0.5);
     
-    // Build query with optional filters
+    // Construir consulta con filtros opcionales
     let mut query = String::from(
         r#"
         SELECT 
@@ -269,7 +269,7 @@ pub async fn semantic_search_knowledge(
     Ok(Json(results))
 }
 
-// ==================== Helper Structs ====================
+// ==================== Estructuras de Ayuda ====================
 
 #[derive(Debug, sqlx::FromRow, Clone)]
 struct KnowledgeBaseEntry {

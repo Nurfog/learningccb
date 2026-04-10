@@ -1,33 +1,33 @@
-//! AI Utilities for OpenCCB
-//! Provides embedding generation and other AI helper functions
+//! Utilidades de IA para OpenCCB
+//! Proporciona generación de embeddings y otras funciones de ayuda de IA
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Default embedding model for Ollama
+/// Modelo de embedding por defecto para Ollama
 pub const DEFAULT_EMBEDDING_MODEL: &str = "nomic-embed-text";
 
-/// Default Ollama URL
+/// URL de Ollama por defecto
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 
-/// Embedding dimensions for nomic-embed-text
+/// Dimensiones del embedding para nomic-embed-text
 pub const EMBEDDING_DIMENSIONS: usize = 768;
 
-/// Model selection for different use cases
+/// Selección de modelo para diferentes casos de uso
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModelType {
-    /// Fast conversational AI (chat, tutor, Q&A)
+    /// IA conversacional rápida (chat, tutor, preguntas y respuestas)
     Chat,
-    /// Complex reasoning (analysis, recommendations, feedback)
+    /// Razonamiento complejo (análisis, recomendaciones, retroalimentación)
     Complex,
-    /// Advanced tasks (course generation, detailed analysis)
+    /// Tareas avanzadas (generación de cursos, análisis detallado)
     Advanced,
-    /// Embedding generation
+    /// Generación de embeddings
     Embedding,
 }
 
 impl ModelType {
-    /// Get the model name for this type from environment
+    /// Obtener el nombre del modelo para este tipo desde el entorno
     pub fn get_model(&self) -> String {
         match self {
             ModelType::Chat => {
@@ -45,34 +45,34 @@ impl ModelType {
         }
     }
 
-    /// Get recommended temperature for this model type
+    /// Obtener la temperatura recomendada para este tipo de modelo
     pub fn get_temperature(&self) -> f32 {
         match self {
-            ModelType::Chat => 0.7,       // Balanced creativity/accuracy
-            ModelType::Complex => 0.5,    // More focused reasoning
-            ModelType::Advanced => 0.6,   // Balanced for analysis
-            ModelType::Embedding => 0.0,  // Deterministic for embeddings
+            ModelType::Chat => 0.7,       // Equilibrio entre creatividad y precisión
+            ModelType::Complex => 0.5,    // Razonamiento más enfocado
+            ModelType::Advanced => 0.6,   // Equilibrado para análisis
+            ModelType::Embedding => 0.0,  // Determinista para embeddings
         }
     }
 
-    /// Get max tokens for this model type
+    /// Obtener los tokens máximos para este tipo de modelo
     pub fn get_max_tokens(&self) -> u32 {
         match self {
             ModelType::Chat => 1024,
             ModelType::Complex => 2048,
             ModelType::Advanced => 4096,
-            ModelType::Embedding => 0, // Not applicable
+            ModelType::Embedding => 0, // No aplicable
         }
     }
 }
 
 #[derive(Error, Debug)]
 pub enum AiError {
-    #[error("Ollama request failed: {0}")]
+    #[error("Solicitud a Ollama fallida: {0}")]
     OllamaRequest(String),
-    #[error("Invalid embedding response: {0}")]
+    #[error("Respuesta de embedding inválida: {0}")]
     InvalidResponse(String),
-    #[error("Model not available: {0}")]
+    #[error("Modelo no disponible: {0}")]
     ModelNotAvailable(String),
 }
 
@@ -83,19 +83,19 @@ pub struct EmbeddingResponse {
     pub model: String,
 }
 
-/// Get Ollama URL from environment or default
+/// Obtener la URL de Ollama desde el entorno o por defecto
 pub fn get_ollama_url() -> String {
     std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_URL.to_string())
 }
 
-/// Get embedding model from environment or default
+/// Obtener el modelo de embedding desde el entorno o por defecto
 pub fn get_embedding_model() -> String {
     std::env::var("EMBEDDING_MODEL").unwrap_or_else(|_| DEFAULT_EMBEDDING_MODEL.to_string())
 }
 
-/// Get the best model for a specific task
+/// Obtener el mejor modelo para una tarea específica
 pub fn get_model_for_task(task: &str) -> String {
-    // Task-based model selection
+    // Selección de modelo basada en la tarea
     match task.to_lowercase().as_str() {
         t if t.contains("chat") || t.contains("tutor") || t.contains("conversation") => {
             ModelType::Chat.get_model()
@@ -116,22 +116,22 @@ pub fn get_model_for_task(task: &str) -> String {
     }
 }
 
-/// Create a reqwest client that accepts invalid certificates (for dev with self-signed certs)
+/// Crear un cliente reqwest que acepte certificados inválidos (para desarrollo con certificados autofirmados)
 fn create_insecure_client() -> Result<reqwest::Client, AiError> {
     reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
         .build()
-        .map_err(|e| AiError::OllamaRequest(format!("Failed to create HTTP client: {}", e)))
+        .map_err(|e| AiError::OllamaRequest(format!("Error al crear el cliente HTTP: {}", e)))
 }
 
-/// Generate embedding for text using Ollama
+/// Generar embedding para texto usando Ollama
 /// 
-/// # Arguments
-/// * `client` - reqwest::Client instance
-/// * `ollama_url` - Base URL for Ollama (e.g., "http://localhost:11434")
-/// * `model` - Embedding model name (default: "nomic-embed-text")
-/// * `text` - Text to embed
+/// # Argumentos
+/// * `client` - instancia de reqwest::Client
+/// * `ollama_url` - URL base para Ollama (e.g., "http://localhost:11434")
+/// * `model` - Nombre del modelo de embedding (por defecto: "nomic-embed-text")
+/// * `text` - Texto a incrustar
 pub async fn generate_embedding(
     client: &reqwest::Client,
     ollama_url: &str,
@@ -148,25 +148,25 @@ pub async fn generate_embedding(
         }))
         .send()
         .await
-        .map_err(|e| AiError::OllamaRequest(format!("Request failed: {}", e)))?;
+        .map_err(|e| AiError::OllamaRequest(format!("Solicitud fallida: {}", e)))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
         return Err(AiError::OllamaRequest(
-            format!("Ollama API error ({}): {}", status, error_text)
+            format!("Error de la API de Ollama ({}): {}", status, error_text)
         ));
     }
 
     let embedding_response: EmbeddingResponse = response
         .json()
         .await
-        .map_err(|e| AiError::InvalidResponse(format!("Failed to parse response: {}", e)))?;
+        .map_err(|e| AiError::InvalidResponse(format!("Error al analizar la respuesta: {}", e)))?;
 
     Ok(embedding_response)
 }
 
-/// Generate embeddings for multiple texts in batch
+/// Generar embeddings para múltiples textos en lote
 pub async fn generate_embeddings_batch(
     client: &reqwest::Client,
     ollama_url: &str,
@@ -183,8 +183,8 @@ pub async fn generate_embeddings_batch(
     Ok(embeddings)
 }
 
-/// Convert a vector of f32 to pgvector-compatible format
-/// PostgreSQL vector format: "[0.1,0.2,0.3,...]"
+/// Convertir un vector de f32 a un formato compatible con pgvector
+/// Formato de vector de PostgreSQL: "[0.1,0.2,0.3,...]"
 pub fn embedding_to_pgvector(embedding: &[f32]) -> String {
     let formatted: Vec<String> = embedding
         .iter()
@@ -193,12 +193,12 @@ pub fn embedding_to_pgvector(embedding: &[f32]) -> String {
     format!("[{}]", formatted.join(","))
 }
 
-/// Parse pgvector format back to Vec<f32>
+/// Analizar el formato pgvector de vuelta a Vec<f32>
 pub fn pgvector_to_embedding(pgvector: &str) -> Result<Vec<f32>, String> {
     let trimmed = pgvector.trim().trim_start_matches('[').trim_end_matches(']');
     trimmed
         .split(',')
-        .map(|s| s.trim().parse::<f32>().map_err(|e| format!("Parse error: {}", e)))
+        .map(|s| s.trim().parse::<f32>().map_err(|e| format!("Error de análisis: {}", e)))
         .collect()
 }
 

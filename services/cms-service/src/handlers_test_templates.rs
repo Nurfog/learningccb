@@ -58,17 +58,17 @@ fn normalize_question_bank_payload_values(
 
 #[derive(Debug, Deserialize)]
 pub struct TestTemplateFilters {
-    pub mysql_course_id: Option<i32>, // Filter by MySQL course ID
+    pub mysql_course_id: Option<i32>, // Filtrar por ID de curso MySQL
     pub level: Option<CourseLevel>,
     pub course_type: Option<CourseType>,
     pub test_type: Option<TestType>,
-    pub tags: Option<String>, // Comma-separated list
+    pub tags: Option<String>, // Lista separada por comas
     pub search: Option<String>,
 }
 
 // ==================== Create ====================
 
-/// POST /api/test-templates - Create a new test template
+/// POST /api/test-templates - Crear una nueva plantilla de test
 pub async fn create_test_template(
     Org(org_ctx): Org,
     claims: Claims,
@@ -115,47 +115,47 @@ pub async fn create_test_template(
 
 // ==================== Read ====================
 
-/// GET /api/test-templates - List test templates with filters
+/// GET /api/test-templates - Listar plantillas de test con filtros
 pub async fn list_test_templates(
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     Query(filters): Query<TestTemplateFilters>,
 ) -> Result<Json<Vec<TestTemplate>>, (StatusCode, String)> {
-    // Base query
+    // Consulta base
     let mut query = String::from("SELECT * FROM test_templates WHERE organization_id = $1");
     let mut param_count = 1;
 
-    // Filter by mysql_course_id
+    // Filtrar por mysql_course_id
     if filters.mysql_course_id.is_some() {
         param_count += 1;
         query.push_str(&format!(" AND mysql_course_id = ${}", param_count));
     }
 
-    // Filter by level
+    // Filtrar por nivel
     if filters.level.is_some() {
         param_count += 1;
         query.push_str(&format!(" AND level = ${}", param_count));
     }
 
-    // Filter by course type
+    // Filtrar por tipo de curso
     if filters.course_type.is_some() {
         param_count += 1;
         query.push_str(&format!(" AND course_type = ${}", param_count));
     }
 
-    // Filter by test type
+    // Filtrar por tipo de test
     if filters.test_type.is_some() {
         param_count += 1;
         query.push_str(&format!(" AND test_type = ${}", param_count));
     }
 
-    // Filter by tags (array overlap)
+    // Filtrar por etiquetas (solapamiento de array)
     if filters.tags.is_some() {
         param_count += 1;
         query.push_str(&format!(" AND tags && ${}", param_count));
     }
 
-    // Search in name and description
+    // Buscar en nombre y descripción
     if filters.search.is_some() {
         param_count += 1;
         query.push_str(&format!(
@@ -166,7 +166,7 @@ pub async fn list_test_templates(
 
     query.push_str(" ORDER BY created_at DESC");
 
-    // Build query with dynamic binds
+    // Construir consulta con binds dinámicos
     let mut sql_query = sqlx::query_as::<_, TestTemplate>(&query).bind(org_ctx.id);
 
     if let Some(mysql_course_id) = &filters.mysql_course_id {
@@ -203,13 +203,13 @@ pub async fn list_test_templates(
     Ok(Json(templates))
 }
 
-/// GET /api/test-templates/:id - Get a specific test template with questions
+/// GET /api/test-templates/:id - Obtener una plantilla de test específica con preguntas
 pub async fn get_test_template(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<TestTemplateWithQuestions>, (StatusCode, String)> {
-    // Get template
+    // Obtener plantilla
     let template: TestTemplate = sqlx::query_as(
         r#"
         SELECT id, organization_id, mysql_course_id, created_by, name, description, level, course_type,
@@ -224,11 +224,11 @@ pub async fn get_test_template(
     .fetch_one(&pool)
     .await
     .map_err(|e| match e {
-        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Template not found".to_string()),
+        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     })?;
 
-    // Get sections
+    // Obtener secciones
     let sections: Vec<TestTemplateSection> = sqlx::query_as(
         r#"
         SELECT id, template_id, title, description, section_order, points, instructions, section_data, created_at
@@ -242,7 +242,7 @@ pub async fn get_test_template(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Get questions
+    // Obtener preguntas
     let questions: Vec<TestTemplateQuestion> = sqlx::query_as(
         r#"
         SELECT id, template_id, section_id, question_order, question_type, question_text,
@@ -266,7 +266,7 @@ pub async fn get_test_template(
 
 // ==================== Update ====================
 
-/// PUT /api/test-templates/:id - Update a test template
+/// PUT /api/test-templates/:id - Actualizar una plantilla de test
 pub async fn update_test_template(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
@@ -316,7 +316,7 @@ pub async fn update_test_template(
     .fetch_one(&pool)
     .await
     .map_err(|e| match e {
-        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Template not found".to_string()),
+        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     })?;
 
@@ -325,7 +325,7 @@ pub async fn update_test_template(
 
 // ==================== Delete ====================
 
-/// DELETE /api/test-templates/:id - Delete a test template
+/// DELETE /api/test-templates/:id - Eliminar una plantilla de test
 pub async fn delete_test_template(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
@@ -344,22 +344,22 @@ pub async fn delete_test_template(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Template not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Template Questions Management ====================
+// ==================== Gestión de Preguntas de la Plantilla ====================
 
-/// POST /api/test-templates/:id/questions - Add a question to a template
+/// POST /api/test-templates/:id/questions - Añadir una pregunta a una plantilla
 pub async fn create_template_question(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
     State(pool): State<PgPool>,
     Json(payload): Json<CreateQuestionPayload>,
 ) -> Result<Json<TestTemplateQuestion>, (StatusCode, String)> {
-    // Verify template exists and belongs to organization
+    // Verificar que la plantilla existe y pertenece a la organización
     let exists: (bool,) = sqlx::query_as(
         r#"SELECT EXISTS(SELECT 1 FROM test_templates WHERE id = $1 AND organization_id = $2)"#
     )
@@ -370,7 +370,7 @@ pub async fn create_template_question(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists.0 {
-        return Err((StatusCode::NOT_FOUND, "Template not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()));
     }
 
     let question: TestTemplateQuestion = sqlx::query_as(
@@ -414,13 +414,13 @@ pub struct CreateQuestionPayload {
     pub metadata: Option<serde_json::Value>,
 }
 
-/// DELETE /api/test-templates/:template_id/questions/:question_id - Delete a question
+/// DELETE /api/test-templates/:template_id/questions/:question_id - Eliminar una pregunta
 pub async fn delete_template_question(
     Org(org_ctx): Org,
     Path((template_id, question_id)): Path<(Uuid, Uuid)>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Verify template exists and belongs to organization
+    // Verificar que la plantilla existe y pertenece a la organización
     let exists: (bool,) = sqlx::query_as(
         r#"SELECT EXISTS(SELECT 1 FROM test_templates WHERE id = $1 AND organization_id = $2)"#
     )
@@ -431,7 +431,7 @@ pub async fn delete_template_question(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists.0 {
-        return Err((StatusCode::NOT_FOUND, "Template not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()));
     }
 
     let result = sqlx::query(
@@ -447,22 +447,22 @@ pub async fn delete_template_question(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Question not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Pregunta no encontrada".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Template Sections Management ====================
+// ==================== Gestión de Secciones de la Plantilla ====================
 
-/// POST /api/test-templates/:id/sections - Add a section to a template
+/// POST /api/test-templates/:id/sections - Añadir una sección a una plantilla
 pub async fn create_template_section(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
     State(pool): State<PgPool>,
     Json(payload): Json<CreateSectionPayload>,
 ) -> Result<Json<TestTemplateSection>, (StatusCode, String)> {
-    // Verify template exists
+    // Verificar que la plantilla existe
     let exists: (bool,) = sqlx::query_as(
         r#"SELECT EXISTS(SELECT 1 FROM test_templates WHERE id = $1 AND organization_id = $2)"#
     )
@@ -473,7 +473,7 @@ pub async fn create_template_section(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists.0 {
-        return Err((StatusCode::NOT_FOUND, "Template not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()));
     }
 
     let section: TestTemplateSection = sqlx::query_as(
@@ -509,7 +509,7 @@ pub struct CreateSectionPayload {
     pub section_data: Option<serde_json::Value>,
 }
 
-/// DELETE /api/test-templates/:template_id/sections/:section_id - Delete a section
+/// DELETE /api/test-templates/:template_id/sections/:section_id - Eliminar una sección
 pub async fn delete_template_section(
     Org(org_ctx): Org,
     Path((template_id, section_id)): Path<(Uuid, Uuid)>,
@@ -528,15 +528,15 @@ pub async fn delete_template_section(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::NOT_FOUND, "Section not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Sección no encontrada".to_string()));
     }
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ==================== Apply Template to Lesson ====================
+// ==================== Aplicar Plantilla a la Lección ====================
 
-/// POST /api/test-templates/:id/apply - Apply a template to a lesson
+/// POST /api/test-templates/:id/apply - Aplicar una plantilla a una lección
 pub async fn apply_template_to_lesson(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
@@ -544,7 +544,7 @@ pub async fn apply_template_to_lesson(
     State(pool): State<PgPool>,
     Json(payload): Json<ApplyTemplatePayload>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Verify template exists and belongs to organization
+    // Verificar que la plantilla existe y pertenece a la organización
     let template: TestTemplate = sqlx::query_as(
         r#"
         SELECT id, organization_id, mysql_course_id, created_by, name, description, level, course_type,
@@ -559,11 +559,11 @@ pub async fn apply_template_to_lesson(
     .fetch_one(&pool)
     .await
     .map_err(|e| match e {
-        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Template not found".to_string()),
+        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "Plantilla no encontrada".to_string()),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     })?;
 
-    // Verify lesson exists and belongs to organization
+    // Verificar que la lección existe y pertenece a la organización
     let lesson_exists: (bool,) = sqlx::query_as(
         r#"SELECT EXISTS(SELECT 1 FROM lessons WHERE id = $1 AND organization_id = $2)"#
     )
@@ -574,10 +574,10 @@ pub async fn apply_template_to_lesson(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !lesson_exists.0 {
-        return Err((StatusCode::NOT_FOUND, "Lesson not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Lección no encontrada".to_string()));
     }
 
-    // Get template questions with their sections
+    // Obtener las preguntas de la plantilla con sus secciones
     let template_questions: Vec<TestTemplateQuestion> = sqlx::query_as(
         r#"
         SELECT id, template_id, section_id, question_order, question_type, question_text,
@@ -593,10 +593,10 @@ pub async fn apply_template_to_lesson(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if template_questions.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Template has no questions".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "La plantilla no tiene preguntas".to_string()));
     }
 
-    // Build quiz_data JSON from template questions
+    // Construir el JSON quiz_data a partir de las preguntas de la plantilla
     let questions_json: Vec<serde_json::Value> = template_questions
         .iter()
         .map(|q| {
@@ -621,12 +621,12 @@ pub async fn apply_template_to_lesson(
         "passing_score": template.passing_score,
         "total_points": template.total_points,
         "instructions": template.instructions,
-        "max_attempts": 1, // Single attempt as requested
+        "max_attempts": 1, // Intento único según lo solicitado
         "show_feedback": true, // Show explanations after answering
-        "permanent_history": true, // Student can always view their responses
+        "permanent_history": true, // El estudiante siempre puede ver sus respuestas
     });
 
-    // Update lesson with quiz data and configuration
+    // Actualizar lección con datos del cuestionario y configuración
     sqlx::query(
         r#"
         UPDATE lessons 
@@ -649,7 +649,7 @@ pub async fn apply_template_to_lesson(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Increment template usage count
+    // Incrementar el contador de uso de la plantilla
     sqlx::query("SELECT increment_template_usage($1)")
         .bind(template_id)
         .execute(&pool)
@@ -657,7 +657,7 @@ pub async fn apply_template_to_lesson(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     tracing::info!(
-        "Applied template '{}' to lesson '{}' with {} questions",
+        "Plantilla '{}' aplicada a la lección '{}' con {} preguntas",
         template.name,
         payload.lesson_id,
         template_questions.len()
@@ -672,9 +672,9 @@ pub struct ApplyTemplatePayload {
     pub grading_category_id: Option<Uuid>,
 }
 
-// ==================== RAG Question Generation ====================
+// ==================== Generación de Preguntas RAG ====================
 
-// Helper function to generate system prompt based on question type
+// Función auxiliar para generar el system prompt basado en el tipo de pregunta
 fn get_system_prompt_for_question_type(
     question_type: &str,
     num_questions: i32,
@@ -686,12 +686,12 @@ fn get_system_prompt_for_question_type(
             format!(
                 r#"You are an English Teacher creating quiz questions.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL true-false questions about: {}
+Crea {} preguntas ORIGINALES de verdadero-falso sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
         "question_text": "The capital of France is Paris.",
@@ -702,10 +702,10 @@ IMPORTANT - Return ONLY a JSON array with this EXACT structure:
     }}
 ]
 
-Rules:
-- Each question must be a clear statement
-- correct_answer must be true or false
-- Explanations must be concise"#,
+Reglas:
+- Cada pregunta debe ser una afirmación clara
+- correct_answer debe ser true o false
+- Las explicaciones deben ser concisas"#,
                 rag_context, num_questions, topic
             )
         }
@@ -713,12 +713,12 @@ Rules:
             format!(
                 r#"You are an English Teacher creating quiz questions.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL short-answer questions about: {}
+Crea {} preguntas ORIGINALES de respuesta corta sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
         "question_text": "What is the past tense of 'go'?",
@@ -730,10 +730,10 @@ IMPORTANT - Return ONLY a JSON array with this EXACT structure:
     }}
 ]
 
-Rules:
-- correct_answer should be the expected response
-- keywords array contains acceptable variations or key concepts to check
-- Questions should accept brief responses"#,
+Reglas:
+- correct_answer debe ser la respuesta esperada
+- el array de palabras clave (keywords) contiene variaciones aceptables o conceptos clave para verificar
+- Las preguntas deben aceptar respuestas breves"#,
                 rag_context, num_questions, topic
             )
         }
@@ -741,12 +741,12 @@ Rules:
             format!(
                 r#"You are an English Teacher creating essay questions.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL essay questions about: {}
+Crea {} preguntas ORIGINALES de ensayo sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
         "question_text": "Explain how setting influences the mood of a short story.",
@@ -757,10 +757,10 @@ IMPORTANT - Return ONLY a JSON array with this EXACT structure:
     }}
 ]
 
-Rules:
-- Questions must require extended written responses
-- correct_answer should contain rubric guidance or expected criteria
-- No options array is needed"#,
+Reglas:
+- Las preguntas deben requerir respuestas escritas extensas
+- correct_answer debe contener una guía de rúbrica o criterios esperados
+- No se necesita un array de opciones (options)"#,
                 rag_context, num_questions, topic
             )
         }
@@ -768,15 +768,15 @@ Rules:
             format!(
                 r#"You are an English Teacher creating quiz questions.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL matching question sets about: {}
+Crea {} conjuntos de preguntas ORIGINALES de emparejamiento sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with matching questions. Each matching question should have this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con preguntas de emparejamiento. Cada pregunta de emparejamiento debe tener esta estructura EXACTA:
 [
     {{
-        "question_text": "Match each vocabulary term with its definition:",
+        "question_text": "Empareje cada término de vocabulario con su definición:",
         "question_type": "matching",
         "pairs": [
             {{"left": "Verb", "right": "A word that describes an action"}},
@@ -788,128 +788,128 @@ IMPORTANT - Return ONLY a JSON array with matching questions. Each matching ques
     }}
 ]
 
-Rules:
-- Create 3-5 matching pairs per question
-- left/right items must be clear and distinct
-- All items in pairs array must follow the same structure
-- One question per array element"#,
+Reglas:
+- Crear 3-5 pares de emparejamiento por pregunta
+- los elementos izquierda/derecha (left/right) deben ser claros y distintos
+- Todos los elementos del array de pares deben seguir la misma estructura
+- Una pregunta por elemento del array"#,
                 rag_context, num_questions, topic
             )
         }
         "ordering" => {
             format!(
-                r#"You are an English Teacher creating quiz questions.
+                r#"Eres un profesor de inglés creando preguntas para un cuestionario.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL ordering questions about: {}
+Crea {} preguntas ORIGINALES de ordenación sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
-        "question_text": "Arrange these steps of the writing process in correct order:",
+        "question_text": "Organice estos pasos del proceso de escritura en el orden correcto:",
         "question_type": "ordering",
         "items": ["Revise", "Draft", "Prewrite", "Publish", "Edit"],
         "correct_order": [2, 1, 3, 4, 0],
-        "explanation": "The writing process starts with prewriting, then drafting, revising, editing, and finally publishing.",
+        "explanation": "El proceso de escritura comienza con la pre-escritura, luego el borrador, la revisión, la edición y finalmente la publicación.",
         "points": 3
     }}
 ]
 
-Rules:
-- items array contains the items to order
-- correct_order is an array of indices showing the proper sequence (0-based)
-- Must have at least 4 items to order
-- Questions should have a clear logical sequence"#,
+Reglas:
+- el array de elementos (items) contiene los elementos a ordenar
+- correct_order es un array de índices que muestran la secuencia correcta (basado en 0)
+- Debe tener al menos 4 elementos para ordenar
+- Las preguntas deben tener una secuencia lógica clara"#,
                 rag_context, num_questions, topic
             )
         }
         "fill-in-the-blanks" => {
             format!(
-                r#"You are an English Teacher creating quiz questions.
+                r#"Eres un profesor de inglés creando preguntas para un cuestionario.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL fill-in-the-blanks questions about: {}
+Crea {} preguntas ORIGINALES de completar espacios en blanco sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
-        "question_text": "The ________ is the main character in a story, while the ________ opposes them.",
+        "question_text": "El ________ es el personaje principal de una historia, mientras que el ________ se le opone.",
         "question_type": "fill-in-the-blanks",
         "blanks": [
             {{"answer": "protagonist", "keywords": ["protagonist", "hero", "main character"]}},
             {{"answer": "antagonist", "keywords": ["antagonist", "villain", "opponent"]}}
         ],
-        "explanation": "These are key literary terms describing characters in stories.",
+        "explanation": "Estos son términos literarios clave que describen personajes en las historias.",
         "points": 2
     }}
 ]
 
-Rules:
-- question_text should have ________ for each blank
-- blanks array has one object per blank
-- Each blank object must have 'answer' and 'keywords' array
-- keywords should include the main answer plus acceptable variations
-- Questions can have 1-3 blanks"#,
+Reglas:
+- question_text debe tener ________ para cada espacio en blanco
+- el array de espacios (blanks) tiene un objeto por espacio en blanco
+- Cada objeto de espacio en blanco debe tener 'answer' y un array 'keywords'
+- keywords debe incluir la respuesta principal más variaciones aceptables
+- Las preguntas pueden tener de 1 a 3 espacios en blanco"#,
                 rag_context, num_questions, topic
             )
         }
         "audio-response" => {
             format!(
-                r#"You are an English Teacher creating speaking exercises.
+                r#"Eres un profesor de inglés creando ejercicios de expresión oral.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL audio-response speaking prompts about: {}
+Crea {} consignas ORIGINALES de respuesta de audio sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
-        "question_text": "Describe a memorable trip using at least three past tense verbs.",
+        "question_text": "Describa un viaje memorable utilizando al menos tres verbos en pasado.",
         "question_type": "audio-response",
-        "correct_answer": "Use clear past tense forms and relevant travel vocabulary in a coherent answer.",
-        "explanation": "This prompt checks fluency and grammatical control in spoken production.",
+        "correct_answer": "Utilice formas claras en tiempo pasado y vocabulario de viaje relevante en una respuesta coherente.",
+        "explanation": "Esta consigna comprueba la fluidez y el control gramatical en la producción oral.",
         "points": 2
     }}
 ]
 
-Rules:
-- Questions must require spoken production
-- correct_answer should contain rubric guidance or expected response criteria
-- No options array is needed"#,
+Reglas:
+- Las preguntas deben requerir producción oral
+- correct_answer debe contener una guía de rúbrica o criterios de respuesta esperados
+- No se necesita un array de opciones (options)"#,
                 rag_context, num_questions, topic
             )
         }
         _ => {
             // Default to multiple-choice
             format!(
-                r#"You are an English Teacher creating quiz questions.
+                r#"Eres un profesor de inglés creando preguntas para un cuestionario.
 
-Use these examples as inspiration (do NOT copy):
+Usa estos ejemplos como inspiración (NO los copies):
 {}
 
-Create {} ORIGINAL multiple-choice questions about: {}
+Crea {} preguntas ORIGINALES de opción múltiple sobre: {}
 
-IMPORTANT - Return ONLY a JSON array with this EXACT structure:
+IMPORTANTE - Devuelve SOLO un array JSON con esta estructura EXACTA:
 [
     {{
-        "question_text": "The tourist got lost in the ______ of the city.",
+        "question_text": "El turista se perdió en el ______ de la ciudad.",
         "question_type": "multiple-choice",
         "options": ["downtown", "countryside", "mountains", "desert"],
         "correct_answer": 0,
-        "explanation": "Downtown is the main area of a city where tourists typically visit.",
+        "explanation": "El centro (downtown) es la zona principal de una ciudad que los turistas suelen visitar.",
         "points": 1,
         "skill_assessed": "reading"
     }}
 ]
 
-Rules:
-- Option text only, no prefixes like A. or 1)
-- Skills must be one of: reading, listening, speaking, writing"#,
+Reglas:
+- Solo texto de la opción, sin prefijos como A. o 1)
+- Las habilidades (skills) deben ser una de: lectura, escucha, habla, escritura"#,
                 rag_context, num_questions, topic
             )
         }
@@ -997,8 +997,8 @@ fn parse_ai_response_for_question_type(
     flatten_into_questions(questions_data)
 }
 
-/// POST /test-templates/generate-with-rag - Generate questions using RAG from imported MySQL question bank
-/// Uses semantic search with pgvector embeddings when available, falls back to course_id filtering
+/// POST /test-templates/generate-with-rag - Generar preguntas usando RAG del banco de preguntas MySQL importado
+/// Usa búsqueda semántica con embeddings de pgvector cuando están disponibles, de lo contrario recurre al filtrado por course_id
 pub async fn generate_questions_with_rag(
     Org(org_ctx): Org,
     claims: Claims,
@@ -1019,7 +1019,7 @@ pub async fn generate_questions_with_rag(
             .danger_accept_invalid_certs(true)
             .danger_accept_invalid_hostnames(true)
             .build()
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("HTTP client error: {}", e)))?;
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error del cliente HTTP: {}", e)))?;
         
         let ollama_url = ai::get_ollama_url();
         let model = ai::get_embedding_model();
@@ -1070,13 +1070,11 @@ pub async fn generate_questions_with_rag(
                                 .bind(requested_num_questions * 3) // Get more for diversity
                 .fetch_all(&pool)
                 .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Semantic search failed: {}", e)))?;
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("La búsqueda semántica falló: {}", e)))?;
                 
-                tracing::info!("Semantic search found {} similar questions", mysql_questions.len());
+                tracing::info!("La búsqueda semántica encontró {} preguntas similares", mysql_questions.len());
 
                 if mysql_questions.is_empty() {
-                    tracing::info!(
-                        "Semantic search returned no rows; falling back to keyword search for topic {:?} and course {:?}",
                         topic,
                         payload.course_id
                     );
@@ -1123,11 +1121,9 @@ pub async fn generate_questions_with_rag(
                     .bind(requested_num_questions * 3)
                     .fetch_all(&pool)
                     .await
-                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword fallback failed: {}", e)))?;
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("El recurso a palabras clave falló: {}", e)))?;
 
                     if mysql_questions.is_empty() {
-                        tracing::info!(
-                            "Keyword fallback returned no rows; falling back to imported MySQL questions for course {:?}",
                             payload.course_id
                         );
 
@@ -1168,7 +1164,7 @@ pub async fn generate_questions_with_rag(
                             .map_err(|e| {
                                 (
                                     StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("Course fallback failed: {}", e),
+                                    format!("El recurso por curso falló: {}", e),
                                 )
                             })?;
                         }
@@ -1176,7 +1172,7 @@ pub async fn generate_questions_with_rag(
                 }
             }
             Err(e) => {
-                tracing::warn!("Semantic search failed, falling back to keyword search: {}", e);
+                tracing::warn!("La búsqueda semántica falló, recurriendo a búsqueda por palabras clave: {}", e);
                 // Fall back to text search
                 mysql_questions = sqlx::query_as(
                     r#"
@@ -1220,11 +1216,9 @@ pub async fn generate_questions_with_rag(
                 .bind(requested_num_questions * 3)
                 .fetch_all(&pool)
                 .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Keyword search failed: {}", e)))?;
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("La búsqueda por palabras clave falló: {}", e)))?;
 
                 if mysql_questions.is_empty() {
-                    tracing::info!(
-                        "No semantic or keyword matches for topic; falling back to imported MySQL questions for course {:?}",
                         payload.course_id
                     );
 
@@ -1265,7 +1259,7 @@ pub async fn generate_questions_with_rag(
                         .map_err(|e| {
                             (
                                 StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Course fallback failed: {}", e),
+                                format!("El recurso por curso falló: {}", e),
                             )
                         })?;
                     }
@@ -1309,7 +1303,7 @@ pub async fn generate_questions_with_rag(
         .bind(course_id)
         .fetch_all(&pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener las preguntas: {}", e)))?;
     } else {
         // Fetch all imported MySQL questions for this organization
         // NO LIMIT - fetch all questions for better RAG context
@@ -1339,12 +1333,10 @@ pub async fn generate_questions_with_rag(
         .bind(org_ctx.id)
         .fetch_all(&pool)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch questions: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al obtener las preguntas: {}", e)))?;
     }
 
     if mysql_questions.is_empty() {
-        tracing::warn!(
-            "No imported MySQL questions found for org={} course={:?} topic={:?}; falling back to organization-wide imported questions",
             org_ctx.id,
             payload.course_id,
             payload.topic
@@ -1379,7 +1371,7 @@ pub async fn generate_questions_with_rag(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to fetch organization-wide fallback questions: {}", e),
+                format!("Error al obtener preguntas de recurso de toda la organización: {}", e),
             )
         })?;
 
@@ -1405,7 +1397,7 @@ pub async fn generate_questions_with_rag(
         .map(|q| get_course_level_from_mysql(q.nivel_curso, &q.plan_nombre, ""))
         .unwrap_or(CourseLevel::Intermediate);
 
-    tracing::info!("Determined course_type: {:?}, level: {:?} from imported data", course_type, level);
+    tracing::info!("Tipo de curso determinado: {:?}, nivel: {:?} a partir de los datos importados", course_type, level);
 
     // 2. Build RAG context from MySQL questions (lightweight format)
     let rag_context: String = mysql_questions
@@ -1415,7 +1407,7 @@ pub async fn generate_questions_with_rag(
         .collect::<Vec<_>>()
         .join("\n");
 
-    tracing::info!("RAG context built with {} questions", mysql_questions.len().min(8));
+    tracing::info!("Contexto RAG construido con {} preguntas", mysql_questions.len().min(8));
     
     // 3. Call AI to generate new questions based on RAG context (Ollama only)
     let base_url = std::env::var("LOCAL_OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
@@ -1428,7 +1420,7 @@ pub async fn generate_questions_with_rag(
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    tracing::info!("Calling Ollama at {} with model {}", url, model);
+    tracing::info!("Llamando a Ollama en {} con el modelo {}", url, model);
 
     // Save topic for later use
     let topic = payload.topic.clone().unwrap_or_else(|| "English grammar".to_string());
@@ -1459,7 +1451,7 @@ pub async fn generate_questions_with_rag(
         &rag_context,
     );
 
-    tracing::debug!("System prompt length: {} chars", system_prompt.len());
+    tracing::debug!("Longitud del prompt del sistema: {} caracteres", system_prompt.len());
     
     let request = client
         .post(&url)
@@ -1483,19 +1475,19 @@ pub async fn generate_questions_with_rag(
             }
         }));
 
-    tracing::info!("Sending request to Ollama (model: {}, prompt length: {} chars)", model, system_prompt.len());
+    tracing::info!("Enviando solicitud a Ollama (modelo: {}, longitud del prompt: {} caracteres)", model, system_prompt.len());
     
     let response = request.send().await.map_err(|e| {
         tracing::error!("AI request failed after timeout: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Ollama timeout - el equipo t-800 está tardando en responder. Intenta nuevamente: {}", e))
     })?;
 
-    tracing::info!("Ollama response status: {}", response.status());
+    tracing::info!("Estado de la respuesta de Ollama: {}", response.status());
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        tracing::error!("Ollama returned non-success status {}: {}", status, body);
+        tracing::error!("Ollama devolvió un estado de error {}: {}", status, body);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Ollama returned {}. El proxy de IA agotó el tiempo de espera.", status),
@@ -1503,8 +1495,8 @@ pub async fn generate_questions_with_rag(
     }
 
     let response_text = response.text().await.map_err(|e| {
-        tracing::error!("Failed to read AI stream response: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, "Invalid AI response".to_string())
+        tracing::error!("Error al leer la respuesta del flujo de la IA: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Respuesta de IA inválida".to_string())
     })?;
 
     let aggregated_content = response_text
@@ -1532,7 +1524,7 @@ pub async fn generate_questions_with_rag(
         }
     });
 
-    tracing::debug!("Ollama response: {:?}", response_json);
+    tracing::debug!("Respuesta de Ollama: {:?}", response_json);
 
     // Parse questions from Ollama response
     let ai_payload = response_json
@@ -1619,7 +1611,7 @@ pub async fn generate_questions_with_rag(
                 .to_string();
 
             if question_text.is_empty() || question_text.eq_ignore_ascii_case("question") {
-                tracing::warn!("Skipping invalid generated question with empty placeholder text: {:?}", q);
+                tracing::warn!("Omitiendo pregunta generada inválida con texto de marcador vacío: {:?}", q);
                 return None;
             }
 
@@ -1644,7 +1636,7 @@ pub async fn generate_questions_with_rag(
             let (options, correct_answer, options_shuffled) = match question_type_value.as_str() {
                 "multiple-choice" => {
                     if original_options.len() < 2 {
-                        tracing::warn!("Skipping invalid multiple-choice question without enough options: {:?}", q);
+                        tracing::warn!("Omitiendo pregunta de opción múltiple inválida sin suficientes opciones: {:?}", q);
                         return None;
                     }
                     if !original_options.is_empty() && original_correct_idx.is_some() {
@@ -1675,7 +1667,7 @@ pub async fn generate_questions_with_rag(
                         .and_then(|v| v.as_bool())
                         .map(|v| if v { json!(0) } else { json!(1) });
                     if bool_answer.is_none() {
-                        tracing::warn!("Skipping invalid true-false question without boolean correct answer: {:?}", q);
+                        tracing::warn!("Omitiendo pregunta de verdadero-falso inválida sin respuesta correcta booleana: {:?}", q);
                         return None;
                     }
                     (Some(json!(["True", "False"])), bool_answer, false)
@@ -1688,7 +1680,7 @@ pub async fn generate_questions_with_rag(
                         .map(|arr| !arr.is_empty())
                         .unwrap_or(false);
                     if !is_valid {
-                        tracing::warn!("Skipping invalid matching question without pairs: {:?}", q);
+                        tracing::warn!("Omitiendo pregunta de emparejamiento inválida sin pares: {:?}", q);
                         return None;
                     }
                     (pairs.clone(), pairs, false)
@@ -1711,7 +1703,7 @@ pub async fn generate_questions_with_rag(
                         .map(|arr| !arr.is_empty())
                         .unwrap_or(false);
                     if !has_items || !has_order {
-                        tracing::warn!("Skipping invalid ordering question without items/order: {:?}", q);
+                        tracing::warn!("Omitiendo pregunta de ordenación inválida sin elementos/orden: {:?}", q);
                         return None;
                     }
                     (items, order, false)
@@ -1724,7 +1716,7 @@ pub async fn generate_questions_with_rag(
                         .map(|arr| !arr.is_empty())
                         .unwrap_or(false);
                     if !has_blanks {
-                        tracing::warn!("Skipping invalid fill-in-the-blanks question without blanks array: {:?}", q);
+                        tracing::warn!("Omitiendo pregunta de completar espacios en blanco inválida sin array de espacios: {:?}", q);
                         return None;
                     }
                     (blanks.clone(), blanks, false)
@@ -1760,7 +1752,7 @@ pub async fn generate_questions_with_rag(
         .collect();
     
     if generated_questions.is_empty() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "AI failed to generate questions".to_string()));
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "La IA no pudo generar las preguntas".to_string()));
     }
 
     // Save generated questions to question bank
@@ -1819,7 +1811,7 @@ pub async fn generate_questions_with_rag(
     }
 
     tracing::info!(
-        "Generated {} questions using RAG from MySQL bank, saved {} to question bank",
+        "Generadas {} preguntas usando RAG del banco MySQL, guardadas {} al banco de preguntas",
         generated_questions.len(),
         saved_count
     );
@@ -1892,7 +1884,7 @@ async fn ensure_mysql_course_metadata(
     let mysql_url = std::env::var("MYSQL_DATABASE_URL").map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "MYSQL_DATABASE_URL not configured".to_string(),
+            "MYSQL_DATABASE_URL no configurada".to_string(),
         )
     })?;
 
@@ -1907,7 +1899,7 @@ async fn ensure_mysql_course_metadata(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to connect to external MySQL: {}", e),
+                format!("Error al conectar con MySQL externo: {}", e),
             )
         })?;
 
@@ -1962,7 +1954,7 @@ async fn ensure_mysql_course_metadata(
     .map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to upsert MySQL study plan metadata: {}", e),
+            format!("Error al actualizar/insertar los metadatos del plan de estudios MySQL: {}", e),
         )
     })?;
 
@@ -1976,7 +1968,7 @@ async fn ensure_mysql_course_metadata(
     .map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to resolve MySQL study plan metadata: {}", e),
+            format!("Error al resolver los metadatos del plan de estudios MySQL: {}", e),
         )
     })?;
 
@@ -2013,7 +2005,7 @@ async fn ensure_mysql_course_metadata(
     .map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to upsert MySQL course metadata: {}", e),
+            format!("Error al actualizar/insertar los metadatos del curso MySQL: {}", e),
         )
     })?;
 

@@ -25,7 +25,7 @@ pub async fn lti_login_initiation(
     State(pool): State<PgPool>,
     Query(params): Query<LtiLoginParams>,
 ) -> Result<Redirect, (StatusCode, String)> {
-    // 1. Find registration
+    // 1. Buscar registro
     let registration = sqlx::query_as::<_, LtiRegistration>(
         "SELECT * FROM lti_registrations WHERE issuer = $1 AND ($2::text IS NULL OR client_id = $2)"
     )
@@ -34,20 +34,20 @@ pub async fn lti_login_initiation(
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::BAD_REQUEST, "LTI Registration not found".to_string()))?;
+    .ok_or((StatusCode::BAD_REQUEST, "Registro LTI no encontrado".to_string()))?;
 
-    // 2. Generate state and nonce
+    // 2. Generar estado y nonce
     let state = Uuid::new_v4().to_string();
     let nonce = Uuid::new_v4().to_string();
 
-    // 3. Store nonce
+    // 3. Almacenar nonce
     sqlx::query("INSERT INTO lti_nonces (nonce) VALUES ($1)")
         .bind(&nonce)
         .execute(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 4. Construct redirect URL
+    // 4. Construir URL de redirección
     let mut url = format!(
         "{}?scope=openid&response_type=id_token&client_id={}&redirect_uri={}&login_hint={}&state={}&nonce={}&response_mode=form_post",
         registration.auth_login_url,
@@ -76,9 +76,9 @@ pub async fn validate_lti_jwt(
     client_id: &str,
 ) -> Result<LtiLaunchClaims, String> {
     let header = decode_header(id_token).map_err(|e| e.to_string())?;
-    let kid = header.kid.ok_or("Missing kid in JWT header")?;
+    let kid = header.kid.ok_or("Falta kid en el encabezado JWT")?;
 
-    // Fetch JWKS
+    // Obtener JWKS
     let jwks: JwkSet = reqwest::get(jwks_url)
         .await
         .map_err(|e| e.to_string())?
@@ -86,7 +86,7 @@ pub async fn validate_lti_jwt(
         .await
         .map_err(|e| e.to_string())?;
 
-    let jwk = jwks.find(&kid).ok_or("JWK not found for kid")?;
+    let jwk = jwks.find(&kid).ok_or("JWK no encontrado para kid")?;
     let decoding_key = DecodingKey::from_jwk(jwk).map_err(|e| e.to_string())?;
 
     let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);
@@ -102,27 +102,27 @@ pub async fn lti_launch(
     State(pool): State<PgPool>,
     Form(payload): Form<LtiLaunchParams>,
 ) -> Result<Redirect, (StatusCode, String)> {
-    // 1. Decode claims manually to find registration (since we don't have the key yet)
+    // 1. Decodificar claims manualmente para encontrar el registro (ya que aún no tenemos la clave)
     let parts: Vec<&str> = payload.id_token.split('.').collect();
     if parts.len() != 3 {
-        return Err((StatusCode::BAD_REQUEST, "Invalid JWT format".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Formato JWT inválido".to_string()));
     }
     
     let decoded_claims = URL_SAFE_NO_PAD.decode(parts[1])
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid base64 in JWT payload: {}", e)))?;
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Base64 inválido en el payload del JWT: {}", e)))?;
     
     let claims: serde_json::Value = serde_json::from_slice(&decoded_claims)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON in JWT payload: {}", e)))?;
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("JSON inválido en el payload del JWT: {}", e)))?;
 
-    let iss = claims["iss"].as_str().ok_or((StatusCode::BAD_REQUEST, "Missing iss claim".to_string()))?;
+    let iss = claims["iss"].as_str().ok_or((StatusCode::BAD_REQUEST, "Falta el claim iss".to_string()))?;
     let aud_val = &claims["aud"];
     let aud = match aud_val {
         serde_json::Value::String(s) => s.as_str(),
-        serde_json::Value::Array(arr) => arr[0].as_str().ok_or((StatusCode::BAD_REQUEST, "Invalid aud in array".to_string()))?,
-        _ => return Err((StatusCode::BAD_REQUEST, "Invalid aud claim".to_string())),
+        serde_json::Value::Array(arr) => arr[0].as_str().ok_or((StatusCode::BAD_REQUEST, "aud inválido en el array".to_string()))?,
+        _ => return Err((StatusCode::BAD_REQUEST, "Claim aud inválido".to_string())),
     };
 
-    // 2. Find registration
+    // 2. Buscar registro
     let registration = sqlx::query_as::<_, LtiRegistration>(
         "SELECT * FROM lti_registrations WHERE issuer = $1 AND client_id = $2"
     )
@@ -131,14 +131,14 @@ pub async fn lti_launch(
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::NOT_FOUND, "LTI Registration not found for issuer/aud".to_string()))?;
+    .ok_or((StatusCode::NOT_FOUND, "Registro LTI no encontrado para emisor/audiencia".to_string()))?;
 
-    // 3. Validate JWT
+    // 3. Validar JWT
     let lti_claims = validate_lti_jwt(&payload.id_token, &registration.jwks_url, &registration.client_id)
         .await
-        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("JWT validation failed: {}", e)))?;
+        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Validación de JWT fallida: {}", e)))?;
 
-    // 4. Verify nonce
+    // 4. Verificar nonce
     let nonce_exists = sqlx::query("DELETE FROM lti_nonces WHERE nonce = $1")
         .bind(&lti_claims.nonce)
         .execute(&pool)
@@ -147,10 +147,10 @@ pub async fn lti_launch(
         .rows_affected() > 0;
 
     if !nonce_exists {
-        return Err((StatusCode::BAD_REQUEST, "Invalid or expired nonce".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Nonce inválido o expirado".to_string()));
     }
 
-    // 5. Find or create user
+    // 5. Buscar o crear usuario
     let email = lti_claims.email.clone().unwrap_or_else(|| format!("lti_{}@{}", lti_claims.subject, iss.replace("http://", "").replace("https://", "")));
     let full_name = lti_claims.name.clone().unwrap_or_else(|| "LTI User".to_string());
 
@@ -206,16 +206,16 @@ pub async fn lti_launch(
 
     let user = user.unwrap();
 
-    // 8. Redirect based on message type
+    // 8. Redirigir según el tipo de mensaje
     let experience_url = std::env::var("NEXT_PUBLIC_EXPERIENCE_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
     let studio_url = std::env::var("NEXT_PUBLIC_STUDIO_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
 
     let token = common::auth::create_jwt(user.id, user.organization_id, &user.role)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create token: {}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al crear el token: {}", e)))?;
     let redirect_target = lti_claims.resource_link.as_ref().map(|rl| rl.id.clone()).unwrap_or_default();
 
     if lti_claims.message_type == "LtiDeepLinkingRequest" {
-        let settings = lti_claims.deep_linking_settings.ok_or((StatusCode::BAD_REQUEST, "Missing deep_linking_settings".to_string()))?;
+        let settings = lti_claims.deep_linking_settings.ok_or((StatusCode::BAD_REQUEST, "Faltan deep_linking_settings".to_string()))?;
         
         let dl_request_id = Uuid::new_v4();
         sqlx::query(
@@ -249,8 +249,8 @@ pub async fn lti_deep_linking_response(
     claims: Claims, 
     Json(payload): Json<LtiDeepLinkingResponsePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // 1. Retrieve and delete DL request
-    let dl_id = Uuid::parse_str(&payload.dl_token).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid DL token".to_string()))?;
+    // 1. Recuperar y eliminar la solicitud de DL
+    let dl_id = Uuid::parse_str(&payload.dl_token).map_err(|_| (StatusCode::BAD_REQUEST, "Token de DL inválido".to_string()))?;
     
     let dl_request = sqlx::query(
         "DELETE FROM lti_deep_linking_requests WHERE id = $1 RETURNING registration_id, deployment_id, return_url, data"
@@ -259,15 +259,15 @@ pub async fn lti_deep_linking_response(
     .fetch_optional(&pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or((StatusCode::UNAUTHORIZED, "Invalid or expired DL request".to_string()))?;
+    .ok_or((StatusCode::UNAUTHORIZED, "Solicitud de DL inválida o expirada".to_string()))?;
 
-    // Manual mapping since we can't use query!/query_as! easily for RETURNING without a struct
+    // Mapeo manual ya que no podemos usar query!/query_as! fácilmente para RETURNING sin una estructura
     let registration_id: Uuid = dl_request.get("registration_id");
     let deployment_id: String = dl_request.get("deployment_id");
     let _return_url: String = dl_request.get::<String, _>("return_url");
     let dl_data: Option<String> = dl_request.get("data");
 
-    // 2. Find registration
+    // 2. Buscar registro
     let registration = sqlx::query_as::<_, LtiRegistration>(
         "SELECT * FROM lti_registrations WHERE id = $1",
     )

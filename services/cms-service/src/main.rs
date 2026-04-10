@@ -36,32 +36,32 @@ async fn main() {
     dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL debe estar configurada");
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .min_connections(2)
         .acquire_timeout(Duration::from_secs(30))
         .connect(&db_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("Error al conectar con la base de datos");
 
-    // Initialize health state
+    // Inicializar el estado de salud
     let health_state = HealthState::default();
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("Failed to run migrations");
+        .expect("Error al ejecutar las migraciones");
 
-    // Sync default organization branding from environment
+    // Sincronizar la marca de la organización por defecto desde el entorno
     sync_default_organization(&pool).await;
 
-    // Start AI Background Worker
+    // Iniciar el trabajador de IA en segundo plano
     let worker_pool = pool.clone();
     tokio::spawn(async move {
-        tracing::info!("AI Background Worker started");
+        tracing::info!("Trabajador de IA en segundo plano iniciado");
         loop {
-            // Check for queued transcriptions
+            // Buscar transcripciones en cola
             let queued_lessons: Vec<sqlx::types::Uuid> = match sqlx::query_scalar(
                 "SELECT id FROM lessons WHERE transcription_status = 'queued' LIMIT 5",
             )
@@ -70,18 +70,18 @@ async fn main() {
             {
                 Ok(ids) => ids,
                 Err(e) => {
-                    tracing::error!("Failed to fetch queued lessons: {}", e);
+                    tracing::error!("Error al obtener lecciones en cola: {}", e);
                     tokio::time::sleep(Duration::from_secs(10)).await;
                     continue;
                 }
             };
 
             for lesson_id in queued_lessons {
-                tracing::info!("Processing transcription for lesson: {}", lesson_id);
+                tracing::info!("Procesando transcripción para la lección: {}", lesson_id);
                 if let Err(e) =
                     handlers::run_transcription_task(worker_pool.clone(), lesson_id).await
                 {
-                    tracing::error!("Transcription task failed for lesson {}: {}", lesson_id, e);
+                    tracing::error!("La tarea de transcripción falló para la lección {}: {}", lesson_id, e);
                     let _ = sqlx::query(
                         "UPDATE lessons SET transcription_status = 'failed' WHERE id = $1",
                     )
@@ -97,15 +97,15 @@ async fn main() {
         }
     });
 
-    // CORS configuration - Allow multiple origins for development and production
-    // Using a predicate closure to support wildcard subdomains for norteamericano.cl
+    // Configuración de CORS - Permitir múltiples orígenes para desarrollo y producción
+    // Uso de un cierre de predicado para soportar subdominios comodín para norteamericano.cl
     use tower_http::cors::AllowOrigin;
     
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin: &http::HeaderValue, _request: &http::request::Parts| -> bool {
             let origin_str = origin.to_str().unwrap_or("");
             
-            // Development origins
+            // Orígenes de desarrollo
             let allowed_origins = [
                 "http://localhost:3000",
                 "http://localhost:3003",
@@ -114,7 +114,7 @@ async fn main() {
                 "http://192.168.0.254:3000",
                 "http://192.168.0.254:3003",
                 "http://192.168.0.254",
-                // Production - Norteamericano domains (.cl and .com)
+                // Producción - Dominios de Norteamericano (.cl y .com)
                 "http://studio.norteamericano.com",
                 "https://studio.norteamericano.com",
                 "http://learning.norteamericano.com",
@@ -125,12 +125,12 @@ async fn main() {
                 "https://learning.norteamericano.cl",
             ];
             
-            // Check exact matches
+            // Comprobar coincidencias exactas
             if allowed_origins.contains(&origin_str) {
                 return true;
             }
             
-            // Check wildcard for subdomains in norteamericano.cl/.com over HTTP(S)
+            // Comprobar comodín para subdominios en norteamericano.cl/.com sobre HTTP(S)
             for scheme in ["http://", "https://"] {
                 for domain in [".norteamericano.cl", ".norteamericano.com"] {
                     if origin_str.starts_with(scheme) && origin_str.ends_with(domain) {
@@ -140,7 +140,7 @@ async fn main() {
                             .strip_suffix(domain)
                             .unwrap_or("");
 
-                        // Allow any subdomain (e.g., api., cdn., admin., etc.)
+                        // Permitir cualquier subdominio (ej., api., cdn., admin., etc.)
                         if !subdomain.is_empty() && !subdomain.contains('/') {
                             return true;
                         }
@@ -296,7 +296,7 @@ async fn main() {
             "/organization/branding",
             axum::routing::put(handlers_branding::update_organization_branding),
         )
-        // Content Libraries routes
+        // Rutas de librerías de contenido
         .route(
             "/library/blocks",
             get(handlers_library::list_library_blocks).post(handlers_library::create_library_block),
@@ -311,7 +311,7 @@ async fn main() {
             "/library/blocks/{id}/increment-usage",
             post(handlers_library::increment_block_usage),
         )
-        // Advanced Grading (Rubrics) routes
+        // Rutas de calificación avanzada (rúbricas)
         .route(
             "/courses/{id}/rubrics",
             get(handlers_rubrics::list_course_rubrics).post(handlers_rubrics::create_rubric),
@@ -347,7 +347,7 @@ async fn main() {
             "/lessons/{id}/rubrics",
             get(handlers_rubrics::get_lesson_rubrics),
         )
-        // Learning Sequences (Dependencies) routes
+        // Rutas de secuencias de aprendizaje (dependencias)
         .route(
             "/lessons/{id}/dependencies",
             get(handlers_dependencies::list_lesson_dependencies)
@@ -357,7 +357,7 @@ async fn main() {
             "/lessons/{id}/dependencies/{prerequisite_id}",
             delete(handlers_dependencies::remove_dependency),
         )
-        // Test Templates routes
+        // Rutas de plantillas de pruebas
         .route(
             "/test-templates",
             get(handlers_test_templates::list_test_templates)
@@ -393,7 +393,7 @@ async fn main() {
             "/test-templates/generate-with-rag",
             post(handlers_test_templates::generate_questions_with_rag),
         )
-        // Question Bank routes
+        // Rutas del banco de preguntas
         .route(
             "/question-bank",
             get(handlers_question_bank::list_questions)
@@ -433,7 +433,7 @@ async fn main() {
             "/question-bank/ai-generate",
             post(handlers_question_bank::ai_generate_question),
         )
-        // Embedding routes for semantic search
+        // Rutas de embeddings para búsqueda semántica
         .route(
             "/question-bank/embeddings/generate",
             post(handlers_embeddings::generate_question_embeddings),
@@ -450,7 +450,7 @@ async fn main() {
             "/question-bank/{id}/embedding/regenerate",
             post(handlers_embeddings::regenerate_question_embedding),
         )
-        // SAM Integration routes
+        // Rutas de integración con SAM
         .route(
             "/sam/sync-all",
             post(handlers_sam::sync_all_sam),
@@ -471,7 +471,7 @@ async fn main() {
             "/sam/students/{student_id}/courses",
             get(handlers_sam::get_sam_student_courses),
         )
-        // Admin routes
+        // Rutas de administración
         .route(
             "/admin/token-usage",
             get(handlers_admin::get_token_usage),
@@ -527,12 +527,12 @@ async fn main() {
             "/api/assets/s3-proxy/{bucket}/{*key}",
             get(handlers_assets::public_s3_proxy),
         )
-        // Health check routes
+        // Rutas de verificación de salud
         .merge(health::health_routes(pool.clone()).with_state(health_state))
         .nest_service("/assets", tower_http::services::ServeDir::new("uploads"))
         .merge(auth_routes)
         .merge(protected_routes)
-        // Security headers
+        // Cabeceras de seguridad
         .layer(SetResponseHeaderLayer::overriding(
             http::header::STRICT_TRANSPORT_SECURITY,
             http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
@@ -553,14 +553,14 @@ async fn main() {
             http::header::REFERRER_POLICY,
             http::HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
-        // CORS layer - MUST be last to execute first on response
+        // Capa CORS - DEBE ser la última para ejecutarse primero en la respuesta
         .layer(cors)
-        // Trace layer for logging requests/responses
+        // Capa de trazado para registrar solicitudes/respuestas
         .layer(TraceLayer::new_for_http())
         .with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
-    tracing::info!("CMS Service listening on {} with rate limiting and security headers", addr);
+    tracing::info!("Servicio CMS escuchando en {} con limitación de tasa y cabeceras de seguridad", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, public_routes).await.unwrap();
 }
@@ -597,8 +597,8 @@ async fn sync_default_organization(pool: &sqlx::PgPool) {
     .await;
 
     match result {
-        Ok(_) => tracing::info!("Default organization branding synced from .env"),
-        Err(e) => tracing::error!("Failed to sync default organization branding: {}", e),
+        Ok(_) => tracing::info!("Marca de la organización por defecto sincronizada desde .env"),
+        Err(e) => tracing::error!("Error al sincronizar la marca de la organización por defecto: {}", e),
     }
 }
 

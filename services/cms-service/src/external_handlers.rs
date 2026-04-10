@@ -31,9 +31,9 @@ pub async fn create_course_external(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let org_id = validate_api_key(&headers, &pool).await?;
     
-    // We reuse the internal logic but with the org_id from the API key
-    // We need to provide a mock claims for handlers::create_course or refactor it.
-    // Simplifying for now: direct DB call or calling handlers with constructed context.
+    // Reutilizamos la lógica interna pero con el org_id de la clave API
+    // Necesitamos proporcionar un reclamo ficticio (mock claims) para handlers::create_course o refactorizarlo.
+    // Simplificando por ahora: llamada directa a la BD o llamando a manejadores con contexto construido.
     
     let title = payload.title.trim();
     if title.is_empty() {
@@ -52,7 +52,7 @@ pub async fn create_course_external(
     .fetch_one(&pool)
     .await
     .map_err(|e| {
-        tracing::error!("External course creation failed: {}", e);
+        tracing::error!("La creación del curso externo falló: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -94,9 +94,9 @@ pub struct ExternalCreateCoursePayload {
     pub title: String,
     pub description: Option<String>,
     pub pacing_mode: Option<String>,
-    // Optional direct template selection
+    // Selección directa de plantilla opcional
     pub template_id: Option<Uuid>,
-    // Optional fallback selection by level/course type/test type
+    // Selección de respaldo (fallback) opcional por nivel/tipo de curso/tipo de test
     pub template_level: Option<String>,
     pub template_course_type: Option<String>,
     pub template_test_type: Option<String>,
@@ -298,7 +298,7 @@ pub async fn trigger_transcription_external(
 ) -> Result<StatusCode, StatusCode> {
     let org_id = validate_api_key(&headers, &pool).await?;
     
-    // Verify lesson belongs to org
+    // Verificar que la lección pertenece a la organización
     let _ = sqlx::query("SELECT 1 FROM lessons WHERE id = $1 AND organization_id = $2")
         .bind(id)
         .bind(org_id)
@@ -306,7 +306,7 @@ pub async fn trigger_transcription_external(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Queue transcription
+    // Encolar transcripción
     sqlx::query("UPDATE lessons SET transcription_status = 'queued' WHERE id = $1")
         .bind(id)
         .execute(&pool)

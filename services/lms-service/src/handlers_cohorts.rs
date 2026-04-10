@@ -55,7 +55,7 @@ pub async fn add_cohort_member(
     State(pool): State<PgPool>,
     Json(payload): Json<AddMemberPayload>,
 ) -> Result<Json<UserCohort>, (StatusCode, String)> {
-    // Verify cohort belongs to org
+    // Verificar que la cohorte pertenece a la organización
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM cohorts WHERE id = $1 AND organization_id = $2)",
     )
@@ -66,7 +66,7 @@ pub async fn add_cohort_member(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists {
-        return Err((StatusCode::NOT_FOUND, "Cohort not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Cohorte no encontrada".to_string()));
     }
 
     let member = sqlx::query_as::<_, UserCohort>(
@@ -92,7 +92,7 @@ pub async fn remove_cohort_member(
     Path((cohort_id, user_id)): Path<(Uuid, Uuid)>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Verify cohort belongs to org
+    // Verificar que la cohorte pertenece a la organización
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM cohorts WHERE id = $1 AND organization_id = $2)",
     )
@@ -103,7 +103,7 @@ pub async fn remove_cohort_member(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists {
-        return Err((StatusCode::NOT_FOUND, "Cohort not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Cohorte no encontrada".to_string()));
     }
 
     sqlx::query("DELETE FROM user_cohorts WHERE cohort_id = $1 AND user_id = $2")
@@ -122,7 +122,7 @@ pub async fn get_cohort_members(
     Path(cohort_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<Uuid>>, (StatusCode, String)> {
-    // Verify cohort belongs to org
+    // Verificar que la cohorte pertenece a la organización
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM cohorts WHERE id = $1 AND organization_id = $2)",
     )
@@ -133,7 +133,7 @@ pub async fn get_cohort_members(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !exists {
-        return Err((StatusCode::NOT_FOUND, "Cohort not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "Cohorte no encontrada".to_string()));
     }
 
     let members = sqlx::query_scalar("SELECT user_id FROM user_cohorts WHERE cohort_id = $1")

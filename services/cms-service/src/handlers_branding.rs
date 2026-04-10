@@ -1,4 +1,4 @@
-// Organization Branding Handlers
+// Manejadores de Marca de la Organización
 
 use axum::{
     Json,
@@ -32,84 +32,84 @@ pub struct BrandingResponse {
     pub secondary_color: String,
 }
 
-// Upload organization logo
+// Cargar logo de la organización
 pub async fn upload_organization_logo(
     claims: common::auth::Claims,
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Only admins can upload logos
+    // Solo los administradores pueden cargar logos
     if claims.role != "admin" {
-        return Err((StatusCode::FORBIDDEN, "Admin access required".into()));
+        return Err((StatusCode::FORBIDDEN, "Se requiere acceso de administrador".into()));
     }
 
-    // Verify organization exists and user has access
+    // Verificar que la organización existe y el usuario tiene acceso
     let _ = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
         .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::NOT_FOUND, "Organization not found".into()))?;
+        .map_err(|_| (StatusCode::NOT_FOUND, "Organización no encontrada".into()))?;
 
-    // Process multipart form
+    // Procesar formulario multipart
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Multipart error: {}", e)))?
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error en multipart: {}", e)))?
     {
         let name = field.name().unwrap_or("").to_string();
 
         if name == "file" {
             let filename = field
                 .file_name()
-                .ok_or((StatusCode::BAD_REQUEST, "Missing filename".into()))?
+                .ok_or((StatusCode::BAD_REQUEST, "Faltan datos del nombre del archivo".into()))?
                 .to_string();
 
-            // Validate file extension
+            // Validar extensión del archivo
             let ext = filename.split('.').last().unwrap_or("");
             if !["png", "jpg", "jpeg", "svg"].contains(&ext.to_lowercase().as_str()) {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "Invalid file type. Only PNG, JPG, and SVG allowed".into(),
+                    "Tipo de archivo inválido. Solo se permiten PNG, JPG y SVG".into(),
                 ));
             }
 
             let data = field.bytes().await.map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to read file: {}", e),
+                    format!("Error al leer el archivo: {}", e),
                 )
             })?;
 
-            // Validate file size (max 2MB)
+            // Validar tamaño del archivo (máx. 2MB)
             if data.len() > 2 * 1024 * 1024 {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "File too large. Maximum 2MB allowed".into(),
+                    "Archivo demasiado grande. Se permite un máximo de 2MB".into(),
                 ));
             }
 
-            // Create uploads directory if it doesn't exist
+            // Crear el directorio de subidas si no existe
             std::fs::create_dir_all("uploads/org-logos").map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to create directory: {}", e),
+                    format!("Error al crear el directorio: {}", e),
                 )
             })?;
 
-            // Generate unique filename
+            // Generar nombre de archivo único
             let unique_filename = format!("{}_{}.{}", org_ctx.id, uuid::Uuid::new_v4(), ext);
             let filepath = format!("uploads/org-logos/{}", unique_filename);
 
-            // Save file
+            // Guardar archivo
             std::fs::write(&filepath, &data).map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to save file: {}", e),
+                    format!("Error al guardar el archivo: {}", e),
                 )
             })?;
 
-            // Update organization in database
+            // Actualizar organización en la base de datos
             let logo_url = format!("/{}", filepath);
             sqlx::query("UPDATE organizations SET logo_url = $1 WHERE id = $2")
                 .bind(&logo_url)
@@ -119,7 +119,7 @@ pub async fn upload_organization_logo(
                 .map_err(|e| {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Database error: {}", e),
+                        format!("Error de base de datos: {}", e),
                     )
                 })?;
 
@@ -136,92 +136,92 @@ pub async fn upload_organization_logo(
 
             return Ok(Json(json!({
                 "logo_url": logo_url,
-                "message": "Logo uploaded successfully"
+                "message": "Logo cargado con éxito"
             })));
         }
     }
 
-    Err((StatusCode::BAD_REQUEST, "No file provided".into()))
+    Err((StatusCode::BAD_REQUEST, "No se proporcionó ningún archivo".into()))
 }
 
-// Upload organization favicon
+// Cargar favicon de la organización
 pub async fn upload_organization_favicon(
     claims: common::auth::Claims,
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Only admins can upload favicons
+    // Solo los administradores pueden cargar favicons
     if claims.role != "admin" {
-        return Err((StatusCode::FORBIDDEN, "Admin access required".into()));
+        return Err((StatusCode::FORBIDDEN, "Se requiere acceso de administrador".into()));
     }
 
-    // Verify organization exists and user has access
+    // Verificar que la organización existe y el usuario tiene acceso
     let _ = sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE id = $1")
         .bind(org_ctx.id)
         .fetch_one(&pool)
         .await
-        .map_err(|_| (StatusCode::NOT_FOUND, "Organization not found".into()))?;
+        .map_err(|_| (StatusCode::NOT_FOUND, "Organización no encontrada".into()))?;
 
-    // Process multipart form
+    // Procesar formulario multipart
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Multipart error: {}", e)))?
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error en multipart: {}", e)))?
     {
         let name = field.name().unwrap_or("").to_string();
 
         if name == "file" {
             let filename = field
                 .file_name()
-                .ok_or((StatusCode::BAD_REQUEST, "Missing filename".into()))?
+                .ok_or((StatusCode::BAD_REQUEST, "Falta el nombre del archivo".into()))?
                 .to_string();
 
-            // Validate file extension
+            // Validar extensión del archivo
             let ext = filename.split('.').last().unwrap_or("");
             if !["png", "jpg", "jpeg", "svg", "ico"].contains(&ext.to_lowercase().as_str()) {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "Invalid file type. Only PNG, JPG, SVG, and ICO allowed".into(),
+                    "Tipo de archivo inválido. Solo se permiten PNG, JPG, SVG e ICO".into(),
                 ));
             }
 
             let data = field.bytes().await.map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to read file: {}", e),
+                    format!("Error al leer el archivo: {}", e),
                 )
             })?;
 
-            // Validate file size (max 512KB for favicons seems reasonable, but sticking to 1MB to be safe)
+            // Validar tamaño del archivo (el máx. razonable para favicons es 512KB, pero se mantiene en 1MB por seguridad)
             if data.len() > 1024 * 1024 {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "File too large. Maximum 1MB allowed".into(),
+                    "Archivo demasiado grande. Se permite un máximo de 1MB".into(),
                 ));
             }
 
-            // Create uploads directory if it doesn't exist
+            // Crear el directorio de subidas si no existe
             std::fs::create_dir_all("uploads/org-favicons").map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to create directory: {}", e),
+                    format!("Error al crear el directorio: {}", e),
                 )
             })?;
 
-            // Generate unique filename
+            // Generar nombre de archivo único
             let unique_filename = format!("{}_{}.{}", org_ctx.id, uuid::Uuid::new_v4(), ext);
             let filepath = format!("uploads/org-favicons/{}", unique_filename);
 
-            // Save file
+            // Guardar archivo
             std::fs::write(&filepath, &data).map_err(|e| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to save file: {}", e),
+                    format!("Error al guardar el archivo: {}", e),
                 )
             })?;
 
-            // Update organization in database
+            // Actualizar organización en la base de datos
             let favicon_url = format!("/{}", filepath);
             sqlx::query("UPDATE organizations SET favicon_url = $1 WHERE id = $2")
                 .bind(&favicon_url)
@@ -231,7 +231,7 @@ pub async fn upload_organization_favicon(
                 .map_err(|e| {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Database error: {}", e),
+                        format!("Error de base de datos: {}", e),
                     )
                 })?;
 
@@ -248,27 +248,27 @@ pub async fn upload_organization_favicon(
 
             return Ok(Json(json!({
                 "favicon_url": favicon_url,
-                "message": "Favicon uploaded successfully"
+                "message": "Favicon cargado con éxito"
             })));
         }
     }
 
-    Err((StatusCode::BAD_REQUEST, "No file provided".into()))
+    Err((StatusCode::BAD_REQUEST, "No se proporcionó ningún archivo".into()))
 }
 
-// Update organization branding colors
+// Actualizar colores de marca de la organización
 pub async fn update_organization_branding(
     claims: common::auth::Claims,
     Org(org_ctx): Org,
     State(pool): State<PgPool>,
     Json(payload): Json<BrandingPayload>,
 ) -> Result<Json<Organization>, (StatusCode, String)> {
-    // Only admins can update branding
+    // Solo los administradores pueden actualizar la marca
     if claims.role != "admin" {
-        return Err((StatusCode::FORBIDDEN, "Admin access required".into()));
+        return Err((StatusCode::FORBIDDEN, "Se requiere acceso de administrador".into()));
     }
 
-    // Validate hex color format
+    // Validar formato de color hexadecimal
     let validate_color = |color: &str| -> bool {
         color.len() == 7
             && color.starts_with('#')
@@ -279,7 +279,7 @@ pub async fn update_organization_branding(
         if !validate_color(primary) {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "Invalid primary_color format. Use #RRGGBB".into(),
+                "Formato de primary_color inválido. Use #RRGGBB".into(),
             ));
         }
     }
@@ -288,12 +288,12 @@ pub async fn update_organization_branding(
         if !validate_color(secondary) {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "Invalid secondary_color format. Use #RRGGBB".into(),
+                "Formato de secondary_color inválido. Use #RRGGBB".into(),
             ));
         }
     }
 
-    // Update organization
+    // Actualizar organización
     let org = sqlx::query_as::<_, Organization>(
         "UPDATE organizations 
          SET name = COALESCE($1, name),
@@ -316,7 +316,7 @@ pub async fn update_organization_branding(
     .map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Database error: {}", e),
+            format!("Error de base de datos: {}", e),
         )
     })?;
 
@@ -334,7 +334,7 @@ pub async fn update_organization_branding(
     Ok(Json(org))
 }
 
-// Get organization branding (public endpoint)
+// Obtener marca de la organización (punto de conexión público)
 pub async fn get_organization_branding(
     State(pool): State<PgPool>,
 ) -> Result<Json<BrandingResponse>, StatusCode> {

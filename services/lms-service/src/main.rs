@@ -36,44 +36,44 @@ async fn main() {
     dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL debe estar configurada");
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .min_connections(2)
         .acquire_timeout(Duration::from_secs(30))
         .connect(&db_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("Error al conectar con la base de datos");
 
-    // Initialize health state
+    // Inicializar estado de salud
     let health_state = HealthState::default();
 
     let mysql_pool = external_db::init_mysql_pool().await;
 
-    // Run migrations automatically
+    // Ejecutar migraciones automáticamente
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("Failed to run migrations");
+        .expect("Error al ejecutar las migraciones");
 
-    // Start background task for deadline notifications
+    // Iniciar tarea en segundo plano para notificaciones de fechas límite
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         loop {
             handlers::check_deadlines_and_notify(pool_clone.clone()).await;
-            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // Every hour
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // Cada hora
         }
     });
 
-    // CORS configuration - Allow multiple origins for development and production
-    // Using a predicate closure to support wildcard subdomains for norteamericano.cl
+    // Configuración de CORS - Permitir múltiples orígenes para desarrollo y producción
+    // Usando un cierre de predicado para soportar subdominios comodín para norteamericano.cl
     use tower_http::cors::AllowOrigin;
     
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin: &http::HeaderValue, _request: &http::request::Parts| -> bool {
             let origin_str = origin.to_str().unwrap_or("");
             
-            // Development origins
+            // Orígenes de desarrollo
             let allowed_origins = [
                 "http://localhost:3000",
                 "http://localhost:3003",
@@ -82,17 +82,17 @@ async fn main() {
                 "http://192.168.0.254:3000",
                 "http://192.168.0.254:3003",
                 "http://192.168.0.254",
-                // Production - Norteamericano domains (HTTPS)
+                // Producción - Dominios de Norteamericano (HTTPS)
                 "https://studio.norteamericano.cl",
                 "https://learning.norteamericano.cl",
             ];
             
-            // Check exact matches
+            // Comprobar coincidencias exactas
             if allowed_origins.contains(&origin_str) {
                 return true;
             }
             
-            // Check wildcard for subdomains: https://*.norteamericano.cl
+            // Comprobar comodín para subdominios: https://*.norteamericano.cl
             if origin_str.starts_with("https://") && origin_str.ends_with(".norteamericano.cl") {
                 let subdomain = origin_str
                     .strip_prefix("https://")
@@ -100,7 +100,7 @@ async fn main() {
                     .strip_suffix(".norteamericano.cl")
                     .unwrap_or("");
                 
-                // Allow any subdomain (e.g., api., cdn., admin., etc.)
+                // Permitir cualquier subdominio (p. ej., api., cdn., admin., etc.)
                 if !subdomain.is_empty() && !subdomain.contains('/') {
                     return true;
                 }
@@ -169,10 +169,10 @@ async fn main() {
             "/courses/{id}/dropout-risks",
             get(predictive::get_course_dropout_risks),
         )
-        // Live Learning
+        // Aprendizaje en Vivo (Live Learning)
         .route("/courses/{id}/meetings", get(live::get_course_meetings).post(live::create_meeting))
         .route("/courses/{id}/meetings/{meeting_id}", delete(live::delete_meeting))
-        // Portfolio & Badges
+        // Portafolio e insignias (Badges)
         .route("/profile/{user_id}", get(portfolio::get_public_profile))
         .route("/my/badges", get(portfolio::get_my_badges))
         .route("/badges/award", post(portfolio::award_badge))
@@ -189,7 +189,7 @@ async fn main() {
         .route("/lessons/{id}/heatmap", get(handlers::get_lesson_heatmap))
         .route("/audio/evaluate", post(handlers::evaluate_audio_response))
         .route("/audio/evaluate-file", post(handlers::evaluate_audio_file))
-        // Audio Response Teacher Routes
+        // Rutas de Profesor para Respuesta de Audio
         .route("/audio-responses", get(handlers::get_audio_responses))
         .route("/audio-responses/{id}", get(handlers::get_audio_response_detail))
         .route("/audio-responses/{id}/audio", get(handlers::get_audio_response_audio))
@@ -204,7 +204,7 @@ async fn main() {
             "/notifications/{id}/read",
             post(handlers::mark_notification_as_read),
         )
-        // Knowledge Base Embedding Routes for Semantic RAG
+        // Rutas de Embeddings de Base de Conocimientos para RAG Semántico
         .route(
             "/knowledge-base/embeddings/generate",
             post(handlers_embeddings::generate_knowledge_embeddings),
@@ -217,7 +217,7 @@ async fn main() {
             "/knowledge-base/{id}/embedding/regenerate",
             post(handlers_embeddings::regenerate_knowledge_embedding),
         )
-        // Discussion Forums Routes
+        // Rutas de Foros de Discusión
         .route(
             "/courses/{id}/discussions",
             get(handlers_discussions::list_threads),
@@ -255,7 +255,7 @@ async fn main() {
             "/discussions/{id}/unsubscribe",
             post(handlers_discussions::unsubscribe_thread),
         )
-        // Announcements
+        // Anuncios
         .route(
             "/courses/{id}/announcements",
             get(handlers_announcements::list_announcements),
@@ -274,7 +274,7 @@ async fn main() {
         )
         .route("/lessons/{id}/notes", get(handlers_notes::get_note))
         .route("/lessons/{id}/notes", put(handlers_notes::save_note))
-        // Cohorts
+        // Cohortes (Cohorts)
         .route("/cohorts", get(handlers_cohorts::list_cohorts))
         .route("/cohorts", post(handlers_cohorts::create_cohort))
         .route(
@@ -289,7 +289,7 @@ async fn main() {
             "/cohorts/{id}/members",
             get(handlers_cohorts::get_cohort_members),
         )
-        // Peer Assessment
+        // Evaluación por Pares (Peer Assessment)
         .route(
             "/courses/{id}/lessons/{lesson_id}/submit",
             post(handlers_peer_review::submit_assignment),
@@ -338,7 +338,7 @@ async fn main() {
 </html>
             "#)
         }))
-        // Health check routes
+        // Rutas de comprobación de salud (Health check)
         .merge(health::health_routes(pool.clone()).with_state(health_state))
         .route("/catalog", get(handlers::get_course_catalog))
         .route("/ingest", post(handlers::ingest_course))
@@ -353,7 +353,7 @@ async fn main() {
         .route("/lti/jwks", get(jwks::lti_jwks_handler))
         .route("/lti/deep-linking/response", post(lti::lti_deep_linking_response))
         .merge(protected_routes)
-        // Security headers
+        // Encabezados de seguridad (Security headers)
         .layer(SetResponseHeaderLayer::overriding(
             http::header::STRICT_TRANSPORT_SECURITY,
             http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
@@ -379,7 +379,7 @@ async fn main() {
         .layer(axum::Extension(mysql_pool));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3002));
-    tracing::info!("LMS Service listening on {} with rate limiting and security headers", addr);
+    tracing::info!("LMS Service escuchando en {} con limitación de tasa y encabezados de seguridad", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, public_routes).await.unwrap();
 }
