@@ -1584,6 +1584,45 @@ export const lmsApi = {
         }, true),
     getCourseAudioResponseStats: (courseId: string): Promise<AudioResponseStats> =>
         apiFetch(`/courses/${courseId}/audio-responses/stats`, { method: 'GET' }, true),
+
+    // FAQ moderation from student AI chats
+    importFaqCandidates: (limit = 50): Promise<{ imported: number; skipped: number }> =>
+        apiFetch('/faq/review/import-candidates', {
+            method: 'POST',
+            body: JSON.stringify({ limit })
+        }, true),
+    getFaqReviewQueue: (
+        status?: 'pending' | 'answered' | 'published' | 'dismissed',
+        limit = 50,
+        offset = 0
+    ): Promise<FaqReviewQueueResponse> =>
+        apiFetch('/faq/review-queue', {
+            method: 'GET',
+            query: { status, limit, offset }
+        }, true),
+    answerFaqReviewItem: (
+        itemId: string,
+        payload: {
+            human_answer: string;
+            reviewer_note?: string;
+            publish_to_faq?: boolean;
+            tags?: string[];
+        }
+    ): Promise<void> =>
+        apiFetch(`/faq/review-queue/${itemId}/answer`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        }, true),
+    dismissFaqReviewItem: (itemId: string, reviewer_note?: string): Promise<void> =>
+        apiFetch(`/faq/review-queue/${itemId}/dismiss`, {
+            method: 'POST',
+            body: JSON.stringify({ reviewer_note })
+        }, true),
+    listFaqEntries: (search?: string, limit = 100, offset = 0): Promise<FaqEntry[]> =>
+        apiFetch('/faq/entries', {
+            method: 'GET',
+            query: { search, limit, offset }
+        }, true),
 };
 
 export interface Meeting {
@@ -1617,6 +1656,47 @@ export interface PublicProfile {
     level: number;
     xp: number;
     completed_courses_count: number;
+}
+
+export interface FaqReviewItem {
+    id: string;
+    source_ai_usage_log_id?: string;
+    user_id: string;
+    student_name?: string;
+    student_email?: string;
+    lesson_id?: string;
+    session_id?: string;
+    question_text: string;
+    ai_response?: string;
+    rag_context_found: boolean;
+    status: 'pending' | 'answered' | 'published' | 'dismissed';
+    reviewer_id?: string;
+    reviewer_name?: string;
+    reviewer_note?: string;
+    human_answer?: string;
+    faq_entry_id?: string;
+    created_at: string;
+    reviewed_at?: string;
+}
+
+export interface FaqReviewQueueResponse {
+    items: FaqReviewItem[];
+    total: number;
+    limit: number;
+    offset: number;
+}
+
+export interface FaqEntry {
+    id: string;
+    organization_id: string;
+    question: string;
+    answer: string;
+    tags?: string[];
+    source: string;
+    created_by?: string;
+    is_published: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface LtiDeepLinkingContentItem {

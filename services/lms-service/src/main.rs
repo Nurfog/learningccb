@@ -7,6 +7,7 @@ mod handlers_notes;
 mod handlers_payments;
 mod handlers_peer_review;
 mod handlers_embeddings;
+mod handlers_faq;
 mod lti;
 mod jwks;
 mod predictive;
@@ -216,6 +217,27 @@ async fn main() {
         .route(
             "/knowledge-base/{id}/embedding/regenerate",
             post(handlers_embeddings::regenerate_knowledge_embedding),
+        )
+        // Moderación humana para FAQ basada en chats de alumnos
+        .route(
+            "/faq/review/import-candidates",
+            post(handlers_faq::import_faq_candidates),
+        )
+        .route(
+            "/faq/review-queue",
+            get(handlers_faq::list_faq_review_queue),
+        )
+        .route(
+            "/faq/review-queue/{id}/answer",
+            post(handlers_faq::answer_faq_review_item),
+        )
+        .route(
+            "/faq/review-queue/{id}/dismiss",
+            post(handlers_faq::dismiss_faq_review_item),
+        )
+        .route(
+            "/faq/entries",
+            get(handlers_faq::list_faq_entries),
         )
         // Rutas de Foros de Discusión
         .route(
