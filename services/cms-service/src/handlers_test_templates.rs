@@ -270,7 +270,7 @@ pub async fn get_test_template(
 pub async fn update_test_template(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
-    claims: Claims,
+    _claims: Claims,
     State(pool): State<PgPool>,
     Json(payload): Json<UpdateTestTemplatePayload>,
 ) -> Result<Json<TestTemplate>, (StatusCode, String)> {
@@ -511,7 +511,7 @@ pub struct CreateSectionPayload {
 
 /// DELETE /api/test-templates/:template_id/sections/:section_id - Eliminar una sección
 pub async fn delete_template_section(
-    Org(org_ctx): Org,
+    Org(_org_ctx): Org,
     Path((template_id, section_id)): Path<(Uuid, Uuid)>,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -540,7 +540,7 @@ pub async fn delete_template_section(
 pub async fn apply_template_to_lesson(
     Org(org_ctx): Org,
     Path(template_id): Path<Uuid>,
-    claims: Claims,
+    _claims: Claims,
     State(pool): State<PgPool>,
     Json(payload): Json<ApplyTemplatePayload>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -1075,6 +1075,8 @@ pub async fn generate_questions_with_rag(
                 tracing::info!("La búsqueda semántica encontró {} preguntas similares", mysql_questions.len());
 
                 if mysql_questions.is_empty() {
+                    tracing::info!(
+                        "Sin coincidencias semánticas para el tema; recurso a búsqueda por palabras clave. topic={} course_id={:?}",
                         topic,
                         payload.course_id
                     );
@@ -1124,6 +1126,8 @@ pub async fn generate_questions_with_rag(
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("El recurso a palabras clave falló: {}", e)))?;
 
                     if mysql_questions.is_empty() {
+                        tracing::info!(
+                            "Sin coincidencias por palabras clave; recurso a preguntas importadas por curso. course_id={:?}",
                             payload.course_id
                         );
 
@@ -1219,6 +1223,8 @@ pub async fn generate_questions_with_rag(
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("La búsqueda por palabras clave falló: {}", e)))?;
 
                 if mysql_questions.is_empty() {
+                    tracing::info!(
+                        "Sin resultados semánticos ni por palabras clave; recurso a preguntas importadas por curso. course_id={:?}",
                         payload.course_id
                     );
 
@@ -1337,6 +1343,8 @@ pub async fn generate_questions_with_rag(
     }
 
     if mysql_questions.is_empty() {
+        tracing::warn!(
+            "No se encontraron preguntas importadas para org={} course_id={:?} topic={:?}; recurso a preguntas de toda la organización",
             org_ctx.id,
             payload.course_id,
             payload.topic
@@ -1828,6 +1836,7 @@ pub struct RagGenerationPayload {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct QuestionBankForRAG {
     descripcion: String,
     options: Option<serde_json::Value>,
@@ -1839,6 +1848,7 @@ struct QuestionBankForRAG {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct MySqlQuestion {
     descripcion: String,
     id_tipo_pregunta: i32,

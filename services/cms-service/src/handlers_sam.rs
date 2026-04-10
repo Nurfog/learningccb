@@ -115,7 +115,7 @@ pub async fn sync_sam_students(
         .flatten();
 
         match existing_user {
-            Some((user_id, existing_sam_id)) => {
+            Some((user_id, _existing_sam_id)) => {
                 // Actualizar usuario existente con información de SAM
                 let update_result = sqlx::query(
                     r#"
@@ -373,8 +373,8 @@ pub async fn get_sam_student_courses(
 /// POST /api/sam/sync-all
 /// Sincronización completa: estudiantes + asignaciones
 pub async fn sync_all_sam(
-    org: Org,
-    claims: Claims,
+    _org: Org,
+    _claims: Claims,
     State(pool): State<PgPool>,
 ) -> Result<Json<SamSyncResponse>, (StatusCode, String)> {
     let mut errors = Vec::new();

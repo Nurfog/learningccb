@@ -948,7 +948,7 @@ pub async fn run_transcription_task(pool: PgPool, lesson_id: Uuid) -> Result<(),
     let full_text = transcription_result["text"].as_str().unwrap_or("");
     if !full_text.is_empty() {
         tracing::info!("Triggering AI summary for lesson {}", lesson_id);
-        if let Ok((summary, input_tokens, output_tokens)) = generate_summary_with_ollama(full_text, lesson_id, &pool).await {
+        if let Ok((summary, _input_tokens, _output_tokens)) = generate_summary_with_ollama(full_text, lesson_id, &pool).await {
             tracing::info!("Summary generated successfully for lesson {}", lesson_id);
             let _ = sqlx::query("UPDATE lessons SET summary = $1 WHERE id = $2")
                 .bind(summary)
@@ -2879,6 +2879,7 @@ pub async fn get_organization(
 }
 
 /// GET /organization - Public endpoint (returns default organization)
+#[allow(dead_code)]
 pub async fn get_public_organization(
     State(pool): State<PgPool>,
 ) -> Result<Json<Organization>, StatusCode> {

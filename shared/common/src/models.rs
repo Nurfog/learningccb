@@ -1182,6 +1182,7 @@ pub struct PublicProfile {
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 #[sqlx(type_name = "course_level", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
+#[allow(non_camel_case_types)]
 pub enum CourseLevel {
     Beginner,
     Beginner_1,

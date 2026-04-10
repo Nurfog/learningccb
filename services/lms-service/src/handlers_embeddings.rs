@@ -272,6 +272,7 @@ pub async fn semantic_search_knowledge(
 // ==================== Estructuras de Ayuda ====================
 
 #[derive(Debug, sqlx::FromRow, Clone)]
+#[allow(dead_code)]
 struct KnowledgeBaseEntry {
     id: Uuid,
     organization_id: Uuid,

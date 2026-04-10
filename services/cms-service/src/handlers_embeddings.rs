@@ -9,7 +9,6 @@ use axum::{
 use common::ai::{self, generate_embedding};
 use common::models::QuestionBank;
 use common::middleware::Org;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -77,7 +76,7 @@ pub async fn generate_question_embeddings(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     
-    let total = questions.len();
+    let _total = questions.len();
     let mut processed = 0;
     let mut failed = 0;
     
@@ -280,12 +279,12 @@ pub async fn semantic_search(
     
     let mut param_idx = 3;
     
-    if let Some(ref question_type) = filters.question_type {
+    if filters.question_type.is_some() {
         param_idx += 1;
         query.push_str(&format!(" AND question_type::text = ${}", param_idx));
     }
     
-    if let Some(ref difficulty) = filters.difficulty {
+    if filters.difficulty.is_some() {
         param_idx += 1;
         query.push_str(&format!(" AND difficulty = ${}", param_idx));
     }

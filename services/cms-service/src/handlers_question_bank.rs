@@ -137,6 +137,7 @@ async fn connect_mysql_pool(env_var: &str) -> Result<sqlx::MySqlPool, (StatusCod
 // ==================== Planes de Estudio y Cursos de MySQL ====================
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MySqlStudyPlan {
     pub id: i32,
     pub mysql_id: i32,
@@ -149,6 +150,7 @@ pub struct MySqlStudyPlan {
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MySqlCourse {
     pub id: i32,
     pub mysql_id: i32,
@@ -1012,6 +1014,7 @@ fn parse_mysql_answers(
 // ==================== Integración con MySQL ====================
 
 /// GET /api/question-bank/mysql-courses - Listar cursos de MySQL para importación
+#[allow(dead_code)]
 pub async fn list_mysql_courses(
     Org(_org_ctx): Org,
     State(_pool): State<PgPool>,
@@ -1514,6 +1517,7 @@ pub async fn import_all_from_mysql(
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct ImportResult {
     pub imported: i32,
     pub skipped: i32,
@@ -1549,6 +1553,7 @@ pub struct MySqlQuestionFull {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct MySqlQuestion {
     id_pregunta: i32,
     descripcion: String,
@@ -1565,6 +1570,7 @@ struct MySqlQuestion {
 #[derive(Debug, Deserialize)]
 pub struct AIGenerateQuestionPayload {
     pub question_text: Option<String>,
+    #[allow(dead_code)]
     pub question_type: Option<String>,
     pub difficulty: Option<String>,
     pub skill: Option<String>,
@@ -1588,6 +1594,7 @@ pub async fn ai_generate_question(
     use std::time::Duration;
 
     let question_text = payload.question_text.unwrap_or_else(|| "Pregunta de gramática inglesa".to_string());
+    let question_type = payload.question_type.unwrap_or_else(|| "multiple-choice".to_string());
     let difficulty = payload.difficulty.unwrap_or_else(|| "medium".to_string());
     let skill = payload.skill.unwrap_or_else(|| "grammar".to_string());
 
@@ -1597,6 +1604,7 @@ pub async fn ai_generate_question(
 
         Create a multiple-choice question with the following parameters:
         - Topic/Context: {}
+        - Question type: {}
         - Difficulty: {}
         - Skill assessed: {}
 
@@ -1607,7 +1615,7 @@ pub async fn ai_generate_question(
             "correct_answer": 0,
             "explanation": "Detailed explanation of why this is correct"
         }}"#,
-        question_text, difficulty, skill
+        question_text, question_type, difficulty, skill
     );
 
     // Llamar a Ollama AI con tiempo de espera extendido
@@ -1800,8 +1808,8 @@ async fn generate_course_structure<'a>(
     course_id: Uuid,
     org_id: Uuid,
     course_type: &str,
-    level: &str,
-    course_name: &str,
+    _level: &str,
+    _course_name: &str,
 ) -> Result<(i32, i32), String> {
     // Definir la estructura de módulos basada en el tipo de curso
     // Regular (40h): 4 módulos
@@ -1892,6 +1900,7 @@ struct SamDiagnosticoQuestion {
     pub id_curso: i32,
     pub id_pregunta: i32,
     pub pregunta_nombre: Option<String>,
+    #[allow(dead_code)]
     pub tipo_pregunta: Option<String>,
     /// Opciones separadas por '|||' (GROUP_CONCAT)
     pub opciones: Option<String>,

@@ -117,6 +117,7 @@ pub fn get_model_for_task(task: &str) -> String {
 }
 
 /// Crear un cliente reqwest que acepte certificados inválidos (para desarrollo con certificados autofirmados)
+#[allow(dead_code)]
 fn create_insecure_client() -> Result<reqwest::Client, AiError> {
     reqwest::Client::builder()
         .danger_accept_invalid_certs(true)

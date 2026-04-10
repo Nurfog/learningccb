@@ -56,11 +56,12 @@ impl WebhookService {
             match res {
                 Ok(response) => {
                     if !response.status().is_success() {
-                            "El envío del webhook a {} (evento: {}) falló con estado {}",
-                            url,
-                            event_type,
-                            response.status()
-                        );
+                            tracing::error!(
+                                "El envío del webhook a {} (evento: {}) falló con estado {}",
+                                url,
+                                event_type,
+                                response.status()
+                            );
                     } else {
                         tracing::info!(
                             "Webhook enviado con éxito a {} (evento: {})",
